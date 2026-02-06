@@ -8,11 +8,11 @@ import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
-import Badge from '@mui/material/Badge';
 import Container from '@mui/material/Container';
 import MenuIcon from '@mui/icons-material/Menu';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import NotificationsIcon from '@mui/icons-material/Notifications';
+import Brightness4Icon from '@mui/icons-material/Brightness4';
+import Brightness7Icon from '@mui/icons-material/Brightness7';
 import NavMenu from './components/navMenu';
 import KeysComponent from './components/keys';
 import ConnectionComponent from './components/connection';
@@ -73,11 +73,10 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
   }),
 );
 
-const mdTheme = createTheme();
-
 function App() {
   const [open, setOpen] = React.useState(true);
   const [refreshNav, setRefreshNav] = React.useState(false);
+  const [mode, setMode] = React.useState('light');
 
   const toggleDrawer = () => {
     setOpen(!open);
@@ -86,6 +85,20 @@ function App() {
   const forceRefreshNav = () => {
     setRefreshNav(!refreshNav);
   }
+
+  const toggleColorMode = () => {
+    setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
+  };
+
+  const mdTheme = React.useMemo(
+    () =>
+      createTheme({
+        palette: {
+          mode,
+        },
+      }),
+    [mode],
+  );
 
   if (process.env.NODE_ENV === "development") {
     axios.defaults.baseURL = "http://localhost:8080/";
@@ -131,10 +144,8 @@ function App() {
               >
                 ETCD Adminer
               </Typography>
-              <IconButton color="inherit">
-                <Badge badgeContent={0} color="secondary">
-                  <NotificationsIcon />
-                </Badge>
+              <IconButton color="inherit" onClick={toggleColorMode}>
+                {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
               </IconButton>
             </Toolbar>
           </AppBar>
@@ -143,15 +154,16 @@ function App() {
               sx={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'flex-end',
+                justifyContent: 'center',
                 px: [1],
+                position: 'relative',
               }}
             >
-              <Paper variant="outline" sx={{maxHeight:50}}>
+              <Paper variant="outline" sx={{maxHeight:50, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
                 <img src="/images/logo100.png" alt="etcd-logo" height="50px" width="50px"/>
               </Paper>
 
-              <IconButton onClick={toggleDrawer}>
+              <IconButton onClick={toggleDrawer} sx={{ position: 'absolute', right: 8 }}>
                 <ChevronLeftIcon />
               </IconButton>
 
