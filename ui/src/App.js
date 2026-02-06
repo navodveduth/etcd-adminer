@@ -76,7 +76,12 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
 function App() {
   const [open, setOpen] = React.useState(true);
   const [refreshNav, setRefreshNav] = React.useState(false);
-  const [mode, setMode] = React.useState('light');
+  
+  // initialize mode from localStorage or default to dark
+  const [mode, setMode] = React.useState(() => {
+    const savedMode = localStorage.getItem('themeMode');
+    return savedMode || 'dark';
+  });
 
   const toggleDrawer = () => {
     setOpen(!open);
@@ -87,7 +92,12 @@ function App() {
   }
 
   const toggleColorMode = () => {
-    setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
+    setMode((prevMode) => {
+      const newMode = prevMode === 'light' ? 'dark' : 'light';
+      // save to localStorage
+      localStorage.setItem('themeMode', newMode);
+      return newMode;
+    });
   };
 
   const mdTheme = React.useMemo(
