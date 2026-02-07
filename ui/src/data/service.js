@@ -34,7 +34,7 @@ export default class DataService {
                     headers: {
                         "X-Backend": activeSession.BackEnd
                     },
-                    timeout: 10000,
+                    timeout: 30000, // 30 seconds for cluster info
                 })
                 if (response.status === 200) {
                     resolve(response.data);
@@ -261,6 +261,7 @@ export default class DataService {
                     headers: {
                         "X-Backend": activeSession.BackEnd
                     },
+                    timeout: 60000,
                 });
 
                 if (response.status === 200) {

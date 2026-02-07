@@ -1,18 +1,51 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 
 import FSNavigator from './tree';
+import KeysList from './keysList';
 import Grid from '@mui/material/Grid';
 import Paper from '@mui/material/Paper';
+import Box from '@mui/material/Box';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
 import EditorComponent from './editor';
 import DataService from '../data/service'
 import BottomInfoBar from './bottomInfoBar';
 
+function TabPanel(props) {
+    const { children, value, index, ...other } = props;
+
+    return (
+        <div
+            role="tabpanel"
+            hidden={value !== index}
+            id={`keys-tabpanel-${index}`}
+            aria-labelledby={`keys-tab-${index}`}
+            style={{
+                height: '100%',
+                display: value === index ? 'flex' : 'none',
+                flexDirection: 'column',
+                overflow: 'hidden'
+            }}
+            {...other}
+        >
+            {value === index && children}
+        </div>
+    );
+}
+
 export default function Keys(props) {
-    const dataService = useMemo( () => new DataService(), []);
+    const dataService = useMemo(() => new DataService(), []);
 
     const [activeKey, setActiveKey] = useState("/");
     const [keys, setKeys] = useState({ id: 'root', name: 'Parent' });
     const [isNewKey, setIsNewKey] = useState(false);
+    const [tabValue, setTabValue] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    const handleTabChange = (event, newValue) => {
+        setTabValue(newValue);
+    };
 
     const createVirtualFile = async (path) => {
         try {
@@ -49,11 +82,19 @@ export default function Keys(props) {
 
     const fetchKeys = useCallback(async () => {
         try {
+            setLoading(true);
+            setError(null);
             let keys = await dataService.GetKeys();
             setKeys(keys);
         } catch (error) {
-            // TODO: display an error
             console.error(error);
+            if (error.code === 'ECONNABORTED') {
+                setError('Request timeout. Loading large dataset takes longer than expected. Please wait...');
+            } else {
+                setError('Failed to load keys. Please try again.');
+            }
+        } finally {
+            setLoading(false);
         }
     }, [dataService])
 
@@ -72,16 +113,44 @@ export default function Keys(props) {
                             display: 'flex',
                             flexDirection: 'column',
                             height: 800,
+                            overflow: 'hidden',
                         }}
                     >
-                        <FSNavigator
-                            keys={keys}
-                            onKeyClick={setActiveKey}
-                            fetchKeys={fetchKeys}
-                            createFile={createVirtualFile}
-                            createDirectory={createVirtualDirectory}
-                            deleteKey={deleteKey}
-                        />
+                        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 1, flexShrink: 0 }}>
+                            <Tabs
+                                value={tabValue}
+                                onChange={handleTabChange}
+                                aria-label="keys view tabs"
+                                variant="fullWidth"
+                            >
+                                <Tab label="Folder" id="keys-tab-0" aria-controls="keys-tabpanel-0" />
+                                <Tab label="List" id="keys-tab-1" aria-controls="keys-tabpanel-1" />
+                            </Tabs>
+                        </Box>
+
+                        <TabPanel value={tabValue} index={0}>
+                            <FSNavigator
+                                keys={keys}
+                                loading={loading}
+                                error={error}
+                                onKeyClick={setActiveKey}
+                                fetchKeys={fetchKeys}
+                                createFile={createVirtualFile}
+                                createDirectory={createVirtualDirectory}
+                                deleteKey={deleteKey}
+                            />
+                        </TabPanel>
+
+                        <TabPanel value={tabValue} index={1}>
+                            <KeysList
+                                keys={keys}
+                                loading={loading}
+                                error={error}
+                                onKeyClick={setActiveKey}
+                                fetchKeys={fetchKeys}
+                                deleteKey={deleteKey}
+                            />
+                        </TabPanel>
                     </Paper>
                 </Grid>
 

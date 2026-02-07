@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom'
 import Grid from '@mui/material/Grid';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
@@ -18,6 +19,7 @@ import DataService from '../data/service'
 
 export default function NewConnection(props) {
 
+    const navigate = useNavigate();
     const dataService = useMemo(() => { return new DataService()}, []);
     const sessionStore = useMemo(() => { return new SessionStore()}, []);
 
@@ -100,6 +102,9 @@ export default function NewConnection(props) {
 
         // enable nav menu items
         props.forceRefreshNav();
+
+        // redirect to keys route
+        navigate('/keys');
     }
 
     const submitSession = (session) => {

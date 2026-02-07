@@ -66,7 +66,7 @@ class SessionStore {
             sessions[key].Name === session.Name ? sessions[key].isActive = true : sessions[key].isActive = false
         });
 
-        console.log(sessions);
+        // console.log(sessions);
         this._setLocalSessions(sessions);
     }
 
