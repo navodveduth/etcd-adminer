@@ -14,6 +14,9 @@ import InputAdornment from '@mui/material/InputAdornment';
 import SearchIcon from '@mui/icons-material/Search';
 import Box from '@mui/material/Box';
 import Tooltip from '@mui/material/Tooltip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Alert from '@mui/material/Alert';
+import Button from '@mui/material/Button';
 import ConfirmationDialog from './dialogs/confirmationDialog';
 
 export default function KeysList(props) {
@@ -111,6 +114,15 @@ export default function KeysList(props) {
 
     return (
         <Box sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {props.error && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                    {props.error}
+                    <Button size="small" onClick={props.fetchKeys} sx={{ ml: 2 }}>
+                        Retry
+                    </Button>
+                </Alert>
+            )}
+            
             <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <TextField
                     fullWidth
@@ -140,45 +152,55 @@ export default function KeysList(props) {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {paginatedKeys.map((key) => {
-                            return (
-                                <TableRow
-                                    key={key.path}
-                                    hover
-                                    sx={{
-                                        cursor: 'pointer',
-                                        opacity: key.isVirtual ? 0.6 : 1,
-                                        fontStyle: key.isVirtual ? 'italic' : 'normal'
-                                    }}
-                                >
-                                    <TableCell
-                                        component="th"
-                                        scope="row"
-                                        onClick={() => handleEditClick(key.path)}
-                                    >
-                                        {key.path}
-                                        {key.isVirtual && <span style={{ marginLeft: 8, color: '#999' }}>(unsaved)</span>}
-                                    </TableCell>
-                                    <TableCell align="right">
-                                        <Tooltip title="Delete">
-                                            <IconButton
-                                                size="small"
-                                                onClick={() => handleDeleteClick(key)}
-                                                color="error"
-                                            >
-                                                <DeleteIcon fontSize="small" />
-                                            </IconButton>
-                                        </Tooltip>
-                                    </TableCell>
-                                </TableRow>
-                            );
-                        })}
-                        {filteredKeys.length === 0 && (
+                        {props.loading ? (
                             <TableRow>
-                                <TableCell colSpan={2} align="center" sx={{ py: 3, color: 'text.secondary' }}>
-                                    {searchTerm ? 'No keys found matching your search' : 'No keys available'}
+                                <TableCell colSpan={2} align="center" sx={{ py: 3 }}>
+                                    <CircularProgress size={40} />
                                 </TableCell>
                             </TableRow>
+                        ) : (
+                            <>
+                                {paginatedKeys.map((key) => {
+                                    return (
+                                        <TableRow
+                                            key={key.path}
+                                            hover
+                                            sx={{
+                                                cursor: 'pointer',
+                                                opacity: key.isVirtual ? 0.6 : 1,
+                                                fontStyle: key.isVirtual ? 'italic' : 'normal'
+                                            }}
+                                        >
+                                            <TableCell
+                                                component="th"
+                                                scope="row"
+                                                onClick={() => handleEditClick(key.path)}
+                                            >
+                                                {key.path}
+                                                {key.isVirtual && <span style={{ marginLeft: 8, color: '#999' }}>(unsaved)</span>}
+                                            </TableCell>
+                                            <TableCell align="right">
+                                                <Tooltip title="Delete">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => handleDeleteClick(key)}
+                                                        color="error"
+                                                    >
+                                                        <DeleteIcon fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                                {filteredKeys.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={2} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                                            {searchTerm ? 'No keys found matching your search' : 'No keys available'}
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </>
                         )}
                     </TableBody>
                 </Table>

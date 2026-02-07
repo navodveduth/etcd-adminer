@@ -16,7 +16,7 @@ import Brightness7Icon from '@mui/icons-material/Brightness7';
 import NavMenu from './components/navMenu';
 import KeysComponent from './components/keys';
 import ConnectionComponent from './components/connection';
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, Link } from "react-router-dom";
 import Paper from '@mui/material/Paper';
 import ClusterInfo from './components/cluster';
 import UserList from './components/userList';
@@ -114,7 +114,7 @@ function App() {
     axios.defaults.baseURL = "http://localhost:8080/";
   }
 
-  axios.defaults.timeout = 10000;
+  axios.defaults.timeout = 30000;
 
   const sessionStore = new SessionStore();
 
@@ -169,9 +169,11 @@ function App() {
                 position: 'relative',
               }}
             >
-              <Paper variant="outline" sx={{maxHeight:50, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-                <img src="/images/logo100.png" alt="etcd-logo" height="50px" width="50px"/>
-              </Paper>
+              <Link to="/" style={{ textDecoration: 'none' }}>
+                <Paper variant="outline" sx={{maxHeight:50, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'}}>
+                  <img src="/images/logo100.png" alt="etcd-logo" height="50px" width="50px"/>
+                </Paper>
+              </Link>
 
               <IconButton onClick={toggleDrawer} sx={{ position: 'absolute', right: 8 }}>
                 <ChevronLeftIcon />

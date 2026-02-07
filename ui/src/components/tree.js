@@ -11,6 +11,10 @@ import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
 import DeleteIcon from '@mui/icons-material/Delete';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
+import CircularProgress from '@mui/material/CircularProgress';
+import Box from '@mui/material/Box';
+import Alert from '@mui/material/Alert';
+import Button from '@mui/material/Button';
 import ConfirmationDialog from './dialogs/confirmationDialog';
 import NewDirectoryDialog from './dialogs/newDirectoryDialog'
 import NewFileDialog from './dialogs/newFileDialog';
@@ -133,16 +137,31 @@ export default function FSNavigator(props) {
 
   return (
     <div>
-      <TreeView
-        aria-label="rich object"
-        defaultCollapseIcon={<FolderOpenIcon sx={{ color: "#f1c40f" }} />}
-        defaultExpanded={['1']}
-        defaultEndIcon={<ArticleIcon sx={{ color: "#f1c40f" }} />}
-        defaultExpandIcon={<FolderIcon sx={{ color: "#f1c40f" }} />}
-        sx={{ height: 700, flexGrow: 1, maxWidth: 400, overflowY: 'auto' }}
-      >
-        {renderTree(props.keys)}
-      </TreeView>
+      {props.error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {props.error}
+          <Button size="small" onClick={props.fetchKeys} sx={{ ml: 2 }}>
+            Retry
+          </Button>
+        </Alert>
+      )}
+      
+      {props.loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 700 }}>
+          <CircularProgress size={40} />
+        </Box>
+      ) : (
+        <TreeView
+          aria-label="rich object"
+          defaultCollapseIcon={<FolderOpenIcon sx={{ color: "#f1c40f" }} />}
+          defaultExpanded={['1']}
+          defaultEndIcon={<ArticleIcon sx={{ color: "#f1c40f" }} />}
+          defaultExpandIcon={<FolderIcon sx={{ color: "#f1c40f" }} />}
+          sx={{ height: 700, flexGrow: 1, maxWidth: 400, overflowY: 'auto' }}
+        >
+          {renderTree(props.keys)}
+        </TreeView>
+      )}
       <Menu
         open={contextMenu !== null}
         onClose={handleClose}

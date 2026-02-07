@@ -40,6 +40,8 @@ export default function Keys(props) {
     const [keys, setKeys] = useState({ id: 'root', name: 'Parent' });
     const [isNewKey, setIsNewKey] = useState(false);
     const [tabValue, setTabValue] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     const handleTabChange = (event, newValue) => {
         setTabValue(newValue);
@@ -80,11 +82,19 @@ export default function Keys(props) {
 
     const fetchKeys = useCallback(async () => {
         try {
+            setLoading(true);
+            setError(null);
             let keys = await dataService.GetKeys();
             setKeys(keys);
         } catch (error) {
-            // TODO: display an error
             console.error(error);
+            if (error.code === 'ECONNABORTED') {
+                setError('Request timeout. Loading large dataset takes longer than expected. Please wait...');
+            } else {
+                setError('Failed to load keys. Please try again.');
+            }
+        } finally {
+            setLoading(false);
         }
     }, [dataService])
 
@@ -121,6 +131,8 @@ export default function Keys(props) {
                         <TabPanel value={tabValue} index={0}>
                             <FSNavigator
                                 keys={keys}
+                                loading={loading}
+                                error={error}
                                 onKeyClick={setActiveKey}
                                 fetchKeys={fetchKeys}
                                 createFile={createVirtualFile}
@@ -132,6 +144,8 @@ export default function Keys(props) {
                         <TabPanel value={tabValue} index={1}>
                             <KeysList
                                 keys={keys}
+                                loading={loading}
+                                error={error}
                                 onKeyClick={setActiveKey}
                                 fetchKeys={fetchKeys}
                                 deleteKey={deleteKey}
