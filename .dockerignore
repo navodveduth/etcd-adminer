@@ -1,3 +1,13 @@
 .vscode/
-**/node_modules/*
+**/node_modules
 ./vendor/*
+.git
+build
+ui/build
+ui/coverage
+ui/test-results
+ui/playwright-report
+config.yaml
+certs
+**/.env*
+coverage.out

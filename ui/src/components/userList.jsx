@@ -98,7 +98,7 @@ export default function UserList(props) {
     return (
         <Grid container spacing={3}>
 
-            <Grid item xs={12} md={6} lg={6}>
+            <Grid size={{ xs: 12, md: 6, lg: 6 }}>
                 <Paper
                     sx={{
                         p: 2,
@@ -107,7 +107,7 @@ export default function UserList(props) {
                     }}
                 >
                     <Grid container spacing={1}>
-                        <Grid xs={12} sm={12}>
+                        <Grid size={12}>
                             <Typography variant="h6" gutterBottom>
                                 Users
                             </Typography>
@@ -117,10 +117,10 @@ export default function UserList(props) {
                         </Grid>
 
                     </Grid>
-                    <Grid container item xs={12} sm={12}>
+                    <Grid container size={12}>
                         {users.length > 0 ? getUserTable() : null}
                     </Grid>
-                    <Grid xs={12} sm={12}>
+                    <Grid size={12}>
                         <Link to='new'>
                             <Fab color="primary" aria-label="add" sx={{ position: "absolute", bottom: 16, right: 16 }}>
                                 <AddIcon />
@@ -132,7 +132,7 @@ export default function UserList(props) {
             </Grid>
 
             {showRightPane && (
-                <Grid item xs={12} md={6} lg={6}>
+                <Grid size={{ xs: 12, md: 6, lg: 6 }}>
                     <UserInfo key={selectedUser} allRoles={roles} userName={selectedUser} />
                 </Grid>
             )}

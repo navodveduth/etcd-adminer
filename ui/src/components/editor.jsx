@@ -1,12 +1,13 @@
 import * as React from 'react';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
-import Editor from "@monaco-editor/react";
 import Stack from '@mui/material/Stack';
 import { styled } from '@mui/material/styles';
 import Snackbar from '@mui/material/Snackbar';
 import MuiAlert from '@mui/material/Alert';
 import DataService from '../data/service'
+
+const Editor = React.lazy(() => import('./monacoEditor'));
 
 class EditorComponent extends React.Component {
     dataService;
@@ -152,6 +153,7 @@ class EditorComponent extends React.Component {
                     </Paper>
                     <div>
 
+                        {this.props.etcdKey ? <React.Suspense fallback={<div role="status">Loading editor…</div>}>
                         <Editor
                             width="100%"
                             height="650px"
@@ -162,6 +164,7 @@ class EditorComponent extends React.Component {
                             onChange={this.onChange}
                             editorDidMount={this.editorDidMount}
                         />
+                        </React.Suspense> : <p>Select a key to edit its value.</p>}
 
                         <div style={{ float: "right", paddingTop: "10px" }}>
                             <Button variant="contained" color="success" style={{ marginRight: "10px" }} onClick={this.save}>

@@ -1,7 +1,7 @@
 import * as React from 'react';
-import TreeView from '@mui/lab/TreeView';
+import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import FolderIcon from '@mui/icons-material/Folder';
-import TreeItem from '@mui/lab/TreeItem';
+import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
@@ -74,7 +74,7 @@ export default function FSNavigator(props) {
   const renderTree = (nodes) => (
     <TreeItem
       key={nodes.id}
-      nodeId={nodes.id.toString()}
+      itemId={nodes.id.toString()}
       label={nodes.name}
       type={nodes.type}
       data-index={nodes.abspath}
@@ -141,16 +141,14 @@ export default function FSNavigator(props) {
           <CircularProgress size={40} />
         </Box>
       ) : (
-        <TreeView
+        <SimpleTreeView
           aria-label="rich object"
-          defaultCollapseIcon={<FolderOpenIcon sx={{ color: "#f1c40f" }} />}
-          defaultExpanded={['1']}
-          defaultEndIcon={<ArticleIcon sx={{ color: "#f1c40f" }} />}
-          defaultExpandIcon={<FolderIcon sx={{ color: "#f1c40f" }} />}
+          defaultExpandedItems={['1']}
+          slots={{ collapseIcon: FolderOpenIcon, expandIcon: FolderIcon, endIcon: ArticleIcon }}
           sx={{ height: 700, flexGrow: 1, maxWidth: 400, overflowY: 'auto' }}
         >
           {renderTree(props.keys)}
-        </TreeView>
+        </SimpleTreeView>
       )}
       <Menu
         open={contextMenu !== null}

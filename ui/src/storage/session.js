@@ -1,30 +1,28 @@
 class Session {
-    Name;
-    Endpoints;
-    BackEnd;
-    UserName;
-    Password;
-    isActive;
-
     constructor(name, backend, endpoints, username, password) {
         this.Name = name;
+        this.BackEnd = backend;
         this.Endpoints = endpoints;
-        this.BackEnd = backend
         this.UserName = username;
         this.Password = password;
+        this.isActive = false;
     }
 }
 
 class SessionStore {
-    key = "sessions"
+    key = 'sessions';
 
     _getLocalSessions() {
-        let data = localStorage.getItem(this.key);
-        if (data === "" || data === null) {
-            return null;
+        try {
+            const data = JSON.parse(localStorage.getItem(this.key) || '{}');
+            if (!data || typeof data !== 'object' || Array.isArray(data)) return {};
+            return Object.fromEntries(Object.entries(data).filter(([name, session]) => (
+                session && typeof session === 'object' && session.Name === name &&
+                typeof session.BackEnd === 'string' && typeof session.UserName === 'string'
+            )));
+        } catch {
+            return {};
         }
-        let sessions = JSON.parse(data);
-        return sessions;
     }
 
     _setLocalSessions(sessions) {
@@ -32,71 +30,42 @@ class SessionStore {
     }
 
     Get(name) {
-        let sessions = this._getLocalSessions();
-        return sessions[name];
+        const sessions = this._getLocalSessions();
+        return Object.hasOwn(sessions, name) ? sessions[name] : undefined;
     }
 
     GetAll() {
-        try {
-            return this._getLocalSessions();
-        } catch(e) {
-            return null
-        }
+        return this._getLocalSessions();
     }
 
     Add(session) {
-        let sessions = this._getLocalSessions();
-        if (sessions === "" || sessions == null) {
-            sessions = {};
+        if (!session.Name?.trim() || !session.BackEnd || typeof session.UserName !== 'string') {
+            throw new Error('A connection name, backend, and username are required.');
         }
-
-        sessions[session.Name] = session;
-        this._setLocalSessions(sessions);
+        this._setLocalSessions({ ...this._getLocalSessions(), [session.Name]: session });
     }
 
     Delete(session) {
-        let sessions = this._getLocalSessions();
+        const sessions = this._getLocalSessions();
         delete sessions[session.Name];
         this._setLocalSessions(sessions);
     }
 
     SetActiveSession(session) {
-        let sessions = this._getLocalSessions();
-        Object.keys(sessions).forEach((key) => {
-            sessions[key].Name === session.Name ? sessions[key].isActive = true : sessions[key].isActive = false
-        });
-
-        // console.log(sessions);
+        const sessions = this._getLocalSessions();
+        if (!Object.hasOwn(sessions, session.Name)) return false;
+        Object.values(sessions).forEach((item) => { item.isActive = item.Name === session.Name; });
         this._setLocalSessions(sessions);
+        return true;
     }
 
     GetActiveSession() {
-        try {
-            let sessions = this._getLocalSessions();
-            return Object.values(sessions).find((obj) => {
-                return obj.isActive
-            });
-        } catch (e) {
-            throw e;
-        }
+        return Object.values(this._getLocalSessions()).find((session) => session.isActive);
     }
 
     IsLocalSessionAvailable() {
-        try {
-            let sessions = this._getLocalSessions();
-
-            if(sessions === null) {
-                return false;
-            }
-
-            if (Object.keys(sessions).length <= 0) {
-                return false;
-            }
-            return true
-        } catch (error) {
-            return false
-        }
+        return Object.keys(this._getLocalSessions()).length > 0;
     }
 }
 
-export { Session, SessionStore }
+export { Session, SessionStore };

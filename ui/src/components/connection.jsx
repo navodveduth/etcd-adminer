@@ -43,7 +43,7 @@ export default function Connection(props) {
 
     return (
         <Grid container spacing={3}>
-            <Grid item xs={12} sm={12}>
+            <Grid size={12}>
                 <Paper
                     sx={{
                         p: 2,
@@ -54,7 +54,7 @@ export default function Connection(props) {
 
                     {getAlert()}
 
-                    <Grid item xs={12} sm={12}>
+                    <Grid size={12}>
                         <Typography variant="h6">
                             Saved Connections
                         </Typography>
@@ -68,8 +68,8 @@ export default function Connection(props) {
                     sessions !== null && Object.keys(sessions).map((key) => {
                         let conn = sessions[key];
                         return (
-                            <Grid item xs={6} sm={3}>
-                                <React.Fragment key={conn.Name + conn.UserName}>
+                            <Grid size={{ xs: 6, sm: 3 }} key={conn.Name}>
+                                <React.Fragment>
                                     <ConnectionCard
                                         connection={conn}
                                         useSession={useSession}
@@ -83,7 +83,7 @@ export default function Connection(props) {
                 </Paper>
             </Grid>
 
-            <Grid item xs={12} sm={12}>
+            <Grid size={12}>
                 <Link to='new'>
                     <Fab color="primary" aria-label="add" sx={{ position: "absolute", bottom: 16, right: 16 }}>
                         <AddIcon />

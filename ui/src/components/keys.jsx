@@ -36,7 +36,7 @@ function TabPanel(props) {
 export default function Keys(props) {
     const dataService = useMemo(() => new DataService(), []);
 
-    const [activeKey, setActiveKey] = useState("/");
+    const [activeKey, setActiveKey] = useState(null);
     const [keys, setKeys] = useState({ id: 'root', name: 'Parent' });
     const [isNewKey, setIsNewKey] = useState(false);
     const [tabValue, setTabValue] = useState(0);
@@ -106,7 +106,7 @@ export default function Keys(props) {
         <React.Fragment>
             <Grid container spacing={1}>
 
-                <Grid item xs={12} md={4} lg={3}>
+                <Grid size={{ xs: 12, md: 4, lg: 3 }}>
                     <Paper
                         sx={{
                             p: 2,
@@ -154,11 +154,11 @@ export default function Keys(props) {
                     </Paper>
                 </Grid>
 
-                <Grid item xs={12} md={8} lg={9}>
+                <Grid size={{ xs: 12, md: 8, lg: 9 }}>
                     <EditorComponent etcdKey={activeKey} isNewKey={isNewKey} />
                 </Grid>
 
-                <Grid item xs={12}>
+                <Grid size={12}>
                     <BottomInfoBar />
                 </Grid>
             </Grid>

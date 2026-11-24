@@ -7,9 +7,7 @@ export default function About(props) {
   return (
     <Grid container spacing={3}>
       <Grid
-        item
-        xs={12}
-        sm={12}
+        size={12}
         sx={{
           justifyContent: "center",
           display: "flex",

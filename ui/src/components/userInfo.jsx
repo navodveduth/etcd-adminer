@@ -84,13 +84,13 @@ export default function UserInfo(props) {
             <Typography variant="h6" gutterBottom>
                 User Info: {user.name}
             </Typography>
-            <Grid container item xs={12} sm={12}>
-                <Grid item xs={12}>
+            <Grid container size={12}>
+                <Grid size={12}>
                     <Typography variant="subtitle1" gutterBottom>
                         Roles:
                     </Typography>
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={12}>
                     <Paper
                         sx={{
                             display: 'flex',
@@ -127,7 +127,7 @@ export default function UserInfo(props) {
                         
                     </Paper>
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={12}>
                     <Typography variant="subtitle1" gutterBottom>
                         Assign New Role:
                     </Typography>

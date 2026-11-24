@@ -130,13 +130,13 @@ export default function KeysList(props) {
                     placeholder="Search keys..."
                     value={searchTerm}
                     onChange={handleSearchChange}
-                    InputProps={{
+                    slotProps={{ input: {
                         startAdornment: (
                             <InputAdornment position="start">
                                 <SearchIcon />
                             </InputAdornment>
                         ),
-                    }}
+                    } }}
                 />
                 <Box sx={{ minWidth: 80, textAlign: 'right', fontSize: '0.875rem', color: 'text.secondary' }}>
                     {filteredKeys.length} {filteredKeys.length === 1 ? 'key' : 'keys'}

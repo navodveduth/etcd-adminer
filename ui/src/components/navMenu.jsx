@@ -1,77 +1,37 @@
-import * as React from 'react';
-import ListItem from '@mui/material/ListItem';
+import List from '@mui/material/List';
+import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
-import InfoIcon from '@mui/icons-material/Info';
 import ListItemText from '@mui/material/ListItemText';
+import InfoIcon from '@mui/icons-material/Info';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import LayersIcon from '@mui/icons-material/Layers';
 import StorageIcon from '@mui/icons-material/Storage';
 import AssignmentIcon from '@mui/icons-material/Assignment';
-import { Link } from "react-router-dom";
-import List from '@mui/material/List';
-import { SessionStore } from '../storage/session'
+import { Link } from 'react-router-dom';
+import { SessionStore } from '../storage/session';
 
-export default function NavMenu(props) {
+const destinations = [
+  { path: 'connection', label: 'Connection', icon: DashboardIcon },
+  { path: 'cluster', label: 'Cluster', icon: StorageIcon, connection: true },
+  { path: 'keys', label: 'Keys', icon: AssignmentIcon, connection: true },
+  { path: 'watchers', label: 'Watchers', icon: BarChartIcon, disabled: true },
+  { path: 'users', label: 'Users', icon: PeopleIcon, connection: true },
+  { path: 'roles', label: 'Roles', icon: LayersIcon, disabled: true },
+  { path: 'about', label: 'About', icon: InfoIcon },
+];
 
-  const sessionStore = new SessionStore();
-
-  const isLocalSessionAvailable = () => {
-    return sessionStore.IsLocalSessionAvailable();
-  }
-
+export default function NavMenu() {
+  const hasConnection = Boolean(new SessionStore().GetActiveSession());
   return (
     <List>
-      <ListItem button component={Link} to="connection">
-        <ListItemIcon>
-          <DashboardIcon />
-        </ListItemIcon>
-        <ListItemText primary="Connection" />
-      </ListItem>
-
-      <ListItem button component={Link} to="cluster" disabled={!isLocalSessionAvailable()}>
-        <ListItemIcon>
-          <StorageIcon />
-        </ListItemIcon>
-        <ListItemText primary="Cluster" />
-      </ListItem>
-
-      <ListItem button component={Link} to="keys" disabled={!isLocalSessionAvailable()} >
-        <ListItemIcon>
-          <AssignmentIcon />
-        </ListItemIcon>
-        <ListItemText primary="Keys" />
-      </ListItem>
-
-      <ListItem button component={Link} to="watchers" disabled>
-        <ListItemIcon>
-          <BarChartIcon />
-        </ListItemIcon>
-        <ListItemText primary="Watchers" />
-      </ListItem>
-
-      <ListItem button component={Link} to="users" disabled={!isLocalSessionAvailable()}>
-        <ListItemIcon>
-          <PeopleIcon />
-        </ListItemIcon>
-        <ListItemText primary="Users" />
-      </ListItem>
-
-      <ListItem button component={Link} to="roles" disabled>
-        <ListItemIcon>
-          <LayersIcon />
-        </ListItemIcon>
-        <ListItemText primary="Roles" />
-      </ListItem>
-
-      <ListItem button component={Link} to="about">
-        <ListItemIcon>
-          <InfoIcon />
-        </ListItemIcon>
-        <ListItemText primary="About" />
-      </ListItem>
-
+      {destinations.map(({ path, label, icon: Icon, connection, disabled }) => (
+        <ListItemButton key={path} component={Link} to={`/${path}`} disabled={disabled || (connection && !hasConnection)}>
+          <ListItemIcon><Icon /></ListItemIcon>
+          <ListItemText primary={label} />
+        </ListItemButton>
+      ))}
     </List>
-  )
-};
+  );
+}

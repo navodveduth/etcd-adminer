@@ -2,7 +2,7 @@ import * as React from 'react';
 import Grid from '@mui/material/Grid';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
-import Box from '@mui/system/Box';
+import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
@@ -23,12 +23,12 @@ import DataService from '../data/service'
 const ITEM_HEIGHT = 48;
 const ITEM_PADDING_TOP = 8;
 const MenuProps = {
-    PaperProps: {
+    slotProps: { paper: {
         style: {
             maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
             width: 250,
         },
-    },
+    } },
 };
 
 export default function CreateUser(props) {
@@ -171,7 +171,7 @@ export default function CreateUser(props) {
     return (
         <Grid container spacing={3}>
 
-            <Grid item xs={12} md={6} lg={6}>
+            <Grid size={{ xs: 12, md: 6, lg: 6 }}>
                 <Paper
                     sx={{
                         p: 2,
@@ -183,7 +183,7 @@ export default function CreateUser(props) {
                         New User
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap' }} >
-                        <Grid item xs={12} sm={12} >
+                        <Grid size={12}>
                             {success === true && successMessage !== "" ? alert("success", successMessage) : null}
                             {error === true && errorMessage !== "" ? alert("error", errorMessage) : null}
                         </Grid>

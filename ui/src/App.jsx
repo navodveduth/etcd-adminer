@@ -14,19 +14,20 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import NavMenu from './components/navMenu';
-import KeysComponent from './components/keys';
 import ConnectionComponent from './components/connection';
 import { BrowserRouter, Route, Routes, Navigate, Link } from "react-router-dom";
 import Paper from '@mui/material/Paper';
-import ClusterInfo from './components/cluster';
-import UserList from './components/userList';
-import CreateUser from './components/createUser'
-import NewConnectionComponent from './components/newConnection'
-import About from './components/about'
+import CircularProgress from '@mui/material/CircularProgress';
 import { SessionStore } from './storage/session'
 
 
 const drawerWidth = 240;
+const KeysComponent = React.lazy(() => import('./components/keys'));
+const ClusterInfo = React.lazy(() => import('./components/cluster'));
+const UserList = React.lazy(() => import('./components/userList'));
+const CreateUser = React.lazy(() => import('./components/createUser'));
+const NewConnectionComponent = React.lazy(() => import('./components/newConnection'));
+const About = React.lazy(() => import('./components/about'));
 
 const AppBar = styled(MuiAppBar, {
   shouldForwardProp: (prop) => prop !== 'open',
@@ -111,9 +112,9 @@ function App() {
 
   const sessionStore = new SessionStore();
 
-  const isLocalSessionAvailable = () => {
-    return sessionStore.IsLocalSessionAvailable();
-  }
+  const requireConnection = (element) => sessionStore.GetActiveSession()
+    ? element
+    : <Navigate to="/connection" replace />;
 
   return (
     <ThemeProvider theme={mdTheme}>
@@ -163,7 +164,7 @@ function App() {
               }}
             >
               <Link to="/" style={{ textDecoration: 'none' }}>
-                <Paper variant="outline" sx={{maxHeight:50, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'}}>
+                <Paper variant="outlined" sx={{maxHeight:50, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'}}>
                   <img src="/images/logo100.png" alt="etcd-logo" height="50px" width="50px"/>
                 </Paper>
               </Link>
@@ -190,22 +191,18 @@ function App() {
           >
             <Toolbar />
             <Container maxWidth={false} sx={{ mt: 4, mb: 4 }}>
+              <React.Suspense fallback={<CircularProgress aria-label="Loading page" />}>
               <Routes>
                 <Route path="/" element={<ConnectionComponent />} />
-                <Route exact path="connection" element={<ConnectionComponent />} render={() => (
-                  isLocalSessionAvailable ? (
-                    <Navigate to={"/connection/new"} replace={true} />
-                  ) : (
-                    <ConnectionComponent />
-                  )
-                )} />
+                <Route path="connection" element={<ConnectionComponent />} />
                 <Route path="connection/new" element={<NewConnectionComponent forceRefreshNav={forceRefreshNav} />} />
-                <Route path="cluster" element={<ClusterInfo />} />
-                <Route path="keys" element={<KeysComponent />} />
-                <Route path="users" element={<UserList />} />
-                <Route path="users/new" element={<CreateUser />} />
+                <Route path="cluster" element={requireConnection(<ClusterInfo />)} />
+                <Route path="keys" element={requireConnection(<KeysComponent />)} />
+                <Route path="users" element={requireConnection(<UserList />)} />
+                <Route path="users/new" element={requireConnection(<CreateUser />)} />
                 <Route path="about" element={<About />} />
               </Routes>
+              </React.Suspense>
             </Container>
           </Box>
         </Box>

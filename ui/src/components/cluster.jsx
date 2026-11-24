@@ -38,7 +38,7 @@ export default function ClusterInfo(props) {
     return (
         <Grid container spacing={3}>
 
-            <Grid item xs={12} md={6} lg={6}>
+            <Grid size={{ xs: 12, md: 6, lg: 6 }}>
                 <Paper
                     sx={{
                         p: 2,
@@ -54,29 +54,29 @@ export default function ClusterInfo(props) {
                         Cluster Information
                     </Typography>
                     <Grid container spacing={3}>
-                        <Grid container item xs={12} sm={12}>
-                            <Grid item xs={4}>
+                        <Grid container size={12}>
+                            <Grid size={4}>
                                 <Typography>Cluster ID:</Typography>
                             </Grid>
-                            <Grid item xs={8}>
+                            <Grid size={8}>
                                 <Typography>{clusterInfo.clusterID}</Typography>
                             </Grid>
-                            <Grid item xs={4}>
+                            <Grid size={4}>
                                 <Typography>Member ID:</Typography>
                             </Grid>
-                            <Grid item xs={8}>
+                            <Grid size={8}>
                                 <Typography>{clusterInfo.memberID}</Typography>
                             </Grid>
-                            <Grid item xs={4}>
+                            <Grid size={4}>
                                 <Typography>Raft Term:</Typography>
                             </Grid>
-                            <Grid item xs={8}>
+                            <Grid size={8}>
                                 <Typography>{clusterInfo.raftTerm}</Typography>
                             </Grid>
-                            <Grid item xs={4}>
+                            <Grid size={4}>
                                 <Typography>Revision:</Typography>
                             </Grid>
-                            <Grid item xs={8}>
+                            <Grid size={8}>
                                 <Typography>{clusterInfo.revision}</Typography>
                             </Grid>
                         </Grid>
@@ -95,7 +95,7 @@ export default function ClusterInfo(props) {
                         Nodes
                     </Typography>
                     <Grid container spacing={3}>
-                        <Grid container item xs={12} sm={12}>
+                        <Grid container size={12}>
                             {clusterInfo.nodes && clusterInfo.nodes.map(node => {
                                 return (
                                     <Node

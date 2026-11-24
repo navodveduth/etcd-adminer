@@ -6,7 +6,7 @@ import CardContent from '@mui/material/CardContent';
 
 export default function Node(props) {
     return (
-        <Grid item xs={12} sm={6} md={4} lg={4}>
+        <Grid size={{ xs: 12, sm: 6, md: 4, lg: 4 }}>
             <Card variant="outlined" sx={{ m: 1 }}>
                 <React.Fragment>
                     <CardContent>

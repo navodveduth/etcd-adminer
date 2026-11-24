@@ -4,9 +4,8 @@ import Grid from '@mui/material/Grid';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
-import Box from '@mui/system/Box';
+import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import LoadingButton from '@mui/lab/LoadingButton';
 import SendIcon from '@mui/icons-material/Send';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
@@ -157,7 +156,7 @@ export default function NewConnection(props) {
     return (
         <Grid container spacing={3}>
 
-            <Grid item xs={12} md={6} lg={6}>
+            <Grid size={{ xs: 12, md: 6, lg: 6 }}>
                 <Paper
                     sx={{
                         p: 2,
@@ -169,12 +168,12 @@ export default function NewConnection(props) {
                         New Connection
                     </Typography>
                     <Grid container spacing={3}>
-                        <Grid item xs={12} sm={12} >
+                        <Grid size={12}>
                             {success === true && successMessage !== "" ? alert("success", successMessage) : null}
                             {error === true && errorMessage !== "" ? alert("error", errorMessage) : null}
                             {loading === true ? alert("warning", "Checking...") : null}
                         </Grid>
-                        <Grid item xs={12} sm={12}>
+                        <Grid size={12}>
                             <TextField
                                 required
                                 id="name"
@@ -187,7 +186,7 @@ export default function NewConnection(props) {
                                 onChange={handleChange}
                             />
                         </Grid>
-                        <Grid item xs={12} sm={12}>
+                        <Grid size={12}>
                             <FormControl fullWidth>
                                 <InputLabel id="backend-lbl">BackEnd</InputLabel>
                                 <Select
@@ -206,7 +205,7 @@ export default function NewConnection(props) {
                                 </Select>
                             </FormControl>
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
                             <TextField
                                 required
                                 id="username"
@@ -219,7 +218,7 @@ export default function NewConnection(props) {
                                 onChange={handleChange}
                             />
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
                             <TextField
                                 id="password"
                                 name="password"
@@ -232,9 +231,9 @@ export default function NewConnection(props) {
                                 onChange={handleChange}
                             />
                         </Grid>
-                        <Grid item xs={12} sm={12}>
+                        <Grid size={12}>
                             <Box sx={{ '& > button': { m: 1, } }}>
-                                <LoadingButton
+                                <Button
                                     onClick={handleTest}
                                     endIcon={<SendIcon />}
                                     loading={loading}
@@ -243,7 +242,7 @@ export default function NewConnection(props) {
                                     color="success"
                                 >
                                     Test
-                                </LoadingButton>
+                                </Button>
                                 <Button variant="contained" color="success" onClick={handleSubmit} sx={{ mt: 3, ml: 1 }} disabled={!tested}>
                                     Save
                                 </Button>

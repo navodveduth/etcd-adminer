@@ -92,18 +92,15 @@ export default function ConnectionCard(props) {
 
             <Menu
                 id="long-menu"
-                MenuListProps={{
-                    'aria-labelledby': 'long-button',
-                }}
                 anchorEl={anchorEl}
                 open={open}
                 onClose={handleOptionClose}
-                PaperProps={{
+                slotProps={{ paper: {
                     style: {
                         maxHeight: ITEM_HEIGHT * 4.5,
                         width: '20ch',
                     },
-                }}
+                } }}
             >
                 {options.map((option) => (
                     <MenuItem key={option.name} onClick={option.onClick}>
