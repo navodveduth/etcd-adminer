@@ -48,7 +48,7 @@ export default class DataService {
 
     GetClusterInfo = async () => (await api.get('/api/clusterinfo', this.requestConfig())).data;
     GetMetrics = async (signal) => (await api.get('/api/v1/cluster/metrics', { ...this.requestConfig(), signal })).data;
-    GetCapabilities = async (signal) => (await api.get('/api/v1/capabilities', { ...this.requestConfig(), signal })).data;
+    GetCapabilities = async (signal, key) => (await api.get('/api/v1/capabilities', { ...this.requestConfig(), ...(key ? { params: { key } } : {}), signal })).data;
     ExportPage = async (params, signal) => (await api.get('/api/v1/transfer/export', { ...this.requestConfig(), params, signal })).data;
     TransferBatch = async (batch, signal) => (await api.post('/api/v1/transfer/batch', batch, { ...this.requestConfig(), signal })).data;
 
@@ -117,7 +117,7 @@ export default class DataService {
         return true;
     };
 
-    GetUsers = async () => (await api.get('/api/users', this.requestConfig())).data;
+    GetUsers = async (signal) => (await api.get('/api/users', { ...this.requestConfig(), signal })).data;
 
     ChangePassword = async (userName, password) => {
         const profile = this.sessionStore.GetActiveSession();

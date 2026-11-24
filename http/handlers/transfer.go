@@ -57,7 +57,7 @@ func (jh *GenericHandler) ExportPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Purpose-separate export cursors from key-browser cursors.
-	cursor := keyCursor{Backend: meta.Backend.Name() + "/export-v1", User: meta.User, Prefix: prefix, Limit: 20, Expires: time.Now().Add(10 * time.Minute).Unix()}
+	cursor := keyCursor{Purpose: "export-v1", Backend: meta.Backend.Name(), User: meta.User, Prefix: prefix, Limit: 20, Expires: time.Now().Add(10 * time.Minute).Unix()}
 	if token := r.URL.Query().Get("cursor"); token != "" {
 		decoded, err := jh.decodeCursor(token, meta.Pass, cursor)
 		if err != nil {

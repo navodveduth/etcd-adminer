@@ -32,23 +32,23 @@ This plan is based on the code in this checkout, not just the supplied feature c
 | Key browsing: flat/tree | Present, fragile | Arbitrary key support, lazy loading, stable identity, virtualization |
 | CRUD operations | Present, needs safety fixes | Validation, conflict detection, lease preservation, safe prefix deletion |
 | Search/filter | Partial | Local substring filter only; add explicit server prefix/range search |
-| Connection history & profiles | Partial | Saved local profiles exist; add safe metadata/history storage and edit/test workflows |
+| Connection history & profiles | Core profiles implemented | Non-secret saved profiles, edit/retest, cancellable diagnostics and workspace reopening; recent-history ordering and metadata import/export remain pending |
 | Split-pane UI | Partial | Fixed grid layout exists; add resizable, responsive panes |
 | TLS/SSL support | Implemented | Per-backend verified TLS/mTLS, private CA and server-name options, no plaintext downgrade; real mTLS/RBAC integration tests pass |
 | Pagination | Implemented, broader load validation pending | UI uses bounded server cursor pages; snapshot/compaction and 100k-key tests pass; legacy whole-tree endpoint is deprecated |
-| Watch/subscribe | Implemented standalone viewer | Authenticated exact/prefix SSE with bounded buffers, complete-revision resume, privacy controls and Start/Stop; browser-tree live patching remains pending |
-| Leases / TTL | Implemented core workflow | Admin lease inventory/detail/grant/revoke/one-shot renewal and revision-safe attach/detach; automatic managed keepalive remains future work |
+| Watch/subscribe | Implemented viewer and browser updates | Authenticated resumable SSE, live prefix-page patches and draft-safe stale indicators; automatic compaction resnapshot remains pending |
+| Leases / TTL | Implemented core workflow | Admin inventory/detail/grant/revoke/renew, revision-safe attach/detach and optional 15-minute browser-workspace renewal; durable server keepalive remains future work |
 | JSON formatting | Implemented | Explicit format/validation action with JSON/YAML/text modes; malformed JSON preserves the draft |
-| Bulk operations | Partial | Recursive prefix delete exists; no general bulk workflow or result reporting |
-| Import/export JSON | Not found | Versioned, binary-safe format; validation and bounded jobs |
+| Bulk operations | Implemented bounded batches | Selected exact-key delete/import previews, typed confirmation and atomic CAS results; large resumable jobs remain pending |
+| Import/export JSON | Implemented paged workflow | Versioned binary-safe files, fixed-snapshot exports, validated create/overwrite imports and cancellation; single-file large streaming jobs remain pending |
 | Prefix/range queries | Partial | Internal prefix reads/deletes exist; no general bounded query UI/API |
-| Cluster status & metrics | Partial | Membership, leader status, and database size code exists; endpoint handling is faulty; no time-series metrics |
+| Cluster status & metrics | Maintenance dashboard implemented | Bounded configured-endpoint Status/alarms, DB/quota/lag, freshness and local trends; Prometheus throughput/latency remains pending |
 | Dark mode | Present | Application theme toggle exists; synchronize Monaco and test contrast |
-| Keyboard shortcuts | Not found as application feature | Add discoverable shortcuts without overriding editor/browser behavior |
-| User/role management (RBAC) | Implemented core workflow | Role CRUD, exact/prefix/range permissions, user/password management, explicit root promotion and protected service admin; capability-aware navigation remains pending |
+| Keyboard shortcuts | Implemented core shortcuts | Help, workspace switching, focused save/prefix/refresh, keyboard tree selection/context menu; full accessibility audit remains pending |
+| User/role management (RBAC) | Implemented core workflow | Role/permission and user/password management, explicit root promotion, protected admins and capability-aware navigation/editor hints |
 | Snapshots | Not found | Add controlled snapshot download; keep restore out of the normal running-cluster UI |
-| Tabs / multiple connections | Partial | Multiple saved profiles and folder/list tabs exist, not independent connection workspaces |
-| P.1 Performance metrics dashboard | Not found in this checkout | No metrics dashboard or `get_cluster_metrics` command found; use a Go HTTP endpoint in this architecture |
+| Tabs / multiple connections | Implemented browser workspaces | Four connection-bound tabs retain drafts, selection and watches with explicit close/disconnect cleanup; reload/deep-link restoration remains pending |
+| P.1 Performance metrics dashboard | Implemented maintenance baseline | `/api/v1/cluster/metrics` and Overview; external Prometheus rates/histograms remain pending |
 | 3.1 SSH tunneling | Planned | Server-managed, authenticated, restricted tunnels |
 | 3.2 Distributed locks | Planned | Lease/session-backed lock lifecycle |
 | 3.3 Leader election | Planned | Campaign/observe/resign lifecycle |
@@ -200,16 +200,16 @@ The supplied checklist mentions a missing `get_cluster_metrics` command. This re
 ### D2. Watch / subscribe
 
 - [x] Add authenticated exact/prefix SSE watches with explicit resume revision, cancellation, heartbeats, size limits, per-principal/global stream quotas, and bounded pending responses.
-- [ ] Establish initial listing at revision R and watch from R+1; deduplicate/reconcile snapshot events, and resume from the last delivered revision after reconnect.
+- [x] Establish initial listing at revision R and watch from R+1; deduplicate/reconcile page events, and resume from the last delivered revision after reconnect.
 - [ ] Handle compaction with a fresh snapshot, permission changes with termination/re-authentication, and slow consumers with bounded buffers plus explicit resync—not silent event loss.
-- [ ] Patch only affected cached pages/nodes, indicate stale query membership where needed, batch renders, and cap the visible event log.
+- [x] Patch only affected cached page nodes in revision batches, indicate stale query membership, preserve editor drafts, and cap the standalone event log.
 
 **Acceptance:** disconnect/reconnect, compaction, delete, lease expiry, high event rate, and logout tests show no silent gaps or leaked watchers.
 
 ### D3. Leases / TTL
 
 - [x] Implement root-role-scoped lease list/detail/TTL, grant/revoke/one-shot renewal, and caller-authorized revision-safe key attach/detach.
-- [ ] Make the ownership model clear: temporary browser workspaces versus deliberately server-managed sessions; cancel owned keepalives on logout/expiry.
+- [x] Make browser-workspace ownership explicit; bound optional renewal to 15 minutes and cancel on close/disconnect/error. Durable server-managed sessions are not implemented.
 - [x] Show attached-key count/preview and require exact lease-ID confirmation before revoke, with explicit expiry/deletion and one-shot renewal explanations.
 
 ### D4. Bulk operations and import/export
@@ -246,13 +246,14 @@ and fixed async user creation are implemented. Real-etcd mTLS tests cover scope
 boundaries, revocation, root promotion, password authorization/change, deletion,
 and protected accounts. Validation: Go race tests/vet, 32 frontend tests,
 lint/production build, and plaintext plus mTLS real-etcd integration pass.
-Workspace isolation and capability discovery remain pending. The existing
+Workspace isolation and capability discovery were pending at that checkpoint
+and are now implemented in the workspace checkpoint above. The existing
 Monaco chunk-size warning remains; Docker image validation is still blocked
 by the previously recorded base-layer download failures.
 
 - [x] Add role create/delete, exact/range/prefix permission grant/revoke, root-authorized user password changes, and stronger confirmation for administrative role changes.
-- [ ] Add caller-capability-aware navigation and controls beyond the global read-only guard; current administrative screens explain root-role requirements and surface authorization errors.
-- [ ] Add independent connection tabs with isolated requests, drafts, watches, and selection; clearly label backend/environment and warn before production mutations.
+- [x] Add caller-capability-aware navigation and fail-closed mutation controls, with exact-key write hints for the editor. etcd remains authoritative.
+- [x] Add independent connection tabs with isolated requests, drafts, watches and selection; label backend/user and require explicit destructive confirmations.
 - [ ] Improve profile editing, connection diagnostics, recent connections, and import/export of non-secret profile metadata.
 - [ ] Add keyboard shortcuts (save, search, refresh, tab navigation), a shortcut help panel, keyboard tree/context-menu access, focus management, and screen-reader labels.
 
@@ -345,6 +346,21 @@ Vite should improve development startup/HMR and simplify the maintained build pi
 **Acceptance:** publish before/after build and runtime measurements; no security, accessibility, or functional regressions; record explicit exceptions when a feature justifies increasing a bundle budget.
 
 ## 10. Test and performance acceptance plan
+
+Latest dashboard/transfer/workspace checkpoint: Go race tests/vet, **41 frontend
+tests**, lint, production build and Chromium production-bundle smoke all pass.
+Plaintext and mTLS real-etcd tests pass for maintenance access, scoped capability
+hints, binary transfer, fixed-revision export pagination, atomic conflicts and
+deletion, and preservation of leases during overwrite. Chromium tests cover
+identity/draft isolation, page retention, live keys, optional renewal, typed
+bulk confirmation, shortcut help and workspace close. CI now runs this smoke
+test with a pinned Playwright dependency. This is not a full multi-browser,
+accessibility, multi-node fault, or sustained-load certification.
+
+The frontend has feature folders with colocated tests; backend routes have
+feature registration modules and new logic uses injectable internal cluster
+and transfer services. Large deferred Monaco chunks remain a build warning;
+Docker image validation remains blocked as previously documented.
 
 ### Required test layers
 

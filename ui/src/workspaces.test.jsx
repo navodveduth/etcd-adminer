@@ -12,14 +12,14 @@ vi.mock('./data/service', () => ({ default: class {
     GetCapabilities = async () => ({ administrator: false, write: true, read: true });
     Identity = () => this.store.GetActiveSession();
 } }));
-vi.mock('./components/keys', () => ({ default: function TestKeys() {
+vi.mock('./components/keys/keys', () => ({ default: function TestKeys() {
     const service = useDataService();
     const identity = service.Identity();
     const [draft, setDraft] = useState('');
     calls.profiles.push(identity.BackEnd);
     return <label>Draft for {identity.BackEnd}<input aria-label={`Draft for ${identity.BackEnd}`} value={draft} onChange={(event) => setDraft(event.target.value)} /></label>;
 } }));
-vi.mock('./components/transfer', () => ({ default: () => <h2>Transfer page</h2> }));
+vi.mock('./components/transfer/transfer', () => ({ default: () => <h2>Transfer page</h2> }));
 
 it('isolates connection identity and preserves drafts across page and workspace switches', async () => {
     const store = new SessionStore();

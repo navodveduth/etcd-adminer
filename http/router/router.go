@@ -8,6 +8,7 @@ import (
 	"github.com/srimaln91/etcd-adminer/etcd"
 	"github.com/srimaln91/etcd-adminer/http/handlers"
 	"github.com/srimaln91/etcd-adminer/http/middlewares"
+	"github.com/srimaln91/etcd-adminer/http/routes"
 	"github.com/srimaln91/etcd-adminer/log"
 )
 
@@ -31,40 +32,7 @@ func NewRouter(logger log.Logger, backendProvider *etcd.BackEndProvider) (http.H
 	r.Use(middlewares.SameOrigin(publicOrigin))
 	r.Use(middlewares.ReadOnly(readOnly))
 
-	r.HandleFunc("/api/getconfig", requestHandler.GetConfig).Methods(http.MethodGet, http.MethodOptions)
-	r.Handle("/api/auth", validator.ValidateRequest(requestHandler.Authenticate)).Methods(http.MethodPost, http.MethodOptions)
-
-	r.Handle("/api/keys", validator.ValidateRequest(requestHandler.GetKey)).Methods(http.MethodGet, http.MethodOptions).Queries("key", "")
-	r.Handle("/api/keys", validator.ValidateRequest(requestHandler.GetKeys)).Methods(http.MethodGet, http.MethodOptions)
-	r.Handle("/api/v1/keys", validator.ValidateRequest(requestHandler.ListKeys)).Methods(http.MethodGet, http.MethodOptions)
-	r.Handle("/api/keys", validator.ValidateRequest(requestHandler.UpdateKey)).Methods(http.MethodPut, http.MethodOptions)
-	r.Handle("/api/keys", validator.ValidateRequest(requestHandler.DeleteKey)).Methods(http.MethodDelete, http.MethodOptions)
-
-	r.Handle("/api/directory", validator.ValidateRequest(requestHandler.CreateDirectory)).Methods(http.MethodPost, http.MethodOptions)
-	r.Handle("/api/clusterinfo", validator.ValidateRequest(requestHandler.ClusterInfo)).Methods(http.MethodGet, http.MethodOptions)
-	r.Handle("/api/v1/cluster/metrics", validator.ValidateRequest(requestHandler.Metrics)).Methods(http.MethodGet)
-	r.Handle("/api/v1/capabilities", validator.ValidateRequest(requestHandler.Capabilities)).Methods(http.MethodGet)
-	r.Handle("/api/v1/transfer/export", validator.ValidateRequest(requestHandler.ExportPage)).Methods(http.MethodGet)
-	r.Handle("/api/v1/transfer/batch", validator.ValidateRequest(requestHandler.TransferBatch)).Methods(http.MethodPost)
-	r.Handle("/api/v1/leases", validator.ValidateRequest(requestHandler.Leases)).Methods(http.MethodGet, http.MethodPost)
-	r.Handle("/api/v1/leases/{id}", validator.ValidateRequest(requestHandler.Lease)).Methods(http.MethodGet, http.MethodDelete)
-	r.Handle("/api/v1/leases/{id}/renew", validator.ValidateRequest(requestHandler.Lease)).Methods(http.MethodPost)
-	r.Handle("/api/v1/watch", validator.ValidateRequest(requestHandler.Watch)).Methods(http.MethodGet)
-
-	r.Handle("/api/users", validator.ValidateRequest(requestHandler.GetUserList)).Methods(http.MethodGet, http.MethodOptions)
-	r.Handle("/api/users", validator.ValidateRequest(requestHandler.CreateUser)).Methods(http.MethodPost, http.MethodOptions)
-	r.Handle("/api/users/{name}", validator.ValidateRequest(requestHandler.GetUserInfo)).Methods(http.MethodGet, http.MethodOptions)
-	r.Handle("/api/users/{name}", validator.ValidateRequest(requestHandler.DeleteUser)).Methods(http.MethodDelete, http.MethodOptions)
-	r.Handle("/api/users/{name}/role/{role}", validator.ValidateRequest(requestHandler.AssignRole)).Methods(http.MethodPost, http.MethodOptions)
-	r.Handle("/api/users/{name}/role/{role}", validator.ValidateRequest(requestHandler.UnassignRole)).Methods(http.MethodDelete, http.MethodOptions)
-
-	r.Handle("/api/role", validator.ValidateRequest(requestHandler.GetRoles)).Methods(http.MethodGet, http.MethodOptions)
-	r.Handle("/api/v1/roles", validator.ValidateRequest(requestHandler.Roles)).Methods(http.MethodGet, http.MethodPost)
-	r.Handle("/api/v1/roles/detail", validator.ValidateRequest(requestHandler.RoleDetail)).Methods(http.MethodGet, http.MethodDelete)
-	r.Handle("/api/v1/roles/permissions", validator.ValidateRequest(requestHandler.RolePermissions)).Methods(http.MethodPost, http.MethodDelete)
-	r.Handle("/api/v1/users/roles", validator.ValidateRequest(requestHandler.UserRoles)).Methods(http.MethodPost)
-	r.Handle("/api/v1/users/password", validator.ValidateRequest(requestHandler.UserPassword)).Methods(http.MethodPost)
-	r.Handle("/api/v1/users/detail", validator.ValidateRequest(requestHandler.UserDetail)).Methods(http.MethodGet, http.MethodDelete)
+	routes.Register(r, requestHandler, validator.ValidateRequest)
 
 	spa := spaHandler{staticPath: "static", indexPath: "index.html"}
 	r.PathPrefix("/").Handler(spa)

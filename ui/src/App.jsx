@@ -7,10 +7,10 @@ import DataService from './data/service';
 import { ReadOnlyContext } from './readOnly';
 import { SessionStore } from './storage/session';
 import Workspace from './workspaces';
-import WorkspaceTabs from './components/workspaceTabs';
-import Connection from './components/connection';
+import WorkspaceTabs from './components/layout/workspaceTabs';
+import Connection from './components/connections/connection';
 
-const NewConnection = lazy(() => import('./components/newConnection'));
+const NewConnection = lazy(() => import('./components/connections/newConnection'));
 const About = lazy(() => import('./components/about'));
 
 function Shell({ mode, toggleMode }) {
@@ -20,6 +20,7 @@ function Shell({ mode, toggleMode }) {
     const [active, setActive] = useState('');
     const [notice, setNotice] = useState('');
     const [help, setHelp] = useState(false);
+    useEffect(() => { if (page === 'workspace' && active) document.getElementById(`tab-${active}`)?.focus(); }, [active, page]);
     const managing = page !== 'workspace';
     const sessionChanged = ({ open = true, replaced } = {}) => {
         const profile = store.GetActiveSession();

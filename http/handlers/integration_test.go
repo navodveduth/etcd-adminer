@@ -138,7 +138,13 @@ func TestRBACIntegration(t *testing.T) {
 			t.Fatal("non-admin capability elevated")
 		}
 		t.Run("logical batches are atomic and export at one snapshot", func(t *testing.T) {
-			defer func() { if _, err := admin.Delete(ctx, "/bulk/", clientv3.WithPrefix()); err != nil { t.Error(err) } }()
+			defer func() {
+				for _, prefix := range []string{"/bulk/", "/transfer-snapshot/"} {
+					if _, err := admin.Delete(ctx, prefix, clientv3.WithPrefix()); err != nil {
+						t.Error(err)
+					}
+				}
+			}()
 			payload := `{"version":1,"operation":"import","policy":"create","dryRun":true,"records":[{"keyBase64":"L2J1bGsvYQ==","valueBase64":"/wA="},{"keyBase64":"L2J1bGsvYg==","valueBase64":"dmFsdWU="}]}`
 			preview := call("POST", "/", payload, handler.TransferBatch, 200)
 			var result struct {
@@ -158,6 +164,59 @@ func TestRBACIntegration(t *testing.T) {
 			if !strings.Contains(exported.Body.String(), `"valueBase64":"/wA="`) {
 				t.Fatal("binary export lost bytes")
 			}
+			lease, err := admin.Grant(ctx, 120)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer admin.Revoke(ctx, lease.ID)
+			if _, err := admin.Put(ctx, "/bulk/b", "leased", clientv3.WithLease(lease.ID)); err != nil {
+				t.Fatal(err)
+			}
+			overwritePayload := strings.Replace(payload, `"policy":"create"`, `"policy":"overwrite"`, 1)
+			overwritePreview := call("POST", "/", overwritePayload, handler.TransferBatch, 200)
+			if err := json.Unmarshal(overwritePreview.Body.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+			call("POST", "/", `{"version":1,"operation":"import","policy":"overwrite","dryRun":false,"confirmation":"IMPORT 2","records":`+string(result.Records)+`}`, handler.TransferBatch, 200)
+			leased, err := admin.Get(ctx, "/bulk/b")
+			if err != nil || len(leased.Kvs) != 1 || leased.Kvs[0].Lease != int64(lease.ID) {
+				t.Fatal("bulk overwrite detached a lease")
+			}
+			for i := 0; i < 25; i++ {
+				if _, err := admin.Put(ctx, fmt.Sprintf("/transfer-snapshot/%02d", i), "before"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			first := call("GET", "/?prefix=%2Ftransfer-snapshot%2F", "", handler.ExportPage, 200)
+			var export struct {
+				NextCursor string `json:"nextCursor"`
+				Revision   string `json:"revision"`
+				Records    []struct {
+					Value string `json:"valueBase64"`
+				} `json:"records"`
+			}
+			if err := json.Unmarshal(first.Body.Bytes(), &export); err != nil {
+				t.Fatal(err)
+			}
+			if len(export.Records) != 20 || export.NextCursor == "" {
+				t.Fatal("export did not paginate")
+			}
+			if _, err := admin.Put(ctx, "/transfer-snapshot/24", "after"); err != nil {
+				t.Fatal(err)
+			}
+			second := call("GET", "/?prefix=%2Ftransfer-snapshot%2F&cursor="+url.QueryEscape(export.NextCursor), "", handler.ExportPage, 200)
+			firstRevision := export.Revision
+			if err := json.Unmarshal(second.Body.Bytes(), &export); err != nil {
+				t.Fatal(err)
+			}
+			if len(export.Records) != 5 || export.Revision != firstRevision {
+				t.Fatal("export snapshot changed between pages")
+			}
+			for _, record := range export.Records {
+				if record.Value != "YmVmb3Jl" {
+					t.Fatal("export included post-snapshot value")
+				}
+			}
 			deletePreview := call("POST", "/", strings.Replace(payload, `"operation":"import"`, `"operation":"delete"`, 1), handler.TransferBatch, 200)
 			if err := json.Unmarshal(deletePreview.Body.Bytes(), &result); err != nil {
 				t.Fatal(err)
@@ -171,6 +230,15 @@ func TestRBACIntegration(t *testing.T) {
 			if err != nil || len(value.Kvs) != 1 {
 				t.Fatal("conflicting batch partially deleted keys")
 			}
+			freshDelete := call("POST", "/", strings.Replace(payload, `"operation":"import"`, `"operation":"delete"`, 1), handler.TransferBatch, 200)
+			if err := json.Unmarshal(freshDelete.Body.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+			call("POST", "/", `{"version":1,"operation":"delete","policy":"overwrite","dryRun":false,"confirmation":"DELETE 2","records":`+string(result.Records)+`}`, handler.TransferBatch, 200)
+			deleted, err := admin.Get(ctx, "/bulk/", clientv3.WithPrefix())
+			if err != nil || deleted.Count != 0 {
+				t.Fatal("atomic delete did not remove selected keys")
+			}
 			check(invoke("POST", "/", "person/one", "initial-password", payload, handler.TransferBatch, nil), 403)
 		})
 		check(invoke("GET", "/", "person/one", "initial-password", "", handler.Roles, nil), 403)
@@ -182,6 +250,23 @@ func TestRBACIntegration(t *testing.T) {
 			call("POST", "/", rule, handler.RolePermissions, 204)
 		}
 		call("POST", "/", `{"userName":"person/one","role":"team/reader","operation":"grant"}`, handler.UserRoles, 204)
+		for _, tc := range []struct {
+			key  string
+			read bool
+		}{{"/rbac/exact", true}, {"/rbac/exact/child", false}} {
+			w := invoke("GET", "/?key="+url.QueryEscape(tc.key), "person/one", "initial-password", "", handler.Capabilities, nil)
+			check(w, 200)
+			var hints struct {
+				Read  bool `json:"read"`
+				Write bool `json:"write"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &hints); err != nil {
+				t.Fatal(err)
+			}
+			if hints.Read != tc.read || hints.Write {
+				t.Fatalf("incorrect scoped access hints for %s: %s", tc.key, w.Body.String())
+			}
+		}
 		reader, err := backend.NewClient("person/one", "initial-password")
 		if err != nil {
 			t.Fatal(err)

@@ -25,6 +25,7 @@ func TestCursorScopeAndIntegrity(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, changed := range []keyCursor{
+		{Purpose: "export-v1", Backend: cursor.Backend, User: cursor.User, Prefix: cursor.Prefix, Limit: cursor.Limit},
 		{Backend: "other", User: cursor.User, Prefix: cursor.Prefix, Limit: cursor.Limit},
 		{Backend: cursor.Backend, User: "bob", Prefix: cursor.Prefix, Limit: cursor.Limit},
 		{Backend: cursor.Backend, User: cursor.User, Prefix: "/other", Limit: cursor.Limit},

@@ -10,6 +10,11 @@ import (
 
 // Capabilities are UI hints only. Every operation remains authorized by etcd.
 func (jh *GenericHandler) Capabilities(w http.ResponseWriter, r *http.Request) {
+	key := r.URL.Query().Get("key")
+	if r.URL.Query().Has("key") && (key == "" || len(key) > 8192) {
+		response.WriteError(w, http.StatusBadRequest, "invalid_key", "key must contain 1 to 8192 bytes")
+		return
+	}
 	_, ctx, cleanup, ok := jh.requestClient(w, r, false)
 	if !ok {
 		return
@@ -34,6 +39,12 @@ func (jh *GenericHandler) Capabilities(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		for _, rule := range info.Perm {
+			if key != "" {
+				start, end := string(rule.Key), string(rule.RangeEnd)
+				if end == "" && key != start || end != "" && (key < start || end != "\x00" && key >= end) {
+					continue
+				}
+			}
 			read = read || rule.PermType != authpb.WRITE
 			write = write || rule.PermType != authpb.READ
 		}

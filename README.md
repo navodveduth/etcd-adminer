@@ -166,6 +166,16 @@ F1 opens shortcut help; Alt+1–4 switches workspaces; focused key browsers supp
 Alt+F (prefix) and Alt+R (refresh), and the focused editor supports Ctrl/Cmd+S.
 The shell includes a skip link, labeled tabs and keyboard-accessible controls.
 
+Frontend components are grouped by feature under `ui/src/components/`; see
+[`ui/src/components/README.md`](ui/src/components/README.md). Backend route
+groups and service boundaries are documented in [`http/README.md`](http/README.md).
+
+For production-bundle browser smoke tests: from `ui/`, run `npm ci`,
+`npx playwright install --with-deps chromium`, then `npm run test:browser`.
+The deterministic browser fixture checks workspace isolation, drafts, capability
+controls, live updates, renewal, bulk confirmation and keyboard help. It does
+not replace the disposable real-etcd plaintext/mTLS integration suite.
+
 Open **Live changes**, or use **Watch this key** in the key browser. Choose an
 exact key or prefix, then Start/Stop explicitly. The screen shows new changes
 only (not an initial snapshot), connection/retry status, the last complete

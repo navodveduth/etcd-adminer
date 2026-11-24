@@ -3,7 +3,7 @@ import App from './App';
 import { vi, test, expect, beforeEach } from 'vitest';
 
 // Exercise the shell without coupling this smoke test to API availability.
-vi.mock('./components/newConnection', () => ({ default: () => <div>New connection</div> }));
+vi.mock('./components/connections/newConnection', () => ({ default: () => <div>New connection</div> }));
 const { getConfig } = vi.hoisted(() => ({ getConfig: vi.fn() }));
 vi.mock('./data/service', () => ({ default: class { GetConfig = getConfig; } }));
 beforeEach(() => { getConfig.mockReset(); getConfig.mockResolvedValue({ clusters: [], readOnly: false }); });

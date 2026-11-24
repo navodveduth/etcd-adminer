@@ -23,6 +23,7 @@ const maxPageSize = 1000
 const maxCursorBytes = 64 * 1024
 
 type keyCursor struct {
+	Purpose  string `json:"purpose,omitempty"`
 	Backend  string `json:"backend"`
 	User     string `json:"user"`
 	Prefix   string `json:"prefix"`
@@ -86,7 +87,7 @@ func (jh *GenericHandler) decodeCursor(token, password string, expected keyCurso
 	if err := json.Unmarshal(payload, &cursor); err != nil {
 		return keyCursor{}, invalid
 	}
-	if cursor.Backend != expected.Backend || cursor.User != expected.User || cursor.Prefix != expected.Prefix || cursor.Limit != expected.Limit || cursor.Revision <= 0 || len(cursor.Last) == 0 || cursor.Expires <= time.Now().Unix() {
+	if cursor.Purpose != expected.Purpose || cursor.Backend != expected.Backend || cursor.User != expected.User || cursor.Prefix != expected.Prefix || cursor.Limit != expected.Limit || cursor.Revision <= 0 || len(cursor.Last) == 0 || cursor.Expires <= time.Now().Unix() {
 		return keyCursor{}, invalid
 	}
 	return cursor, nil

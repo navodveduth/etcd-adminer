@@ -46,6 +46,10 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - name: Install browser test runtime
+        run: npx playwright install --with-deps chromium
+      - name: Production-bundle browser smoke
+        run: npm run test:browser
       - run: npm audit --audit-level=high
 
 # Publishing is intentionally not part of PR/branch validation. Run release

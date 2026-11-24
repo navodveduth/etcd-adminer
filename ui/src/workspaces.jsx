@@ -5,19 +5,19 @@ import { lazy, Suspense } from 'react';
 import DataService from './data/service';
 import { SessionStore } from './storage/session';
 import { ReadOnlyContext, useReadOnly } from './readOnly';
-import NavMenu from './components/navMenu';
+import NavMenu from './components/layout/navMenu';
 import { DataServiceContext, CapabilityContext, WorkspaceActiveContext, useCapabilities, useWorkspaceActive } from './data/context';
 
 const pages = {
-    '/keys': lazy(() => import('./components/keys')),
-    '/cluster': lazy(() => import('./components/cluster')),
-    '/metrics': lazy(() => import('./components/metrics')),
-    '/transfer': lazy(() => import('./components/transfer')),
-    '/leases': lazy(() => import('./components/leases')),
-    '/watchers': lazy(() => import('./components/watch')),
-    '/users': lazy(() => import('./components/userList')),
-    '/users/new': lazy(() => import('./components/createUser')),
-    '/roles': lazy(() => import('./components/roles')),
+    '/keys': lazy(() => import('./components/keys/keys')),
+    '/cluster': lazy(() => import('./components/cluster/cluster')),
+    '/metrics': lazy(() => import('./components/cluster/metrics')),
+    '/transfer': lazy(() => import('./components/transfer/transfer')),
+    '/leases': lazy(() => import('./components/leases/leases')),
+    '/watchers': lazy(() => import('./components/watch/watch')),
+    '/users': lazy(() => import('./components/access/userList')),
+    '/users/new': lazy(() => import('./components/access/createUser')),
+    '/roles': lazy(() => import('./components/access/roles')),
 };
 const adminPages = new Set(['/cluster', '/metrics', '/leases', '/users', '/users/new', '/roles']);
 
