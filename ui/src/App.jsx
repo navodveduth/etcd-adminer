@@ -229,7 +229,7 @@ export default function App() {
   const theme = useMemo(
     () =>
       createTheme({
-        palette: { mode, primary: { main: mode === 'dark' ? '#80cbc4' : '#00695c' } },
+        palette: { mode, primary: { main: mode === 'dark' ? '#90caf9' : '#1976d2' } },
         shape: { borderRadius: 10 },
         components: {
           MuiButton: {

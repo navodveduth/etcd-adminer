@@ -101,7 +101,7 @@ export default function ConnectionCard(props) {
         </Typography>
       </CardContent>
       <CardActions>
-        <Button variant="contained" color="success" size="small" onClick={useSession}>
+        <Button variant="contained" color="primary" size="small" onClick={useSession}>
           Open workspace
         </Button>
         <Button

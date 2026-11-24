@@ -1,10 +1,19 @@
 import { render, screen } from '@testing-library/react';
 import App from './App';
 import { vi, test, expect, beforeEach } from 'vitest';
+import { useTheme } from '@mui/material/styles';
 
 // Exercise the shell without coupling this smoke test to API availability.
 vi.mock('./components/connections/newConnection', () => ({
-  default: () => <div>New connection</div>,
+  default: function ConnectionThemeProbe() {
+    const theme = useTheme();
+    return (
+      <>
+        <div>New connection</div>
+        <output data-testid="primary-color">{theme.palette.primary.main}</output>
+      </>
+    );
+  },
 }));
 const { getConfig } = vi.hoisted(() => ({ getConfig: vi.fn() }));
 vi.mock('./data/service', () => ({
@@ -29,4 +38,13 @@ test('keeps mutation controls disabled when instance settings cannot be loaded',
   expect(
     await screen.findByText('Could not load instance settings. Mutating controls are disabled.'),
   ).toBeInTheDocument();
+});
+
+test.each([
+  ['light', '#1976d2'],
+  ['dark', '#90caf9'],
+])('preserves the previous blue palette in %s mode', async (mode, primary) => {
+  localStorage.setItem('themeMode', mode);
+  render(<App />);
+  expect(await screen.findByTestId('primary-color')).toHaveTextContent(primary);
 });
