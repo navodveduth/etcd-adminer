@@ -32,50 +32,16 @@ func (jh *GenericHandler) getKeys(ctx context.Context, backend *etcd.BackEnd, us
 
 	defer jh.closeEtcdClient(client)
 
-	keys := &clientv3.GetResponse{}
-	if client.Username == "root" {
-		keys, err = client.Get(ctx, "/", clientv3.WithKeysOnly(), clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		resp, err := backend.AdminConnection().UserGet(ctx, client.Username)
-		if err != nil {
-			return nil, err
-		}
-
-		var permissions = make([]string, 0)
-		for _, role := range resp.Roles {
-			roleResponse, err := backend.AdminConnection().RoleGet(ctx, role)
-			if err != nil {
-				return nil, err
-			}
-
-			for _, permission := range roleResponse.Perm {
-				permissions = append(permissions, string(permission.Key))
-			}
-		}
-
-		for index, permission := range permissions {
-			if index == 0 {
-				keys, err = client.Get(ctx, permission, clientv3.WithKeysOnly(), clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortDescend))
-				if err != nil {
-					return nil, err
-				}
-
-				continue
-			}
-
-			k, err := client.Get(ctx, permission, clientv3.WithKeysOnly(), clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortDescend))
-			if err != nil {
-				return nil, err
-			}
-
-			keys.Kvs = append(keys.Kvs, k.Kvs...)
-		}
+	// Authenticate before privileged permission discovery, including empty-role users.
+	if _, err := client.Authenticate(ctx, user, pass); err != nil {
+		return nil, err
 	}
-
-	return keys, nil
+	ranges, err := readableRanges(ctx, backend.AdminConnection().Auth, user)
+	if err != nil {
+		return nil, err
+	}
+	// Key reads always run as the caller, never through the privileged client.
+	return readRanges(ctx, client.KV, ranges)
 }
 
 func (jh *GenericHandler) closeEtcdClient(client *etcd.Client) {

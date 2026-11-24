@@ -60,6 +60,11 @@ go build
 Use a supported etcd server; the client/API modules are pinned to 3.7.4.
 Compatibility with older server releases must be integration-tested before deployment.
 
+Run `go test -race ./...` and `go vet ./...` for backend checks. With Docker
+available, `bash scripts/test-integration.sh` creates an isolated etcd 3.7.4
+container, verifies real RBAC behavior, and removes only that container on exit.
+It does not use your configured cluster or mount any host etcd data.
+
 #### React UI
 
 The project uses React with Vite. Use Node.js 24.22.3 (`ui/.nvmrc`).
