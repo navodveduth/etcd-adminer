@@ -35,7 +35,6 @@ export default function UserInfo(props) {
     useEffect(() => {
         fetchUser(props.userName);
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     },[props.userName]);
 
     const handleClickChip = () => {

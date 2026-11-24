@@ -26,7 +26,7 @@ export default function Connection(props) {
     const deleteSession = (session) => {
         clearAlert();
         sessionStore.Delete(session);
-        setSessions(sessionStore.GetAll);
+        setSessions(sessionStore.GetAll());
     }
 
     const getAlert = () => {

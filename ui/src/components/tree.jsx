@@ -45,13 +45,15 @@ export default function FSNavigator(props) {
     );
 
     setContextMenuSelectedNode(node);
-    console.log(node);
   };
 
-  const handleClose = (e) => {
+  const handleClose = () => {
     setContextMenu(null);
-    // console.log(e.target);
-    switch (e.target.parentElement.parentElement.getAttribute("data-id")) {
+  };
+
+  const handleAction = (action) => {
+    handleClose();
+    switch (action) {
       case "refresh":
         props.fetchKeys();
         break;
@@ -65,22 +67,7 @@ export default function FSNavigator(props) {
         setnewDirectoryDialogOpen(true);
         break;
       default:
-        console.log("no menu action defined");
-    }
-  };
-
-  const handler = (event) => {
-    event.preventDefault();
-    let key = event.target.parentElement.parentElement.getAttribute("data-index");
-    let type = event.target.parentElement.parentElement.getAttribute("type");
-    let isVirtual = event.target.parentElement.parentElement.getAttribute("data-is-virtual");
-
-    if(isVirtual === "true") {
-      return
-    }
-    
-    if (type === "file") {
-      props.onKeyClick(key);
+        break;
     }
   };
 
@@ -92,7 +79,10 @@ export default function FSNavigator(props) {
       type={nodes.type}
       data-index={nodes.abspath}
       data-is-virtual={nodes.isVirtual}
-      onClick={handler}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (nodes.type === 'file' && !nodes.isVirtual) props.onKeyClick(nodes.abspath);
+      }}
       onContextMenu={event => handleContextMenu(event, nodes)}
     >
       {Array.isArray(nodes.children)
@@ -172,7 +162,7 @@ export default function FSNavigator(props) {
             : undefined
         }
       >
-        <MenuItem onClick={handleClose} data-id="newfile"
+        <MenuItem onClick={() => handleAction('newfile')} data-id="newfile"
           disabled={ contextMenuSelectedNode !== null && contextMenuSelectedNode.type === "file"}
         >
           <ListItemIcon>
@@ -180,7 +170,7 @@ export default function FSNavigator(props) {
           </ListItemIcon>
           <ListItemText>New File</ListItemText>
         </MenuItem>
-        <MenuItem onClick={handleClose} data-id="newdir"
+        <MenuItem onClick={() => handleAction('newdir')} data-id="newdir"
           disabled={ contextMenuSelectedNode !== null && contextMenuSelectedNode.type === "file"}
         >
           <ListItemIcon>
@@ -188,13 +178,13 @@ export default function FSNavigator(props) {
           </ListItemIcon>
           <ListItemText>New Directory</ListItemText>
         </MenuItem>
-        <MenuItem onClick={handleClose} data-id="delete">
+        <MenuItem onClick={() => handleAction('delete')} data-id="delete">
           <ListItemIcon>
             <DeleteIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText>Delete</ListItemText>
         </MenuItem>
-        <MenuItem onClick={handleClose} data-id="refresh">
+        <MenuItem onClick={() => handleAction('refresh')} data-id="refresh">
           <ListItemIcon>
             <RefreshIcon fontSize="small" />
           </ListItemIcon>

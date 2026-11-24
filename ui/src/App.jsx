@@ -25,7 +25,6 @@ import NewConnectionComponent from './components/newConnection'
 import About from './components/about'
 import { SessionStore } from './storage/session'
 
-import axios from 'axios';
 
 const drawerWidth = 240;
 
@@ -109,12 +108,6 @@ function App() {
       }),
     [mode],
   );
-
-  if (process.env.NODE_ENV === "development") {
-    axios.defaults.baseURL = "http://localhost:8080/";
-  }
-
-  axios.defaults.timeout = 30000;
 
   const sessionStore = new SessionStore();
 

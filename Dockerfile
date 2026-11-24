@@ -20,13 +20,12 @@ RUN go test -v
 RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o etcd-adminer-linux-amd64 .
 
 # Build the UI
-FROM node:latest AS build_ui
+FROM node:24.22.3-bookworm-slim AS build_ui
 
 WORKDIR /tmp/etcd-adminer/ui
 
 COPY ["./ui/package.json", "./ui/package-lock.json", "./"]
-RUN ls
-RUN npm install --production
+RUN npm ci
 
 COPY ./ui .
 

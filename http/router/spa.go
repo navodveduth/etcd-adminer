@@ -4,6 +4,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"github.com/srimaln91/etcd-adminer/http/response"
 )
 
 // spaHandler implements the http.Handler interface, so we can use it
@@ -20,6 +23,10 @@ type spaHandler struct {
 // file located at the index path on the SPA handler will be served. This
 // is suitable behavior for serving an SPA (single page application).
 func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/api" || strings.HasPrefix(r.URL.Path, "/api/") {
+		response.WriteError(w, http.StatusNotFound, "not_found", "API endpoint not found")
+		return
+	}
 	// get the absolute path to prevent directory traversal
 	path, err := filepath.Abs(r.URL.Path)
 	if err != nil {
@@ -33,9 +40,14 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path = filepath.Join(h.staticPath, path)
 
 	// check whether a file exists at the given path
-	_, err = os.Stat(path)
+	info, err := os.Stat(path)
 	if os.IsNotExist(err) {
+		if strings.HasPrefix(r.URL.Path, "/assets/") {
+			http.NotFound(w, r)
+			return
+		}
 		// file does not exist, serve index.html
+		w.Header().Set("Cache-Control", "no-cache")
 		http.ServeFile(w, r, filepath.Join(h.staticPath, h.indexPath))
 		return
 	} else if err != nil {
@@ -43,6 +55,12 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// file, return a 500 internal server error and stop
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if info.IsDir() || r.URL.Path == "/index.html" {
+		w.Header().Set("Cache-Control", "no-cache")
+	} else if strings.HasPrefix(r.URL.Path, "/assets/") {
+		// Vite generates content-hashed asset filenames.
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	}
 
 	// otherwise, use http.FileServer to serve the static dir

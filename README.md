@@ -57,16 +57,20 @@ go build
 
 #### React UI
 
-The project uses React and it was scaffolded using create-react-app
+The project uses React with Vite. Use Node.js 24.22.3 (`ui/.nvmrc`).
 ```bash
 cd ./ui
 
 # install node modules
-npm install
+npm ci
 
 # start the development server with auto reload/compilation enabled
 npm run start
 ```
+
+Vite proxies `/api` requests to the Go API on port 8080. Run `npm test`,
+`npm run lint`, and `npm run build` in `ui/` to validate frontend changes.
+The production output remains `ui/build/`, compatible with the Go static server.
 
 ## Contributions
 

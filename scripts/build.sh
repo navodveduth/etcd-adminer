@@ -45,16 +45,13 @@ fi
 LDFLAGS="$LDFLAGS -X github.com/srimaln91/go-make.osArch=${OS}/${ARCH}"
 LDFLAGS="$LDFLAGS -X github.com/srimaln91/go-make.date=${DATE}"
 
-# cleaning up
-rm -rf "$1" static/*
-
 pushd ./ui
-npm install
-npm run build --production
+npm ci
+npm run build
 
 popd
 mkdir -p "$1"/static
-mv ui/build/* "$1"/static/
+cp -a ui/build/. "$1"/static/
 
 go mod download
 go build -ldflags "$LDFLAGS" -o "$1"/etcd-adminer-"$OS"-"$ARCH"

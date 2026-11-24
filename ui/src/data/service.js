@@ -1,405 +1,85 @@
 import axios from 'axios';
 import { SessionStore } from '../storage/session';
 
+const api = axios.create({ timeout: 30000 });
+const segment = (value) => encodeURIComponent(value);
+
 export default class DataService {
-    sessionStore;
-    constructor(sessionStore) {
-        this.sessionStore = new SessionStore();
+    constructor(sessionStore = new SessionStore()) {
+        this.sessionStore = sessionStore;
     }
 
-    GetConfig = () => {
-        return new Promise(async (resolve, reject) => {
-            try {
-                let response = await axios.get(`/api/getconfig`);
+    requestConfig = () => {
+        const session = this.sessionStore.GetActiveSession();
+        if (!session) throw new Error('Select an active connection first.');
+        return {
+            auth: { username: session.UserName, password: session.Password },
+            headers: { 'X-Backend': session.BackEnd },
+        };
+    };
 
-                if (response.status === 200) {
-                    resolve(response.data);
-                }
-                reject(new Error("invalid response code"));
-            } catch (err) {
-                reject(err);
-            }
-        })
-    }
+    GetConfig = async () => (await api.get('/api/getconfig')).data;
 
-    GetClusterInfo = () => {
-        let activeSession = this.sessionStore.GetActiveSession()
-        return new Promise(async (resolve, reject) => {
-            try {
-                let response = await axios.get(`/api/clusterinfo`, {
-                    auth: {
-                        username: activeSession.UserName,
-                        password: activeSession.Password
-                    },
-                    headers: {
-                        "X-Backend": activeSession.BackEnd
-                    },
-                    timeout: 30000, // 30 seconds for cluster info
-                })
-                if (response.status === 200) {
-                    resolve(response.data);
-                } else {
-                    reject(new Error("invalid response code"));
-                }
-            } catch (err) {
-                reject(err);
-            }
-        })
-    }
+    GetClusterInfo = async () => (await api.get('/api/clusterinfo', this.requestConfig())).data;
 
-    TestConnection = (username, password, backend) => {
-        // let activeSession = this.sessionStore.GetActiveSession()
-        return new Promise(async (resolve, reject) => {
-            try {
-                let response = await axios.post(`/api/auth`, null, {
-                    auth: {
-                        username: username,
-                        password: password
-                    },
-                    headers: {
-                        "X-Backend": backend
-                    }
-                });
-                if (response.status === 200) {
-                    // Successfulle authenticated
-                    resolve(true);
-                } else {
-                    reject(new Error("Something went wrong!"));
-                }
-            } catch (error) {
-                if (error.response.status === 403) {
-                    // Authentication failed
-                    resolve(false);
-                }
-                reject(error);
-            }
-
-        })
-    }
-
-    GetRoles = () => {
-        let activeSession = this.sessionStore.GetActiveSession();
-        return new Promise(async (resolve, reject) => {
-            try {
-                let response = await axios.get(`/api/role`, {
-                    auth: {
-                        username: activeSession.UserName,
-                        password: activeSession.Password
-                    },
-                    headers: {
-                        "X-Backend": activeSession.BackEnd
-                    }
-                })
-
-                if (response.status === 200) {
-                    resolve(response.data);
-                }
-
-                reject(new Error("invalid response received!"))
-
-            } catch (error) {
-                reject(error);
-            }
-        })
-    }
-
-    CreateUser = (userName, password, roles) => {
-
-        let requestBody = {
-            userName: userName,
-            password: password,
-            roles: roles
+    TestConnection = async (username, password, backend) => {
+        try {
+            await api.post('/api/auth', null, {
+                auth: { username, password },
+                headers: { 'X-Backend': backend },
+            });
+            return true;
+        } catch (error) {
+            if ([401, 403].includes(error.response?.status)) return false;
+            throw error;
         }
+    };
 
-        let activeSession = this.sessionStore.GetActiveSession();
+    GetRoles = async () => (await api.get('/api/role', this.requestConfig())).data;
 
-        return new Promise(async (resolve, reject) => {
-            try {
-                let response = axios.post(`/api/users`, requestBody, {
-                    auth: {
-                        username: activeSession.UserName,
-                        password: activeSession.Password
-                    },
-                    headers: {
-                        "X-Backend": activeSession.BackEnd
-                    }
-                });
+    CreateUser = async (userName, password, roles) => {
+        await api.post('/api/users', { userName, password, roles }, this.requestConfig());
+        return true;
+    };
 
-                if (response.status === 201) {
-                    resolve(true);
-                }
+    FetchKey = async (key, signal) => (await api.get('/api/keys', {
+        ...this.requestConfig(), params: { key }, signal,
+    })).data;
 
-                reject(new Error("Something went wrong!"));
-            }
-            catch (error) {
-                reject(error);
-            }
-        })
-    }
+    PutKey = async (key, value) => {
+        await api.put('/api/keys', { key, value }, this.requestConfig());
+        return true;
+    };
 
-    FetchKey = (path) => {
-        let activeSession = this.sessionStore.GetActiveSession();
+    CreateNode = async (path, isDirectory) => (await api.post('/api/directory', {
+        path, isDirectory,
+    }, this.requestConfig())).data;
 
-        return new Promise(async (resolve, reject) => {
-            try {
-                let response = await axios.get(`/api/keys?key=` + path, {
-                    auth: {
-                        username: activeSession.UserName,
-                        password: activeSession.Password
-                    },
-                    headers: {
-                        "X-Backend": activeSession.BackEnd
-                    }
-                });
+    DeleteNode = async (key, isDirectory) => {
+        await api.delete('/api/keys', { ...this.requestConfig(), data: { key, isDirectory } });
+        return true;
+    };
 
-                if (response.status === 200) {
-                    resolve(response.data);
-                }
+    GetKeys = async (signal) => (await api.get('/api/keys', {
+        ...this.requestConfig(), signal,
+    })).data;
 
-                reject(new Error("Invalid response code"));
-            } catch (error) {
-                reject(error);
-            }
-        })
-    }
+    FetchUser = async (username) => (await api.get(`/api/users/${segment(username)}`, this.requestConfig())).data;
 
-    PutKey = (key, value) => {
-        let activeSession = this.sessionStore.GetActiveSession();
+    AssignRole = async (user, role) => {
+        await api.post(`/api/users/${segment(user)}/role/${segment(role)}`, null, this.requestConfig());
+        return true;
+    };
 
-        return new Promise(async (resolve, reject) => {
-            try {
-                let response = await axios.put(`/api/keys`, {
-                    key: key,
-                    value: value
-                }, {
-                    auth: {
-                        username: activeSession.UserName,
-                        password: activeSession.Password
-                    },
-                    headers: {
-                        "X-Backend": activeSession.BackEnd
-                    }
-                })
+    RemoveRole = async (user, role) => {
+        await api.delete(`/api/users/${segment(user)}/role/${segment(role)}`, this.requestConfig());
+        return true;
+    };
 
-                if (response.status === 200) {
-                    resolve(true);
-                }
-                reject(new Error("invalid response code"));
-            } catch (error) {
-                reject(error);
-            }
-        })
-    }
+    GetUsers = async () => (await api.get('/api/users', this.requestConfig())).data;
 
-    CreateNode = (path, isDirectory) => {
-        let activeSession = this.sessionStore.GetActiveSession();
-
-        return new Promise(async (resolve, reject) => {
-            try {
-                let response = await axios.post(`/api/directory`, {
-                    path: path,
-                    isDirectory: isDirectory
-                }, {
-                    auth: {
-                        username: activeSession.UserName,
-                        password: activeSession.Password
-                    },
-                    headers: {
-                        "X-Backend": activeSession.BackEnd
-                    }
-                });
-
-                if (response.status === 200) {
-                    resolve(response.data);
-                }
-
-                reject(new Error("invalid response code"));
-            } catch (error) {
-                reject(error);
-            }
-        })
-    }
-
-    DeleteNode = (key, isDirectory) => {
-        let activeSession = this.sessionStore.GetActiveSession();
-
-        return new Promise(async (resolve, reject) => {
-            try {
-                let response = await axios.delete(`/api/keys`, {
-                    auth: {
-                        username: activeSession.UserName,
-                        password: activeSession.Password
-                    },
-                    headers: {
-                        "X-Backend": activeSession.BackEnd
-                    },
-                    data: {
-                        key: key,
-                        isDirectory: isDirectory
-                    }
-                });
-
-                if (response.status === 200) {
-                    resolve(true);
-                }
-                reject(new Error("invalid response code"));
-            } catch (error) {
-                reject(error);
-            }
-        })
-    }
-
-    GetKeys = () => {
-        let activeSession = this.sessionStore.GetActiveSession();
-        return new Promise(async (resolve, reject) => {
-            try {
-                let response = await axios.get(`/api/keys`, {
-                    auth: {
-                        username: activeSession.UserName,
-                        password: activeSession.Password
-                    },
-                    headers: {
-                        "X-Backend": activeSession.BackEnd
-                    },
-                    timeout: 60000,
-                });
-
-                if (response.status === 200) {
-                    resolve(response.data);
-                }
-                reject(new Error("invalid response code"));
-            } catch (error) {
-                reject(error);
-            }
-        })
-    }
-
-    FetchUser = (username) => {
-        let activeSession = this.sessionStore.GetActiveSession();
-
-        return new Promise(async (resolve, reject) => {
-            try {
-                let response = await axios.get(`/api/users/` + username, {
-                    auth: {
-                        username: activeSession.UserName,
-                        password: activeSession.Password
-                    },
-                    headers: {
-                        "X-Backend": activeSession.BackEnd
-                    }
-                });
-
-                if (response.status === 200) {
-                    resolve(response.data);
-                }
-
-                reject(new Error("invalid response code"));
-            } catch (error) {
-                reject(error);
-            }
-        })
-    }
-
-    AssignRole = (user, role) => {
-        let activeSession = this.sessionStore.GetActiveSession();
-
-        return new Promise(async (resolve, reject) => {
-            try {
-                let response = await axios.post(`/api/users/` + user + `/role/` + role, null, {
-                    auth: {
-                        username: activeSession.UserName,
-                        password: activeSession.Password
-                    },
-                    headers: {
-                        "X-Backend": activeSession.BackEnd
-                    }
-                });
-
-                if (response.status === 200) {
-                    resolve(true);
-                }
-
-                reject(new Error("invalid response code"));
-            } catch (error) {
-                reject(error);
-            }
-        })
-    }
-
-    RemoveRole = (user, role) => {
-        let activeSession = this.sessionStore.GetActiveSession();
-
-        return new Promise(async (resolve, reject) => {
-            try {
-                let response = await axios.delete(`/api/users/` + user + `/role/` + role, {
-                    auth: {
-                        username: activeSession.UserName,
-                        password: activeSession.Password
-                    },
-                    headers: {
-                        "X-Backend": activeSession.BackEnd
-                    }
-                })
-
-                if (response.status === 200) {
-                    resolve(true);
-                }
-
-                reject(new Error("invalid response code"));
-            } catch (error) {
-                reject(error);
-            }
-        })
-    }
-
-    GetUsers = () => {
-        let activeSession = this.sessionStore.GetActiveSession();
-
-        return new Promise(async (resolve, reject) => {
-            try {
-                let response = await axios.get(`/api/users`, {
-                    auth: {
-                        username: activeSession.UserName,
-                        password: activeSession.Password
-                    },
-                    headers: {
-                        "X-Backend": activeSession.BackEnd
-                    }
-                });
-
-                if (response.status === 200) {
-                    resolve(response.data);
-                }
-                reject(new Error("invalid response code"));
-            } catch (error) {
-                reject(error);
-            }
-        })
-    }
-
-    DeleteUser = (user) => {
-        let activeSession = this.sessionStore.GetActiveSession();
-        return new Promise(async (resolve, reject) => {
-            try {
-                let response = await axios.delete(`/api/users/` + user, {
-                    auth: {
-                        username: activeSession.UserName,
-                        password: activeSession.Password
-                    },
-                    headers: {
-                        "X-Backend": activeSession.BackEnd
-                    }
-                });
-
-                if (response.status === 200) {
-                    resolve(true);
-                }
-
-                reject(new Error("invalid response code"));
-            } catch (error) {
-                reject(error);
-            }
-        })
-    }
-
+    DeleteUser = async (user) => {
+        await api.delete(`/api/users/${segment(user)}`, this.requestConfig());
+        return true;
+    };
 }

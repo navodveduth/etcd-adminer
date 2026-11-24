@@ -110,7 +110,7 @@ export default function NewConnection(props) {
     const submitSession = (session) => {
 
         let storeSession = sessionStore.Get(session.Name);
-        if (storeSession === undefined || storeSession === {}){
+        if (!storeSession){
             setloading(false);
             settested(false);
             setsuccess(false);

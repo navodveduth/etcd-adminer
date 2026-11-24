@@ -113,9 +113,9 @@ All tasks below start unchecked. Add an owner, linked issue/PR, and measured res
 
 ### A5. Fix visible frontend correctness defects
 
-- [ ] Add the missing `await` to `DataService.CreateUser`; handle connection failures where `error.response` is absent in `TestConnection`.
-- [ ] Use Axios `params` for keys and proper path-segment encoding for usernames/roles; preserve `?`, `#`, `&`, `%`, spaces, and Unicode.
-- [ ] Replace DOM-parent traversal in `tree.js` with explicit node/action callbacks; closing a context menu must not execute an action or throw.
+- [x] Await `DataService.CreateUser` and preserve transport errors when `error.response` is absent; regression tests cover both paths.
+- [x] Use Axios `params` for keys and proper path-segment encoding for usernames/roles; service tests preserve punctuation and Unicode.
+- [x] Replace DOM-parent traversal in `tree.jsx` with explicit node/action callbacks; context-menu dismissal only closes the menu.
 - [ ] Make new-key state explicit and reset it after save/cancel/selection. Repeated new files must initialize correctly and saved keys must refresh the affected listing.
 - [ ] Cancel/ignore stale editor reads; rapid selection must never load one key's value into another key's editable state. Disable save during loading/failure and warn before losing dirty edits.
 - [ ] Make session reads resilient to missing/corrupt storage; clear dependent state when an active connection is deleted; use supported React Router guards rather than the unused v5-style `render` prop in `App.js`.
@@ -163,7 +163,7 @@ All tasks below start unchecked. Add an owner, linked issue/PR, and measured res
 
 ## 6. Phase C — responsive frontend and safe editing (P1)
 
-- [ ] Replace `new Promise(async ...)` wrappers and repeated Axios configuration in `ui/src/data/service.js` with a small shared client, straightforward `async` methods, typed/validated responses, and normalized errors.
+- [ ] Complete service response validation/error normalization. Shared Axios configuration, straightforward `async` methods, injected session storage, and cancellation options for key reads are implemented; typed response validation remains pending.
 - [ ] Pass explicit workspace/backend identity to requests rather than consulting a mutable global active session at request time.
 - [ ] Adopt a bounded server-state cache (a query library or equivalent), with cache keys including session/backend/query/revision; clear it on logout and invalidate affected prefixes after mutations.
 - [ ] Add request cancellation and stale-response guards on unmount, key change, query change, and connection change. Debounce search and prevent duplicate submissions.
@@ -356,3 +356,4 @@ Each release should consist of small, reviewable PRs, with regression tests firs
 
 - **Request/tree safety:** fixed unknown-backend propagation, empty listing initialization, lossless display-tree key paths, and added bounded strict JSON decoding to key/draft mutations. Prefix directory deletion now excludes sibling prefixes and rejects empty/root scopes; preview/confirmation improvements remain pending. `go test -race ./...` passes. `go vet ./...` identified the existing copied HTTP-server lock; lifecycle repair is the next commit. Full A1/A4 acceptance is not yet complete.
 - **Lifecycle repair:** fixed per-request user/role leaks, authenticated backend ownership and cleanup, startup error propagation, synchronous listener binding, and same-instance graceful shutdown. Added real HTTP listener/shutdown and bind-conflict tests. `go test -race ./...` and `go vet ./...` pass. Configurable deadlines and soak coverage remain pending.
+- **Vite migration:** replaced CRA with Vite 8.3.8 / Vitest 5.1.1, pinned Node 24.22.3, renamed JSX modules, added standalone lint and same-origin API proxy, and preserved `ui/build/` output. Updated Docker/UI build instructions and strict API-vs-SPA fallback/cache tests. Frontend: 5 tests pass, lint passes, production build succeeds (1.04s; initial main chunk 553.85 kB / 173.32 kB gzip). Simplified Axios service with regression tests. Audit identifies old Axios/Router findings; the following dependency upgrade addresses these rather than using `audit fix --force`. Monaco self-hosting and route splitting remain pending.
