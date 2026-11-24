@@ -28,7 +28,7 @@ func (jh *GenericHandler) Authenticate(rw http.ResponseWriter, r *http.Request) 
 
 	defer jh.closeEtcdClient(client)
 
-	s, err := client.Authenticate(r.Context(), requestMeta.User, requestMeta.Pass)
+	_, err = client.Authenticate(r.Context(), requestMeta.User, requestMeta.Pass)
 	if err != nil {
 		if err == rpctypes.ErrAuthFailed {
 			rw.WriteHeader(http.StatusForbidden)
@@ -41,11 +41,11 @@ func (jh *GenericHandler) Authenticate(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	response := struct {
-		Token    string    `json:"token"`
-		CreateAt time.Time `json:"created_at"`
+		Authenticated bool      `json:"authenticated"`
+		CreateAt      time.Time `json:"created_at"`
 	}{
-		Token:    s.Token,
-		CreateAt: time.Now(),
+		Authenticated: true,
+		CreateAt:      time.Now(),
 	}
 
 	respData, err := json.Marshal(response)

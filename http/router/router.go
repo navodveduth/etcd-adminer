@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/srimaln91/etcd-adminer/config"
 	"github.com/srimaln91/etcd-adminer/etcd"
 	"github.com/srimaln91/etcd-adminer/http/handlers"
 	"github.com/srimaln91/etcd-adminer/http/middlewares"
@@ -21,7 +22,11 @@ func NewRouter(logger log.Logger, backendProvider *etcd.BackEndProvider) (http.H
 	validator := middlewares.NewRequestValidateMiddleware(backendProvider)
 
 	r := mux.NewRouter()
-	r.Use(CORS)
+	publicOrigin := ""
+	if config.AppConfig != nil {
+		publicOrigin = config.AppConfig.HTTP.PublicOrigin
+	}
+	r.Use(middlewares.SameOrigin(publicOrigin))
 
 	r.HandleFunc("/api/getconfig", requestHandler.GetConfig).Methods(http.MethodGet, http.MethodOptions)
 	r.Handle("/api/auth", validator.ValidateRequest(requestHandler.Authenticate)).Methods(http.MethodPost, http.MethodOptions)
@@ -48,22 +53,4 @@ func NewRouter(logger log.Logger, backendProvider *etcd.BackEndProvider) (http.H
 	r.PathPrefix("/").Handler(spa)
 
 	return r, nil
-}
-
-func CORS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		// Set headers
-		w.Header().Set("Access-Control-Allow-Headers", "*")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "*")
-
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		// Next
-		next.ServeHTTP(w, r)
-	})
 }

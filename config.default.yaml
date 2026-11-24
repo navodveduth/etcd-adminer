@@ -1,5 +1,7 @@
 http:
   port: 8080
+  # Behind an HTTPS reverse proxy, set the exact browser-visible origin, e.g.:
+  # publicOrigin: "https://adminer.example.com"
 
 logger:
   level: "DEBUG"

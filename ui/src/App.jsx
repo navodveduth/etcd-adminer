@@ -79,8 +79,11 @@ function App() {
   
   // initialize mode from localStorage or default to dark
   const [mode, setMode] = React.useState(() => {
-    const savedMode = localStorage.getItem('themeMode');
-    return savedMode || 'dark';
+    try {
+      return localStorage.getItem('themeMode') === 'light' ? 'light' : 'dark';
+    } catch {
+      return 'dark';
+    }
   });
 
   const toggleDrawer = () => {
@@ -95,7 +98,7 @@ function App() {
     setMode((prevMode) => {
       const newMode = prevMode === 'light' ? 'dark' : 'light';
       // save to localStorage
-      localStorage.setItem('themeMode', newMode);
+      try { localStorage.setItem('themeMode', newMode); } catch { /* Keep an in-memory preference when storage is unavailable. */ }
       return newMode;
     });
   };
@@ -193,8 +196,8 @@ function App() {
             <Container maxWidth={false} sx={{ mt: 4, mb: 4 }}>
               <React.Suspense fallback={<CircularProgress aria-label="Loading page" />}>
               <Routes>
-                <Route path="/" element={<ConnectionComponent />} />
-                <Route path="connection" element={<ConnectionComponent />} />
+                <Route path="/" element={<ConnectionComponent onSessionChange={forceRefreshNav} />} />
+                <Route path="connection" element={<ConnectionComponent onSessionChange={forceRefreshNav} />} />
                 <Route path="connection/new" element={<NewConnectionComponent forceRefreshNav={forceRefreshNav} />} />
                 <Route path="cluster" element={requireConnection(<ClusterInfo />)} />
                 <Route path="keys" element={requireConnection(<KeysComponent />)} />

@@ -242,6 +242,11 @@ func (jh *GenericHandler) CreateUser(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	var reqDataDecoded request.CreateUserRequest
+	if err := request.DecodeJSON(rw, r, &reqDataDecoded); err != nil || reqDataDecoded.UserName == "" || reqDataDecoded.Password == "" {
+		response.WriteError(rw, http.StatusBadRequest, "invalid_request", "a username, password, and valid JSON object are required")
+		return
+	}
 
 	client, err := etcd.NewClient(requestMeta.Backend.Endpoints(), etcd.WithAuth(requestMeta.User, requestMeta.Pass))
 	if err != nil {
@@ -255,15 +260,6 @@ func (jh *GenericHandler) CreateUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	defer jh.closeEtcdClient(client)
-
-	reqDataDecoded := request.CreateUserRequest{}
-	decoder := json.NewDecoder(r.Body)
-
-	err = decoder.Decode(&reqDataDecoded)
-	if err != nil {
-		rw.WriteHeader(http.StatusUnprocessableEntity)
-		return
-	}
 
 	_, err = client.UserAdd(r.Context(), reqDataDecoded.UserName, reqDataDecoded.Password)
 	if err != nil {

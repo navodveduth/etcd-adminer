@@ -178,6 +178,7 @@ func TestRBACIntegration(t *testing.T) {
 				t.Fatal(err)
 			}
 			r := httptest.NewRequest("PUT", "/api/keys", bytes.NewReader(body))
+			r.Header.Set("Content-Type", "application/json")
 			r = r.WithContext(context.WithValue(ctx, META_KEY, request.RequestMeta{Backend: backend, User: "root", Pass: password}))
 			w := httptest.NewRecorder()
 			handler.UpdateKey(w, r)

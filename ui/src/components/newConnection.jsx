@@ -68,6 +68,7 @@ export default function NewConnection(props) {
     }
 
     const handleChange = (e) => {
+        if (['backend', 'username', 'password'].includes(e.target.name)) settested(false);
         let value = e.target.value;
         switch (e.target.name) {
             case "backend":
@@ -88,39 +89,20 @@ export default function NewConnection(props) {
     }
 
     const handleSubmit = () => {
-        let newSession = new Session(
-            name,
-            backEnds[selectedBackendIndex].name,
-            backEnds[selectedBackendIndex].endpoints,
-            username,
-            password
-        );
-
-        sessionStore.Add(newSession);
-        submitSession(newSession);
-
-        // enable nav menu items
-        props.forceRefreshNav();
-
-        // redirect to keys route
-        navigate('/keys');
-    }
-
-    const submitSession = (session) => {
-
-        let storeSession = sessionStore.Get(session.Name);
-        if (!storeSession){
-            setloading(false);
-            settested(false);
-            setsuccess(false);
+        if (!tested || !backEnds[selectedBackendIndex]) return;
+        try {
+            const profile = new Session(
+                name.trim(), backEnds[selectedBackendIndex].name,
+                backEnds[selectedBackendIndex].endpoints, username, password,
+            );
+            sessionStore.Add(profile);
+            if (!sessionStore.SetActiveSession(profile)) throw new Error('Profile activation failed');
+            props.forceRefreshNav?.();
+            navigate('/keys');
+        } catch {
             seterror(true);
-            seterrorMessage("Could not find the local session!");
-            setsuccessMessage("");
-
-            return;
+            seterrorMessage('Could not save this profile. Provide a name and allow local storage.');
         }
-
-        sessionStore.SetActiveSession(storeSession);
     }
 
     const fetchData = useCallback(async () => {
@@ -195,6 +177,7 @@ export default function NewConnection(props) {
                                     value={selectedBackendIndex !== undefined ? selectedBackendIndex: ""}
                                     label="Backend"
                                     name="backend"
+                                    disabled={loading}
                                     onChange={handleChange}
                                 >
                                     {
@@ -211,6 +194,7 @@ export default function NewConnection(props) {
                                 id="username"
                                 name="username"
                                 label="User Name"
+                                disabled={loading}
                                 value={username}
                                 fullWidth
                                 autoComplete="user name"
@@ -223,6 +207,7 @@ export default function NewConnection(props) {
                                 id="password"
                                 name="password"
                                 label="Password"
+                                disabled={loading}
                                 type="password"
                                 value={password}
                                 fullWidth
@@ -240,6 +225,7 @@ export default function NewConnection(props) {
                                     loadingPosition="end"
                                     variant="contained"
                                     color="success"
+                                    disabled={selectedBackendIndex === undefined || !backEnds[selectedBackendIndex] || !username}
                                 >
                                     Test
                                 </Button>

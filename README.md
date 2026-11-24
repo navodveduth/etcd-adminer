@@ -112,6 +112,24 @@ For a reproducible disposable-cluster 100k-key API benchmark, run
 `ETCD_TEST_LARGE=1 sh scripts/test-integration.sh -v`. This reports 20 first-page
 samples, not a browser benchmark or multi-node production performance guarantee.
 
+### Credential and origin handling
+
+Saved browser profiles contain metadata only. Legacy stored passwords are
+removed on access; you must reauthenticate after reloading/opening a tab.
+Passwords remain in tab memory until disconnect, deletion, or tab closure;
+they are still sent as HTTP Basic credentials to the API. **Use HTTPS for
+non-local deployments.** Full short-lived server-side cookie sessions and
+configurable upstream TLS remain planned; these changes are not a claim of
+complete production security hardening.
+
+The API no longer enables wildcard CORS and rejects cross-origin browser
+mutations. For TLS termination at a reverse proxy, set `http.publicOrigin`
+to the exact external origin, such as `https://adminer.example.com` (no trailing
+slash). Forward the correct Host header. Do not trust arbitrary forwarded
+scheme headers. The Vite development proxy handles same-origin development
+requests without weakening the production origin policy. JSON mutations
+require `Content-Type: application/json`; form/plaintext bodies are rejected.
+
 ## Contributions
 
 Contributions are welcome. Please free free to open PRs if you have anything to contribute with.

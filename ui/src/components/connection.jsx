@@ -1,96 +1,88 @@
-import React, { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Grid from '@mui/material/Grid';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
-import ConnectionCard from './connectionCard';
-import { SessionStore } from '../storage/session'
-import Fab from '@mui/material/Fab';
-import AddIcon from '@mui/icons-material/Add';
-import { Link } from "react-router-dom";
+import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import TextField from '@mui/material/TextField';
 import Alert from '@mui/material/Alert';
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from 'react-router-dom';
+import ConnectionCard from './connectionCard';
+import { Session, SessionStore } from '../storage/session';
+import DataService from '../data/service';
 
-export default function Connection(props) {
+export default function Connection({ onSessionChange }) {
+    const store = useMemo(() => new SessionStore(), []);
+    const service = useMemo(() => new DataService(), []);
+    const [profiles, setProfiles] = useState(() => store.GetAll());
+    const [pending, setPending] = useState(null);
+    const [password, setPassword] = useState('');
+    const [connecting, setConnecting] = useState(false);
+    const [error, setError] = useState(null);
 
-    const sessionStore = new SessionStore();
-
-    const [sessions, setSessions] = useState(new SessionStore().GetAll());
-    const [errorMessage, seterrorMessage] = useState("");
-
-    const useSession = (session) => {
-        clearAlert();
-        sessionStore.SetActiveSession(session);
-        setSessions(sessionStore.GetAll());
-    }
-
-    const deleteSession = (session) => {
-        clearAlert();
-        sessionStore.Delete(session);
-        setSessions(sessionStore.GetAll());
-    }
-
-    const getAlert = () => {
-        if (errorMessage !== "") {
-            return (<Alert severity="error">{errorMessage}</Alert>);
+    const refresh = () => { setProfiles(store.GetAll()); onSessionChange?.(); };
+    const useSession = (profile) => {
+        if (store.Get(profile.Name)?.Password !== undefined) {
+            store.SetActiveSession(profile);
+            refresh();
+        } else {
+            setPending(profile);
+            setPassword('');
+            setError(null);
         }
-
-        return null
-    }
-
-    const clearAlert = () => {
-        seterrorMessage("");
-    }
-
+    };
+    const connect = async (event) => {
+        event.preventDefault();
+        setConnecting(true);
+        setError(null);
+        try {
+            if (!await service.TestConnection(pending.UserName, password, pending.BackEnd)) {
+                setError('Authentication failed. Check your credentials.');
+                return;
+            }
+            store.Add(new Session(pending.Name, pending.BackEnd, pending.Endpoints, pending.UserName, password));
+            store.SetActiveSession(pending);
+            setPending(null);
+            setPassword('');
+            refresh();
+        } catch {
+            setError('Could not connect. Check cluster availability and try again.');
+        } finally {
+            setConnecting(false);
+        }
+    };
+    if (!Object.keys(profiles).length) return <Navigate to="/connection/new" replace />;
     return (
-        <Grid container spacing={3}>
-            <Grid size={12}>
-                <Paper
-                    sx={{
-                        p: 2,
-                        display: 'flex',
-                        flexWrap: 'wrap'
-                    }}
-                >
-
-                    {getAlert()}
-
-                    <Grid size={12}>
-                        <Typography variant="h6">
-                            Saved Connections
-                        </Typography>
+        <Paper sx={{ p: 2 }}>
+            <Typography variant="h6">Saved connections</Typography>
+            <Alert severity="info" sx={{ my: 2 }}>Only profile metadata is saved. Passwords remain in this tab's memory; reloads require reauthentication.</Alert>
+            <Grid container spacing={2}>
+                {Object.values(profiles).map((profile) => (
+                    <Grid size={{ xs: 12, sm: 6, lg: 3 }} key={profile.Name}>
+                        <ConnectionCard connection={profile} isActive={profile.isActive} useSession={useSession}
+                            deleteSession={(profile) => { store.Delete(profile); refresh(); }} />
                     </Grid>
-
-                    {!sessionStore.IsLocalSessionAvailable() && (
-                        <Navigate to={"/connection/new"} replace={true} />
-                    )}
-
-                    {
-                    sessions !== null && Object.keys(sessions).map((key) => {
-                        let conn = sessions[key];
-                        return (
-                            <Grid size={{ xs: 6, sm: 3 }} key={conn.Name}>
-                                <React.Fragment>
-                                    <ConnectionCard
-                                        connection={conn}
-                                        useSession={useSession}
-                                        deleteSession={deleteSession}
-                                        isActive={conn.isActive}
-                                    />
-                                </React.Fragment>
-                            </Grid>
-                        );
-                    })}
-                </Paper>
+                ))}
             </Grid>
-
-            <Grid size={12}>
-                <Link to='new'>
-                    <Fab color="primary" aria-label="add" sx={{ position: "absolute", bottom: 16, right: 16 }}>
-                        <AddIcon />
-                    </Fab>
-                </Link>
-            </Grid>
-
-        </Grid>
-    )
+            <Button component={Link} to="/connection/new">New connection</Button>
+            <Button onClick={() => { store.DisconnectAll(); refresh(); }}>Disconnect all</Button>
+            <Dialog open={Boolean(pending)} onClose={() => { if (!connecting) { setPending(null); setPassword(''); } }}>
+                <form onSubmit={connect}>
+                    <DialogTitle>Authenticate {pending?.Name}</DialogTitle>
+                    <DialogContent>
+                        {error && <Alert severity="error">{error}</Alert>}
+                        <TextField autoFocus label="Password" type="password" autoComplete="current-password" value={password}
+                            onChange={(event) => setPassword(event.target.value)} disabled={connecting} fullWidth sx={{ mt: 1 }} />
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => { setPending(null); setPassword(''); }} disabled={connecting}>Cancel</Button>
+                        <Button type="submit" disabled={connecting}>Authenticate</Button>
+                    </DialogActions>
+                </form>
+            </Dialog>
+        </Paper>
+    );
 }

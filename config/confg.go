@@ -1,6 +1,8 @@
 package config
 
 import (
+	"errors"
+	"net/url"
 	"os"
 
 	"github.com/srimaln91/etcd-adminer/log"
@@ -9,7 +11,8 @@ import (
 
 type Config struct {
 	HTTP struct {
-		Port int `yaml:"port"`
+		Port         int    `yaml:"port"`
+		PublicOrigin string `yaml:"publicOrigin"`
 	} `yaml:"http"`
 	Logger struct {
 		Level log.Level `yaml:"level"`
@@ -36,6 +39,12 @@ func Parse(path string) (*Config, error) {
 	err = yaml.Unmarshal(file, config)
 	if err != nil {
 		return nil, err
+	}
+	if config.HTTP.PublicOrigin != "" {
+		origin, err := url.Parse(config.HTTP.PublicOrigin)
+		if err != nil || (origin.Scheme != "http" && origin.Scheme != "https") || origin.Host == "" || origin.User != nil || origin.Path != "" || origin.RawQuery != "" || origin.Fragment != "" {
+			return nil, errors.New("http.publicOrigin must be an http(s) origin without a path, credentials, query, or fragment")
+		}
 	}
 
 	AppConfig = config

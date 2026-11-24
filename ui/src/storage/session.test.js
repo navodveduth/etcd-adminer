@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Session, SessionStore } from './session';
 
 describe('SessionStore', () => {
@@ -25,5 +25,40 @@ describe('SessionStore', () => {
         store.Delete(second);
         expect(store.GetActiveSession()).toBeUndefined();
         expect(store.SetActiveSession(second)).toBe(false);
+    });
+
+    it('persists metadata only and clears credentials on disconnect', () => {
+        const store = new SessionStore();
+        const profile = new Session('private', 'backend', [], 'alice', 'never-persist-this');
+        store.Add(profile);
+        store.SetActiveSession(profile);
+        expect(localStorage.getItem('sessions')).not.toContain('never-persist-this');
+        expect(localStorage.getItem('sessions')).not.toContain('Password');
+        expect(store.GetActiveSession().Password).toBe('never-persist-this');
+        expect(store.GetAll().private).not.toHaveProperty('Password');
+        store.DisconnectAll();
+        expect(store.GetActiveSession()).toBeUndefined();
+        expect(store.Get('private')).not.toHaveProperty('Password');
+    });
+
+    it('scrubs legacy stored passwords and requires reauthentication', () => {
+        localStorage.setItem('sessions', JSON.stringify({ legacy: {
+            Name: 'legacy', BackEnd: 'backend', UserName: 'alice', Password: 'legacy-secret', isActive: true,
+        } }));
+        const store = new SessionStore();
+        expect(store.GetActiveSession()).toBeUndefined();
+        expect(store.GetAll().legacy.isActive).toBe(false);
+        expect(localStorage.getItem('sessions')).not.toContain('legacy-secret');
+        expect(store.SetActiveSession({ Name: 'legacy' })).toBe(false);
+    });
+
+    it('requires reauthentication after a fresh module/tab lifecycle', async () => {
+        const store = new SessionStore();
+        const profile = new Session('reload', 'backend', [], 'alice', 'ephemeral');
+        store.Add(profile);
+        store.SetActiveSession(profile);
+        vi.resetModules();
+        const { SessionStore: ReloadedStore } = await import('./session');
+        expect(new ReloadedStore().GetActiveSession()).toBeUndefined();
     });
 });
