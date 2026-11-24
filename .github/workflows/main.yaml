@@ -1,41 +1,48 @@
-name: Build, Test And Publish
+name: Validate
 
 on:
   push:
-    branches: [ main, develop ]
-    tags: 
-      - '**'
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
+
+permissions:
+  contents: read
 
 jobs:
-
-  build:
-    name: Build
+  backend:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.1.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Format
+        run: test -z "$(gofmt -l $(git ls-files '*.go'))"
+      - run: go vet ./...
+      - run: go test -race ./...
+      - run: go build ./...
+      - name: Vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
-    - name: Set up Go 1.x
-      uses: actions/setup-go@v3
-      with:
-        go-version: ^1.17
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: ui/.nvmrc
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --audit-level=high
 
-    - name: Check out code
-      uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
-
-    - name: Static Test
-      uses: dominikh/staticcheck-action@v1.3.0
-      with:
-        version: "2023.1.3"
-        install-go: false
-
-    - name: Test
-      run: make test
-
-    - name: Docker push
-      env:
-        DOCKER_USER: ${{ secrets.DOCKERHUB_USER }}
-        DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_SECRET }}
-      run: ./scripts/docker-push.sh
+# Publishing is intentionally not part of PR/branch validation. Run release
+# publishing only from a separately reviewed, trusted release workflow.

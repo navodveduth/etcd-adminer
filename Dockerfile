@@ -1,48 +1,23 @@
-FROM golang:1.16 AS build_go
-
-#RUN apk add --no-cache git
-
-# Set the Current Working Directory inside the container
-WORKDIR /tmp/etcd-adminer/api
-
-# We want to populate the module cache based on the go.{mod,sum} files.
-COPY go.mod .
-COPY go.sum .
-
+FROM golang:1.27.4-bookworm AS build_go
+WORKDIR /src
+COPY go.mod go.sum ./
 RUN go mod download
-
 COPY . .
+RUN go test ./... && go vet ./...
+RUN CGO_ENABLED=0 go build -trimpath -o /out/etcd-adminer .
 
-# unit tests
-RUN go test -v
-
-# build the binary
-RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o etcd-adminer-linux-amd64 .
-
-# Build the UI
 FROM node:24.22.3-bookworm-slim AS build_ui
-
-WORKDIR /tmp/etcd-adminer/ui
-
-COPY ["./ui/package.json", "./ui/package-lock.json", "./"]
+WORKDIR /src/ui
+COPY ui/package.json ui/package-lock.json ./
 RUN npm ci
+COPY ui/ ./
+RUN npm run lint && npm test && npm run build
 
-COPY ./ui .
-
-RUN npm run build
-
-
-# Start fresh from a smaller image
-FROM alpine:3.9
-RUN apk add ca-certificates
-
-COPY --from=build_go /tmp/etcd-adminer/api/etcd-adminer-linux-amd64 /app/etcd-adminer-linux-amd64
-COPY config.default.yaml /app/config.yaml
-
-COPY --from=build_ui /tmp/etcd-adminer/ui/build /app/static
-
+FROM gcr.io/distroless/static-debian13:nonroot
 WORKDIR /app
-
+COPY --from=build_go /out/etcd-adminer /app/etcd-adminer
+COPY --from=build_ui /src/ui/build /app/static
+COPY config.default.yaml /app/config.yaml
+USER nonroot:nonroot
 EXPOSE 8080
-
-CMD ["/app/etcd-adminer-linux-amd64"]
+ENTRYPOINT ["/app/etcd-adminer"]

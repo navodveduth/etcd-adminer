@@ -43,6 +43,8 @@ docker run -d --name etcd-adminer -p 8080:8080 -v /path/to/config.yaml:/app/conf
 ### Build and run
 
 #### Backend API
+Requires Go 1.27.4 (the version declared in `go.mod`).
+
 ```bash
 # clone the project
 git clone https://github.com/srimaln91/etcd-adminer.git
@@ -54,6 +56,9 @@ go mod download
 # build it!
 go build
 ```
+
+Use a supported etcd server; the client/API modules are pinned to 3.7.4.
+Compatibility with older server releases must be integration-tested before deployment.
 
 #### React UI
 
