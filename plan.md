@@ -229,6 +229,12 @@ single-file exports remain future work; pages/batches are separate bounded units
 
 ### D5. RBAC, workspaces, and usability
 
+Screenshot-driven UI redesign is specified in [ui/UX_PLAN.md](ui/UX_PLAN.md).
+The original blue palette/primary connection action are restored; cluster
+layout, connection/workspace navigation and workflow redesign remain planned,
+not implemented. Prioritize the overlapping fixed-height cluster panels and
+unused desktop space before broader visual polish.
+
 Workspace UX checkpoint: four independently bound connection tabs with retained
 feature-page state, fail-closed capability hints/admin navigation, profile
 editing with cancellable diagnostics and retest-before-save, shortcut help and
