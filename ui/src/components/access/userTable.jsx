@@ -9,36 +9,50 @@ import Button from '@mui/material/Button';
 import { useReadOnly } from '../../readOnly';
 
 export default function UserTable(props) {
-    const readOnly = useReadOnly();
-    return (
-        <TableContainer component={Paper}>
-            <Table sx={{ minWidth: 650 }} aria-label="simple table">
-                <TableHead>
-                    <TableRow>
-                        <TableCell>Name</TableCell>
-                        <TableCell align="right">Actions</TableCell>
-                    </TableRow>
-                </TableHead>
-                <TableBody>
-                    {props.users.map((row) => (
-                        <TableRow
-                            key={row}
-                            sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
-                        >
-                            <TableCell component="th" scope="row">
-                                {row}
-                            </TableCell>
-                            <TableCell align="right">
-                                <Button sx={{ m: 1 }} variant="contained" color="success" onClick={() => { props.selectUser(row) }}>View/Edit</Button>
-                                <Button sx={{ m: 1 }} variant="contained" color="error" disabled={readOnly || row === 'root'} onClick={() => {
-                                    props.setSelectedUser(row);
-                                    props.setdeleteConfirmationDialogOpen(true);
-                                }}>Delete</Button>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-        </TableContainer>
-    )
+  const readOnly = useReadOnly();
+  return (
+    <TableContainer component={Paper}>
+      <Table sx={{ minWidth: 650 }} aria-label="simple table">
+        <TableHead>
+          <TableRow>
+            <TableCell>Name</TableCell>
+            <TableCell align="right">Actions</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {props.users.map((row) => (
+            <TableRow key={row} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+              <TableCell component="th" scope="row">
+                {row}
+              </TableCell>
+              <TableCell align="right">
+                <Button
+                  sx={{ m: 1 }}
+                  variant="contained"
+                  color="success"
+                  onClick={() => {
+                    props.selectUser(row);
+                  }}
+                >
+                  View/Edit
+                </Button>
+                <Button
+                  sx={{ m: 1 }}
+                  variant="contained"
+                  color="error"
+                  disabled={readOnly || row === 'root'}
+                  onClick={() => {
+                    props.setSelectedUser(row);
+                    props.setdeleteConfirmationDialogOpen(true);
+                  }}
+                >
+                  Delete
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
 }

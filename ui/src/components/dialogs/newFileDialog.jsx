@@ -8,32 +8,29 @@ import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 
 export default function NewFileDialog(props) {
-
-  const [fileName, setfileName] = React.useState("");
+  const [fileName, setfileName] = React.useState('');
   const [inputError, setinputError] = React.useState(false);
 
   const handleChange = (e) => {
     setfileName(e.target.value);
-  }
+  };
 
   const submit = (e) => {
     e.preventDefault();
-    if (fileName === "") {
+    if (fileName === '') {
       setinputError(true);
-      return
+      return;
     }
 
     props.handleSubmit(fileName);
-  }
+  };
 
   return (
     <div>
       <Dialog open={props.open} onClose={props.handleClose}>
         <DialogTitle>New File</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            Please enter the file name and submit
-          </DialogContentText>
+          <DialogContentText>Please enter the file name and submit</DialogContentText>
           <TextField
             autoFocus
             margin="dense"

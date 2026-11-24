@@ -4,9 +4,11 @@ import { it, expect, vi } from 'vitest';
 import FSNavigator from './tree';
 
 const keys = {
-  id: 1, name: '/', type: 'directory', abspath: '', children: [
-    { id: 2, name: 'config', type: 'file', abspath: '/config' },
-  ],
+  id: 1,
+  name: '/',
+  type: 'directory',
+  abspath: '',
+  children: [{ id: 2, name: 'config', type: 'file', abspath: '/config' }],
 };
 
 it('selects the exact key without inspecting DOM parents', () => {

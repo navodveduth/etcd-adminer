@@ -14,18 +14,10 @@ export default function ConfirmationDialog(props) {
 
   return (
     <div>
-      <Dialog
-        fullScreen={fullScreen}
-        open={props.open}
-        aria-labelledby="responsive-dialog-title"
-      >
-        <DialogTitle id="responsive-dialog-title">
-          {props.title}
-        </DialogTitle>
+      <Dialog fullScreen={fullScreen} open={props.open} aria-labelledby="responsive-dialog-title">
+        <DialogTitle id="responsive-dialog-title">{props.title}</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            {props.content}
-          </DialogContentText>
+          <DialogContentText>{props.content}</DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button autoFocus onClick={props.onCancel}>

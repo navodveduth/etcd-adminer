@@ -16,7 +16,7 @@ import Box from '@mui/material/Box';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import ConfirmationDialog from '../dialogs/confirmationDialog';
-import NewDirectoryDialog from '../dialogs/newDirectoryDialog'
+import NewDirectoryDialog from '../dialogs/newDirectoryDialog';
 import NewFileDialog from '../dialogs/newFileDialog';
 import ArticleIcon from '@mui/icons-material/Article';
 import { useReadOnly } from '../../readOnly';
@@ -37,13 +37,13 @@ export default function FSNavigator(props) {
     setContextMenu(
       contextMenu === null
         ? {
-          mouseX: event.clientX - 2,
-          mouseY: event.clientY - 4,
-        }
+            mouseX: event.clientX - 2,
+            mouseY: event.clientY - 4,
+          }
         : // repeated contextmenu when it is already open closes it with Chrome 84 on Ubuntu
-        // Other native context menus might behave different.
-        // With this behavior we prevent contextmenu from the backdrop to re-locale existing context menus.
-        null,
+          // Other native context menus might behave different.
+          // With this behavior we prevent contextmenu from the backdrop to re-locale existing context menus.
+          null,
     );
 
     setContextMenuSelectedNode(node);
@@ -56,16 +56,16 @@ export default function FSNavigator(props) {
   const handleAction = (action) => {
     handleClose();
     switch (action) {
-      case "refresh":
+      case 'refresh':
         props.fetchKeys();
         break;
-      case "newfile":
+      case 'newfile':
         setnewFileDialogOpen(true);
         break;
-      case "delete":
+      case 'delete':
         setdeleteConfirmationDialogOpen(true);
         break;
-      case "newdir":
+      case 'newdir':
         setnewDirectoryDialogOpen(true);
         break;
       default:
@@ -85,60 +85,64 @@ export default function FSNavigator(props) {
         event.stopPropagation();
         if (nodes.type === 'file' && !nodes.isVirtual) props.onKeyClick(nodes.abspath);
       }}
-      onContextMenu={event => handleContextMenu(event, nodes)}
+      onContextMenu={(event) => handleContextMenu(event, nodes)}
       onKeyDown={(event) => {
         if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
           const position = event.currentTarget.getBoundingClientRect();
-          event.preventDefault(); event.stopPropagation();
-          setContextMenu({ mouseX: position.left + 24, mouseY: position.top + 24 }); setContextMenuSelectedNode(nodes);
+          event.preventDefault();
+          event.stopPropagation();
+          setContextMenu({ mouseX: position.left + 24, mouseY: position.top + 24 });
+          setContextMenuSelectedNode(nodes);
         } else if (event.key === 'Enter' && nodes.type === 'file' && !nodes.isVirtual) {
-          event.preventDefault(); event.stopPropagation(); props.onKeyClick(nodes.abspath);
+          event.preventDefault();
+          event.stopPropagation();
+          props.onKeyClick(nodes.abspath);
         }
       }}
     >
-      {Array.isArray(nodes.children)
-        ? nodes.children.map((node) => renderTree(node))
-        : null}
+      {Array.isArray(nodes.children) ? nodes.children.map((node) => renderTree(node)) : null}
     </TreeItem>
   );
 
   const onConfirmationDialogCancel = () => {
-    setdeleteConfirmationDialogOpen(false)
-  }
+    setdeleteConfirmationDialogOpen(false);
+  };
 
   const onConfirmationDialogConfirm = () => {
     setdeleteConfirmationDialogOpen(false);
     props.deleteKey(contextMenuSelectedNode);
-  }
+  };
 
   const getDeleteDialogContent = () => {
     if (contextMenuSelectedNode === null) {
-      return ""
+      return '';
     }
     if (contextMenuSelectedNode.type === 'directory') {
-      const prefix = contextMenuSelectedNode.abspath.endsWith('/') ? contextMenuSelectedNode.abspath : `${contextMenuSelectedNode.abspath}/`;
+      const prefix = contextMenuSelectedNode.abspath.endsWith('/')
+        ? contextMenuSelectedNode.abspath
+        : `${contextMenuSelectedNode.abspath}/`;
       return `Delete ALL keys with raw prefix ${JSON.stringify(prefix)}? This includes keys not shown on this page.`;
     }
-    return "Do you really want to delete key " + contextMenuSelectedNode.abspath + " ?"
-  }
+    return 'Do you really want to delete key ' + contextMenuSelectedNode.abspath + ' ?';
+  };
 
   const newDirectoryDialogSubmit = (name) => {
     setnewDirectoryDialogOpen(false);
-    props.createDirectory(contextMenuSelectedNode.abspath + "/" + name);
-  }
+    props.createDirectory(contextMenuSelectedNode.abspath + '/' + name);
+  };
 
   const newDirectoryDialogClose = () => {
     setnewDirectoryDialogOpen(false);
-  }
+  };
 
   const newFileDialogSubmit = (name) => {
     setnewFileDialogOpen(false);
-    props.createFile(contextMenuSelectedNode.abspath + "/" + name);
-  }
+    props.createFile(contextMenuSelectedNode.abspath + '/' + name);
+  };
 
   const newFileDialogClose = () => {
     setnewFileDialogOpen(false);
-  }
+  };
 
   return (
     <div>
@@ -150,7 +154,7 @@ export default function FSNavigator(props) {
           </Button>
         </Alert>
       )}
-      
+
       {props.loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 700 }}>
           <CircularProgress size={40} />
@@ -170,28 +174,40 @@ export default function FSNavigator(props) {
         onClose={handleClose}
         anchorReference="anchorPosition"
         anchorPosition={
-          contextMenu !== null
-            ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
-            : undefined
+          contextMenu !== null ? { top: contextMenu.mouseY, left: contextMenu.mouseX } : undefined
         }
       >
-        <MenuItem onClick={() => handleAction('newfile')} data-id="newfile"
-          disabled={readOnly || (contextMenuSelectedNode !== null && contextMenuSelectedNode.type === "file")}
+        <MenuItem
+          onClick={() => handleAction('newfile')}
+          data-id="newfile"
+          disabled={
+            readOnly ||
+            (contextMenuSelectedNode !== null && contextMenuSelectedNode.type === 'file')
+          }
         >
           <ListItemIcon>
             <AddIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText>New File</ListItemText>
         </MenuItem>
-        <MenuItem onClick={() => handleAction('newdir')} data-id="newdir"
-          disabled={readOnly || (contextMenuSelectedNode !== null && contextMenuSelectedNode.type === "file")}
+        <MenuItem
+          onClick={() => handleAction('newdir')}
+          data-id="newdir"
+          disabled={
+            readOnly ||
+            (contextMenuSelectedNode !== null && contextMenuSelectedNode.type === 'file')
+          }
         >
           <ListItemIcon>
             <CreateNewFolderIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText>New Directory</ListItemText>
         </MenuItem>
-        <MenuItem onClick={() => handleAction('delete')} data-id="delete" disabled={readOnly || !contextMenuSelectedNode?.abspath}>
+        <MenuItem
+          onClick={() => handleAction('delete')}
+          data-id="delete"
+          disabled={readOnly || !contextMenuSelectedNode?.abspath}
+        >
           <ListItemIcon>
             <DeleteIcon fontSize="small" />
           </ListItemIcon>
@@ -209,7 +225,7 @@ export default function FSNavigator(props) {
         open={deleteConfirmationDialogOpen}
         onCancel={onConfirmationDialogCancel}
         onConfirm={onConfirmationDialogConfirm}
-        title={"Delete Key?"}
+        title={'Delete Key?'}
         content={getDeleteDialogContent()}
       />
 

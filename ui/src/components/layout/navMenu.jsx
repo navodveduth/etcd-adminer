@@ -33,13 +33,31 @@ export default function NavMenu({ workspace = false }) {
   const administratorPages = new Set(['metrics', 'cluster', 'leases', 'users', 'roles']);
   return (
     <List>
-      {destinations.filter(({ path }) => !workspace || !['connection', 'about'].includes(path)).map(({ path, label, icon: Icon, connection, disabled }) => (
-        <ListItemButton key={path} component={NavLink} to={`/${path}`} title={workspace && administratorPages.has(path) && !capabilities?.administrator ? 'Requires the etcd root role' : label}
-          disabled={disabled || (connection && !hasConnection) || (workspace && administratorPages.has(path) && !capabilities?.administrator)} sx={{ borderRadius: 2, mb: 0.5, '&.active': { bgcolor: 'action.selected' } }}>
-          <ListItemIcon><Icon /></ListItemIcon>
-          <ListItemText primary={label} />
-        </ListItemButton>
-      ))}
+      {destinations
+        .filter(({ path }) => !workspace || !['connection', 'about'].includes(path))
+        .map(({ path, label, icon: Icon, connection, disabled }) => (
+          <ListItemButton
+            key={path}
+            component={NavLink}
+            to={`/${path}`}
+            title={
+              workspace && administratorPages.has(path) && !capabilities?.administrator
+                ? 'Requires the etcd root role'
+                : label
+            }
+            disabled={
+              disabled ||
+              (connection && !hasConnection) ||
+              (workspace && administratorPages.has(path) && !capabilities?.administrator)
+            }
+            sx={{ borderRadius: 2, mb: 0.5, '&.active': { bgcolor: 'action.selected' } }}
+          >
+            <ListItemIcon>
+              <Icon />
+            </ListItemIcon>
+            <ListItemText primary={label} />
+          </ListItemButton>
+        ))}
     </List>
   );
 }

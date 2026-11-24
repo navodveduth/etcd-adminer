@@ -8,32 +8,29 @@ import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 
 export default function NewDirectoryDialog(props) {
-
-  const [directoryName, setdirectoryName] = React.useState("");
+  const [directoryName, setdirectoryName] = React.useState('');
   const [inputError, setinputError] = React.useState(false);
 
   const handleChange = (e) => {
     setdirectoryName(e.target.value);
-  }
+  };
 
   const submit = (e) => {
     e.preventDefault();
-    if (directoryName === "") {
+    if (directoryName === '') {
       setinputError(true);
-      return
+      return;
     }
 
     props.handleSubmit(directoryName);
-  }
+  };
 
   return (
     <div>
       <Dialog open={props.open} onClose={props.handleClose}>
         <DialogTitle>New Directory</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            Please enter the directory name and submit
-          </DialogContentText>
+          <DialogContentText>Please enter the directory name and submit</DialogContentText>
           <TextField
             autoFocus
             margin="dense"

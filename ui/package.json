@@ -28,7 +28,9 @@
     "test": "vitest run",
     "test:browser": "vite build && node e2e/smoke.mjs",
     "test:watch": "vitest",
-    "lint": "eslint src --max-warnings 0"
+    "lint": "eslint src --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@testing-library/jest-dom": "8.0.0",
@@ -40,6 +42,7 @@
     "globals": "17.14.0",
     "jsdom": "31.0.1",
     "playwright": "1.65.1",
+    "prettier": "3.10.1",
     "vite": "8.3.8",
     "vitest": "5.1.1"
   },
