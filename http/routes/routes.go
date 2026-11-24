@@ -12,15 +12,15 @@ import (
 
 type api struct {
 	router       *mux.Router
-	handler      *handlers.GenericHandler
+	handler      *handlers.Handler
 	authenticate func(http.HandlerFunc) http.Handler
 }
 
-func Register(router *mux.Router, handler *handlers.GenericHandler, authenticate func(http.HandlerFunc) http.Handler) {
+func Register(router *mux.Router, handler *handlers.Handler, authenticate func(http.HandlerFunc) http.Handler) {
 	a := api{router, handler, authenticate}
-	router.HandleFunc("/api/getconfig", handler.GetConfig).Methods(http.MethodGet, http.MethodOptions)
-	a.handle("/api/auth", handler.Authenticate, http.MethodPost, http.MethodOptions)
-	a.handle("/api/v1/capabilities", handler.Capabilities, http.MethodGet)
+	router.HandleFunc("/api/getconfig", handler.Settings.GetConfig).Methods(http.MethodGet, http.MethodOptions)
+	a.handle("/api/auth", handler.Access.Authenticate, http.MethodPost, http.MethodOptions)
+	a.handle("/api/v1/capabilities", handler.Access.Capabilities, http.MethodGet)
 	a.keys()
 	a.cluster()
 	a.access()

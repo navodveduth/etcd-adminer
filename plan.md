@@ -347,6 +347,20 @@ Vite should improve development startup/HMR and simplify the maintained build pi
 
 ## 10. Test and performance acceptance plan
 
+Handler organization checkpoint: replaced the monolithic GenericHandler with
+feature-owned access/cluster/keys/leases/settings/transfer/watch handler packages.
+The root package now only composes them. Shared client policy is in handlerkit,
+typed request metadata in request, JSON contracts in response, and range/paging/
+cursor logic in internal/keyspace. Colocated unit tests follow their packages;
+cross-feature real-etcd tests and the runner target handlers/integration.
+Architecture tests prevent sibling-handler dependencies and verify shared
+signer ownership; watch quotas remain instance-wide. HTTP routes and wire
+contracts are unchanged.
+
+Validation for the handler split: Go race tests, vet and build pass; the moved
+cross-feature integration suite passes against both disposable plaintext and
+mTLS etcd. No frontend or external HTTP API changes were made in this split.
+
 Formatting/startup checkpoint: pinned Prettier formats JSX/JS/CSS/frontend
 documentation and CI enforces `npm run format:check`; Go continues using gofmt.
 Removed shared administrator clients and startup authentication entirely.

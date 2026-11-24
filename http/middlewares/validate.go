@@ -1,12 +1,10 @@
 package middlewares
 
 import (
-	"context"
 	"errors"
 	"net/http"
 
 	"github.com/srimaln91/etcd-adminer/etcd"
-	"github.com/srimaln91/etcd-adminer/http/handlers"
 	"github.com/srimaln91/etcd-adminer/http/request"
 	"github.com/srimaln91/etcd-adminer/http/response"
 )
@@ -64,7 +62,7 @@ func (rvm *requestValidateMiddleware) ValidateRequest(next http.HandlerFunc) htt
 		}
 
 		// Attach request metadata to the Http request. So handlers can take it from the context
-		modifiedReq := r.WithContext(context.WithValue(r.Context(), handlers.META_KEY, meta))
+		modifiedReq := r.WithContext(request.WithMeta(r.Context(), meta))
 
 		// Call the next handler
 		next.ServeHTTP(w, modifiedReq)

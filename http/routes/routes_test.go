@@ -11,7 +11,11 @@ import (
 
 func TestFeatureRoutesKeepAuthenticationWrapper(t *testing.T) {
 	router := mux.NewRouter()
-	Register(router, &handlers.GenericHandler{}, func(http.HandlerFunc) http.Handler {
+	handler, err := handlers.NewHTTPHandler(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	Register(router, handler, func(http.HandlerFunc) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTeapot) })
 	})
 	for _, tc := range []struct{ method, path string }{

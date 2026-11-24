@@ -3,7 +3,7 @@ package routes
 import "net/http"
 
 func (a api) access() {
-	h := a.handler
+	h := a.handler.Access
 	a.handle("/api/users", h.GetUserList, http.MethodGet, http.MethodOptions)
 	a.handle("/api/users", h.CreateUser, http.MethodPost, http.MethodOptions)
 	a.handle("/api/users/{name}", h.GetUserInfo, http.MethodGet, http.MethodOptions)

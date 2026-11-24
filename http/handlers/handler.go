@@ -1,64 +1,40 @@
+// Package handlers composes independent HTTP feature handlers. Feature packages
+// depend on handlerkit/request/response, never on this composition package.
 package handlers
 
 import (
-	"context"
-	"crypto/rand"
-	"sync"
-
-	"github.com/srimaln91/etcd-adminer/etcd"
+	"github.com/srimaln91/etcd-adminer/http/handlers/access"
+	"github.com/srimaln91/etcd-adminer/http/handlers/cluster"
+	"github.com/srimaln91/etcd-adminer/http/handlers/handlerkit"
+	"github.com/srimaln91/etcd-adminer/http/handlers/keys"
+	"github.com/srimaln91/etcd-adminer/http/handlers/leases"
+	"github.com/srimaln91/etcd-adminer/http/handlers/settings"
+	"github.com/srimaln91/etcd-adminer/http/handlers/transfer"
+	"github.com/srimaln91/etcd-adminer/http/handlers/watch"
+	"github.com/srimaln91/etcd-adminer/internal/keyspace"
 	"github.com/srimaln91/etcd-adminer/log"
-	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
-type MetaKey string
-
-const META_KEY MetaKey = "meta"
-
-type GenericHandler struct {
-	logger       log.Logger
-	cursorSecret []byte
-	watchMu      sync.Mutex
-	watches      map[watchPrincipal]int
-	watchCount   int
+type Handler struct {
+	Access   *access.Handler
+	Cluster  *cluster.Handler
+	Keys     *keys.Handler
+	Leases   *leases.Handler
+	Settings *settings.Handler
+	Transfer *transfer.Handler
+	Watch    *watch.Handler
 }
 
-func NewHTTPHandler(logger log.Logger) (*GenericHandler, error) {
-	secret := make([]byte, 32)
-	if _, err := rand.Read(secret); err != nil {
+func NewHTTPHandler(logger log.Logger) (*Handler, error) {
+	signer, err := keyspace.NewSigner()
+	if err != nil {
 		return nil, err
 	}
-
-	return &GenericHandler{
-		logger:       logger,
-		cursorSecret: secret,
-		watches:      make(map[watchPrincipal]int),
+	clients := &handlerkit.Clients{Logger: logger}
+	return &Handler{
+		Access: &access.Handler{Clients: clients}, Cluster: &cluster.Handler{Clients: clients},
+		Keys: &keys.Handler{Clients: clients, Signer: signer}, Leases: &leases.Handler{Clients: clients},
+		Settings: &settings.Handler{}, Transfer: &transfer.Handler{Clients: clients, Signer: signer},
+		Watch: &watch.Handler{Clients: clients},
 	}, nil
-}
-
-func (jh *GenericHandler) getKeys(ctx context.Context, backend *etcd.BackEnd, user, pass string) (*clientv3.GetResponse, error) {
-
-	client, err := backend.NewClient(user, pass)
-	if err != nil {
-		return nil, err
-	}
-
-	defer jh.closeEtcdClient(client)
-
-	// Authenticate before caller-scoped permission discovery, including empty-role users.
-	if _, err := client.Authenticate(ctx, user, pass); err != nil {
-		return nil, err
-	}
-	ranges, err := readableRanges(ctx, client.Auth, user)
-	if err != nil {
-		return nil, err
-	}
-	// Key reads always run as the caller, never through the privileged client.
-	return readRanges(ctx, client.KV, ranges)
-}
-
-func (jh *GenericHandler) closeEtcdClient(client *etcd.Client) {
-	err := client.Close()
-	if err != nil {
-		jh.logger.Error(context.TODO(), err.Error())
-	}
 }

@@ -37,4 +37,4 @@ else
 fi
 endpoint="$scheme://$(docker port "$container" 2379/tcp)"
 ETCD_TEST_ENDPOINT="$endpoint" ETCD_TEST_CERTIFICATES="$certificates" \
-  go test -race -tags=integration ./http/handlers -count=1 "$@"
+  go test -race -tags=integration ./http/handlers/integration -count=1 "$@"
