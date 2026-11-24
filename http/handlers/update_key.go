@@ -11,11 +11,6 @@ import (
 )
 
 func (jh *GenericHandler) UpdateKey(w http.ResponseWriter, r *http.Request) {
-	meta, ok := r.Context().Value(META_KEY).(request.RequestMeta)
-	if !ok {
-		response.WriteError(w, http.StatusInternalServerError, "internal_error", "request metadata missing")
-		return
-	}
 	var body request.CreateKeyRequest
 	if err := request.DecodeJSON(w, r, &body); err != nil || body.Key == "" {
 		response.WriteError(w, http.StatusBadRequest, "invalid_request", "a non-empty key and valid JSON object are required")
@@ -26,20 +21,26 @@ func (jh *GenericHandler) UpdateKey(w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, http.StatusBadRequest, "invalid_revision", "expectedRevision must be a non-negative decimal string; use 0 to create a key")
 		return
 	}
-	client, err := meta.Backend.NewClient(meta.User, meta.Pass)
-	if err != nil {
-		response.WriteRPCError(w, err)
-		return
-	}
-	defer jh.closeEtcdClient(client)
-
 	comparison := clientv3.Compare(clientv3.ModRevision(body.Key), "=", revision)
 	options := []clientv3.OpOption{clientv3.WithIgnoreLease()}
 	if revision == 0 {
 		comparison = clientv3.Compare(clientv3.Version(body.Key), "=", 0)
 		options = nil
 	}
-	result, err := client.Txn(r.Context()).If(comparison).Then(clientv3.OpPut(body.Key, body.Value, options...)).Commit()
+	if body.Lease != nil {
+		id, err := strconv.ParseInt(*body.Lease, 10, 64)
+		if err != nil || strconv.FormatInt(id, 10) != *body.Lease {
+			response.WriteError(w, http.StatusBadRequest, "invalid_lease", "lease must be a decimal string; use 0 to detach")
+			return
+		}
+		options = []clientv3.OpOption{clientv3.WithLease(clientv3.LeaseID(id))}
+	}
+	client, ctx, cleanup, ok := jh.requestClient(w, r, false)
+	if !ok {
+		return
+	}
+	defer cleanup()
+	result, err := client.Txn(ctx).If(comparison).Then(clientv3.OpPut(body.Key, body.Value, options...)).Commit()
 	if err != nil {
 		response.WriteRPCError(w, err)
 		return

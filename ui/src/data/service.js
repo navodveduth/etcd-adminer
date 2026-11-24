@@ -46,8 +46,8 @@ export default class DataService {
         ...this.requestConfig(), params: { key }, signal,
     })).data;
 
-    PutKey = async (key, value, expectedRevision) => {
-        await api.put('/api/keys', { key, value, expectedRevision }, this.requestConfig());
+    PutKey = async (key, value, expectedRevision, lease) => {
+        await api.put('/api/keys', { key, value, expectedRevision, ...(lease === undefined ? {} : { lease }) }, this.requestConfig());
         return true;
     };
 
@@ -81,6 +81,12 @@ export default class DataService {
     };
 
     GetUsers = async () => (await api.get('/api/users', this.requestConfig())).data;
+
+    GetLeases = async (signal) => (await api.get('/api/v1/leases', { ...this.requestConfig(), signal })).data;
+    GetLease = async (id, signal) => (await api.get(`/api/v1/leases/${segment(id)}`, { ...this.requestConfig(), signal })).data;
+    GrantLease = async (ttl) => (await api.post('/api/v1/leases', { ttl }, this.requestConfig())).data;
+    RenewLease = async (id) => (await api.post(`/api/v1/leases/${segment(id)}/renew`, null, this.requestConfig())).data;
+    RevokeLease = async (id) => api.delete(`/api/v1/leases/${segment(id)}`, { ...this.requestConfig(), data: { confirmation: id } });
 
     DeleteUser = async (user) => {
         await api.delete(`/api/users/${segment(user)}`, this.requestConfig());

@@ -5,6 +5,7 @@ import Stack from '@mui/material/Stack';
 import Alert from '@mui/material/Alert';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
+import TextField from '@mui/material/TextField';
 import { useTheme } from '@mui/material/styles';
 import DataService from '../data/service';
 import { useReadOnly } from '../readOnly';
@@ -23,8 +24,10 @@ export default function EditorComponent({ etcdKey, isNewKey, onSaved, onDirtyCha
     const [message, setMessage] = useState(null);
     const [language, setLanguage] = useState('yaml');
     const [reload, setReload] = useState(0);
+    const [leaseMode, setLeaseMode] = useState('preserve');
+    const [lease, setLease] = useState('');
     const original = record?.value ?? '';
-    const dirty = value !== original;
+    const dirty = value !== original || leaseMode !== 'preserve';
 
     useEffect(() => {
         const current = ++generation.current;
@@ -33,6 +36,8 @@ export default function EditorComponent({ etcdKey, isNewKey, onSaved, onDirtyCha
         setValue('');
         setMessage(null);
         setSaving(false);
+        setLeaseMode('preserve');
+        setLease('');
         onDirtyChange?.(false);
         if (!etcdKey) {
             setStatus('idle');
@@ -67,7 +72,7 @@ export default function EditorComponent({ etcdKey, isNewKey, onSaved, onDirtyCha
     const changeValue = (next) => {
         const text = next ?? '';
         setValue(text);
-        onDirtyChange?.(text !== original);
+        onDirtyChange?.(text !== original || leaseMode !== 'preserve');
     };
 
     const reloadKey = () => {
@@ -81,7 +86,8 @@ export default function EditorComponent({ etcdKey, isNewKey, onSaved, onDirtyCha
         setSaving(true);
         setMessage(null);
         try {
-            await service.PutKey(etcdKey, value, String(record?.modRevision ?? '0'));
+            if (leaseMode === 'preserve') await service.PutKey(etcdKey, value, String(record?.modRevision ?? '0'));
+            else await service.PutKey(etcdKey, value, String(record?.modRevision ?? '0'), leaseMode === 'detach' ? '0' : lease);
             if (generation.current !== current) return;
             onDirtyChange?.(false);
             onSaved?.(etcdKey);
@@ -90,7 +96,7 @@ export default function EditorComponent({ etcdKey, isNewKey, onSaved, onDirtyCha
             if (generation.current !== current) return;
             setMessage({ severity: 'error', text: error.response?.status === 409
                 ? 'This key changed on the server. Your draft is preserved; copy it before reloading.'
-                : 'Could not save this key. Your draft is preserved.' });
+                : `${error.response?.data?.message ?? 'Could not save this key.'} Your draft is preserved.` });
         } finally {
             if (generation.current === current) setSaving(false);
         }
@@ -114,6 +120,17 @@ export default function EditorComponent({ etcdKey, isNewKey, onSaved, onDirtyCha
                 <span><b>Lease:</b> {record?.lease && String(record.lease) !== '0' ? record.lease : 'None'}</span>
             </Stack>
             {message && <Alert severity={message.severity} sx={{ mb: 2 }}>{message.text}</Alert>}
+            {etcdKey && <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
+                <TextField select size="small" label="Expiration on save" value={leaseMode} disabled={readOnly || saving || status !== 'ready'} onChange={(event) => {
+                    setLeaseMode(event.target.value);
+                    onDirtyChange?.(value !== original || event.target.value !== 'preserve');
+                }} sx={{ minWidth: 220 }}>
+                    <MenuItem value="preserve">Preserve existing lease</MenuItem>
+                    <MenuItem value="detach">Remove expiration</MenuItem>
+                    <MenuItem value="attach">Attach a lease ID</MenuItem>
+                </TextField>
+                {leaseMode === 'attach' && <TextField size="small" label="Lease ID" value={lease} onChange={(event) => setLease(event.target.value)} disabled={readOnly || saving} helperText="The key will be deleted when this lease expires." />}
+            </Stack>}
             {status === 'loading' && <p role="status">Loading key…</p>}
             {status === 'idle' && <p>Select a key to edit its value.</p>}
             {status === 'ready' && (
@@ -135,8 +152,8 @@ export default function EditorComponent({ etcdKey, isNewKey, onSaved, onDirtyCha
                     <MenuItem value="plaintext">Text</MenuItem>
                 </Select>
                 <Button onClick={formatJSON} disabled={readOnly || status !== 'ready' || saving}>Format JSON</Button>
-                <Button variant="contained" onClick={save} disabled={readOnly || status !== 'ready' || saving || !etcdKey}>Save</Button>
-                <Button onClick={() => changeValue(original)} disabled={!dirty || saving}>Discard</Button>
+                <Button variant="contained" onClick={save} disabled={readOnly || status !== 'ready' || saving || !etcdKey || (leaseMode === 'attach' && !/^-?[1-9]\d*$/.test(lease))}>Save</Button>
+                <Button onClick={() => { setValue(original); setLeaseMode('preserve'); setLease(''); onDirtyChange?.(false); }} disabled={!dirty || saving}>Discard</Button>
                 <Button onClick={reloadKey} disabled={!etcdKey || saving || isNewKey}>Reload</Button>
             </Stack>
         </Paper>

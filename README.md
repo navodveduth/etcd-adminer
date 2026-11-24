@@ -120,6 +120,23 @@ to update it. Stale writes return HTTP 409 without changing the value. Updates
 preserve an existing lease. Revision/version/lease fields are JSON strings to
 avoid JavaScript integer precision loss; clients must not coerce them to numbers.
 
+### Leases and TTL
+
+Use **Leases / TTL** to create a lease (1 second to 7 days), inspect attached
+keys and remaining TTL, renew it once, or revoke it with typed confirmation.
+Cluster-wide lease listing/administration requires the etcd **root role** and
+uses the caller's credentials, never the privileged metadata client.
+
+In the key editor, **Expiration on save** can preserve the current lease,
+remove expiration, or attach a decimal lease ID. These changes share the
+revision-checked key transaction. The API accepts optional `"lease":"0"` to
+detach or another signed decimal ID to attach; omission preserves an existing
+lease. Revoking/expiring a lease deletes its attached keys; detaching does not
+revoke the lease. Renewal is explicitly one-shot, not an automatic background
+keepalive. Leaving the page does not extend a lease's lifetime. Read-only mode
+disables lease/key mutations. Lease lists cap displayed IDs at 1,000 and details
+show at most 100 attached keys while confirming the full affected count.
+
 ### Bounded key browsing
 
 The UI uses `GET /api/v1/keys?prefix=...&limit=100&cursor=...` (default 100,

@@ -9,6 +9,7 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import LayersIcon from '@mui/icons-material/Layers';
 import StorageIcon from '@mui/icons-material/Storage';
 import AssignmentIcon from '@mui/icons-material/Assignment';
+import TimerIcon from '@mui/icons-material/Timer';
 import { Link } from 'react-router-dom';
 import { SessionStore } from '../storage/session';
 
@@ -16,6 +17,7 @@ const destinations = [
   { path: 'connection', label: 'Connection', icon: DashboardIcon },
   { path: 'cluster', label: 'Cluster', icon: StorageIcon, connection: true },
   { path: 'keys', label: 'Keys', icon: AssignmentIcon, connection: true },
+  { path: 'leases', label: 'Leases / TTL', icon: TimerIcon, connection: true },
   { path: 'watchers', label: 'Watchers', icon: BarChartIcon, disabled: true },
   { path: 'users', label: 'Users', icon: PeopleIcon, connection: true },
   { path: 'roles', label: 'Roles', icon: LayersIcon, disabled: true },

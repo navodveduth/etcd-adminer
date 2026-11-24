@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -15,8 +16,11 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/gorilla/mux"
 
 	"github.com/srimaln91/etcd-adminer/etcd"
 	"github.com/srimaln91/etcd-adminer/http/request"
@@ -193,8 +197,12 @@ func TestRBACIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		write := func(key, value, revision string) *httptest.ResponseRecorder {
-			body, err := json.Marshal(request.CreateKeyRequest{Key: key, Value: value, ExpectedRevision: revision})
+		write := func(key, value, revision string, leases ...string) *httptest.ResponseRecorder {
+			payload := request.CreateKeyRequest{Key: key, Value: value, ExpectedRevision: revision}
+			if len(leases) > 0 {
+				payload.Lease = &leases[0]
+			}
+			body, err := json.Marshal(payload)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -219,6 +227,16 @@ func TestRBACIntegration(t *testing.T) {
 		if value.Kvs[0].Lease != int64(lease.ID) || string(value.Kvs[0].Value) != "after" {
 			t.Fatal("lease or value changed unexpectedly")
 		}
+		if w := write("/leased", "permanent", strconv.FormatInt(value.Kvs[0].ModRevision, 10), "0"); w.Code != 200 {
+			t.Fatalf("detach: %d %s", w.Code, w.Body.String())
+		}
+		if _, err := admin.Revoke(ctx, lease.ID); err != nil {
+			t.Fatal(err)
+		}
+		value, err = admin.Get(ctx, "/leased")
+		if err != nil || value.Count != 1 || value.Kvs[0].Lease != 0 {
+			t.Fatal("detached key did not survive lease revocation")
+		}
 		if w := write("/new", "first", "0"); w.Code != 200 {
 			t.Fatalf("create: %d %s", w.Code, w.Body.String())
 		}
@@ -227,6 +245,33 @@ func TestRBACIntegration(t *testing.T) {
 		}
 		if w := write("/new", "unsafe", ""); w.Code != 400 {
 			t.Fatalf("missing revision: %d", w.Code)
+		}
+	})
+	t.Run("lease expiration deletes attached keys", func(t *testing.T) {
+		lease, err := admin.Grant(ctx, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := admin.Put(ctx, "/lease-expiry", "temporary", clientv3.WithLease(lease.ID)); err != nil {
+			t.Fatal(err)
+		}
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		deadline := time.NewTimer(10 * time.Second)
+		defer deadline.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				value, err := admin.Get(ctx, "/lease-expiry")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if value.Count == 0 {
+					return
+				}
+			case <-deadline.C:
+				t.Fatal("expired lease did not delete its attached key")
+			}
 		}
 	})
 	t.Run("bounded pages retain their snapshot and reject altered cursors", func(t *testing.T) {
@@ -281,6 +326,57 @@ func TestRBACIntegration(t *testing.T) {
 		}
 		if w := list("/a", first.NextCursor); w.Code != 409 {
 			t.Fatalf("compacted cursor: %d %s", w.Code, w.Body.String())
+		}
+	})
+	t.Run("lease lifecycle authorization attachment and revocation", func(t *testing.T) {
+		invoke := func(method, id, user, body string, action func(http.ResponseWriter, *http.Request)) *httptest.ResponseRecorder {
+			r := httptest.NewRequest(method, "/api/v1/leases", strings.NewReader(body))
+			r.Header.Set("Content-Type", "application/json")
+			r = r.WithContext(context.WithValue(ctx, META_KEY, request.RequestMeta{Backend: backend, User: user, Pass: password}))
+			r = mux.SetURLVars(r, map[string]string{"id": id})
+			w := httptest.NewRecorder()
+			action(w, r)
+			return w
+		}
+		if w := invoke("GET", "", "empty", "", handler.Leases); w.Code != 403 {
+			t.Fatalf("non-admin listed leases: %d %s", w.Code, w.Body.String())
+		}
+		granted := invoke("POST", "", "root", `{"ttl":60}`, handler.Leases)
+		if granted.Code != 200 {
+			t.Fatalf("grant: %d %s", granted.Code, granted.Body.String())
+		}
+		var lease struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(granted.Body.Bytes(), &lease); err != nil {
+			t.Fatal(err)
+		}
+		id, err := leaseID(lease.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := admin.Put(ctx, "/lease-lifecycle", "temporary", clientv3.WithLease(id)); err != nil {
+			t.Fatal(err)
+		}
+		detail := invoke("GET", lease.ID, "root", "", handler.Lease)
+		if detail.Code != 200 || !strings.Contains(detail.Body.String(), `"keyCount":1`) {
+			t.Fatalf("detail: %d %s", detail.Code, detail.Body.String())
+		}
+		if w := invoke("POST", lease.ID, "root", "", handler.Lease); w.Code != 200 {
+			t.Fatalf("renew: %d %s", w.Code, w.Body.String())
+		}
+		if w := invoke("DELETE", lease.ID, "root", `{"confirmation":"wrong"}`, handler.Lease); w.Code != 400 {
+			t.Fatal("revoke accepted wrong confirmation")
+		}
+		if w := invoke("DELETE", lease.ID, "root", `{"confirmation":"`+lease.ID+`"}`, handler.Lease); w.Code != 204 {
+			t.Fatalf("revoke: %d %s", w.Code, w.Body.String())
+		}
+		value, err := admin.Get(ctx, "/lease-lifecycle")
+		if err != nil || value.Count != 0 {
+			t.Fatalf("attached key survived revocation: %+v %v", value, err)
+		}
+		if w := invoke("GET", lease.ID, "root", "", handler.Lease); w.Code != 404 {
+			t.Fatalf("expired lease: %d %s", w.Code, w.Body.String())
 		}
 	})
 	t.Run("100k key first page benchmark", func(t *testing.T) {

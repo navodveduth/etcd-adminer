@@ -1,7 +1,8 @@
 package request
 
 type CreateKeyRequest struct {
-	Key              string `json:"key"`
-	Value            string `json:"value"`
-	ExpectedRevision string `json:"expectedRevision"`
+	Key              string  `json:"key"`
+	Value            string  `json:"value"`
+	ExpectedRevision string  `json:"expectedRevision"`
+	Lease            *string `json:"lease,omitempty"`
 }

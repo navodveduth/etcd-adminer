@@ -28,6 +28,8 @@ func WriteRPCError(w http.ResponseWriter, err error) {
 		WriteError(w, http.StatusUnauthorized, "unauthenticated", "authentication failed")
 	case errors.Is(err, rpctypes.ErrPermissionDenied), status.Code(err) == codes.PermissionDenied:
 		WriteError(w, http.StatusForbidden, "forbidden", "permission denied")
+	case errors.Is(err, rpctypes.ErrLeaseNotFound):
+		WriteError(w, http.StatusNotFound, "lease_expired", "lease expired or was revoked")
 	case errors.Is(err, rpctypes.ErrCompacted):
 		WriteError(w, http.StatusConflict, "compacted_revision", "the requested revision was compacted; refresh and retry")
 	case errors.Is(err, context.DeadlineExceeded), status.Code(err) == codes.DeadlineExceeded:

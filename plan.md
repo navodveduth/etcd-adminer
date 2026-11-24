@@ -37,7 +37,7 @@ This plan is based on the code in this checkout, not just the supplied feature c
 | TLS/SSL support | Implemented | Per-backend verified TLS/mTLS, private CA and server-name options, no plaintext downgrade; real mTLS/RBAC integration tests pass |
 | Pagination | Implemented, broader load validation pending | UI uses bounded server cursor pages; snapshot/compaction and 100k-key tests pass; legacy whole-tree endpoint is deprecated |
 | Watch/subscribe | Not found | Navigation item is disabled; implement streaming and reconnect semantics |
-| Leases / TTL | Partial | Lease ID is displayed; no grant/revoke/keepalive/TTL workflow |
+| Leases / TTL | Implemented core workflow | Admin lease inventory/detail/grant/revoke/one-shot renewal and revision-safe attach/detach; automatic managed keepalive remains future work |
 | JSON formatting | Implemented | Explicit format/validation action with JSON/YAML/text modes; malformed JSON preserves the draft |
 | Bulk operations | Partial | Recursive prefix delete exists; no general bulk workflow or result reporting |
 | Import/export JSON | Not found | Versioned, binary-safe format; validation and bounded jobs |
@@ -202,9 +202,9 @@ The supplied checklist mentions a missing `get_cluster_metrics` command. This re
 
 ### D3. Leases / TTL
 
-- [ ] Implement lease list/detail/TTL, grant, attach/detach, revoke, and explicit keepalive controls, respecting caller permissions.
+- [x] Implement root-role-scoped lease list/detail/TTL, grant/revoke/one-shot renewal, and caller-authorized revision-safe key attach/detach.
 - [ ] Make the ownership model clear: temporary browser workspaces versus deliberately server-managed sessions; cancel owned keepalives on logout/expiry.
-- [ ] Preview attached-key impact before revoke and clearly explain that expiration/revocation deletes keys.
+- [x] Show attached-key count/preview and require exact lease-ID confirmation before revoke, with explicit expiry/deletion and one-shot renewal explanations.
 
 ### D4. Bulk operations and import/export
 
@@ -367,3 +367,4 @@ Each release should consist of small, reviewable PRs, with regression tests firs
 - **TLS/mTLS:** centralized caller-client construction through the selected backend; private CA, paired certificate/key, verified server-name override, TLS 1.2 minimum, explicit HTTPS endpoints, and discovered-member downgrade checks are implemented. Shared certificates with a non-empty CN are rejected to prevent etcd certificate identity from overriding caller RBAC. Strict single-document YAML rejects unknown options; relative certificate paths resolve beside configuration. Race/vet tests, hostname/CA/client-certificate negative tests, and real-etcd plaintext plus mTLS integration pass, including direct unauthorized-read assertions. Server-side sessions, protected privileged-credential files/environment, and certificate rotation remain pending.
 - **Development/dependency maintenance:** replaced the old 3.2.5 Compose image/shared host data with digest-pinned 3.7.4 members, isolated named volumes, and loopback-only client ports. Updated host-run development setup/auth instructions and sample loopback endpoints. Pinned build/runtime image digests and added weekly dependency-update configuration. `docker compose config --quiet` passes; isolation/pinning assertions cover the fixture configuration. The three-member development fixture has not been started against user data or claimed as a validated upgrade path; old data is deliberately untouched.
 - **Protected credentials/read-only mode:** added exclusive inline/file/environment privileged-password sources with bounded file reads, whitespace-preserving handling, relative file paths, and non-secret diagnostics. Startup failures now exit nonzero rather than logging and returning success; subprocess tests verify this. Added a global read-only mutation guard (authentication remains allowed), exposed only a non-secret capability flag, and disabled mutating UI controls with fail-closed settings loading. Go race/vet, **21 frontend tests**, lint/build, and mTLS integration pass; audit logging and server-side sessions remain pending. A second Docker image build attempt again failed during base-layer downloads with daemon RPC EOF, so image verification remains blocked by the environment.
+- **Lease UX:** added a dedicated lease screen with TTL guidance, attached-key preview, one-shot renewal, read-only controls, and typed destructive confirmation. Added lease attach/detach to revision-safe key saves, tracking expiration edits as unsaved changes. Cluster-wide lease metadata/administration requires the caller's root role to avoid leaking another user's attached keys. Validation/UI tests and isolated mTLS lifecycle, detachment, natural-expiry, and authorization checks cover the workflow. Automatic server-managed renewal is deliberately not implied.
