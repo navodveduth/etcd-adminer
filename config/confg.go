@@ -23,9 +23,12 @@ type Config struct {
 		Level log.Level `yaml:"level"`
 	} `yaml:"logger"`
 	ETCD []struct {
-		Name       string
-		Endpoints  []string         `yaml:"endpoints"`
-		TLS        etcd.TLSOptions  `yaml:"tls"`
+		Name           string
+		Endpoints      []string        `yaml:"endpoints"`
+		TLS            etcd.TLSOptions `yaml:"tls"`
+		ProtectedUsers []string        `yaml:"protectedUsers"`
+		// Deprecated: accepted for migration only. Password sources are ignored;
+		// the old username is treated as an additional protected account.
 		SuperAdmin AdminCredentials `yaml:"superadmin"`
 	} `yaml:"etcd"`
 }

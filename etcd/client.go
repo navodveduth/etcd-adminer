@@ -12,7 +12,8 @@ import (
 )
 
 type Config struct {
-	etcdConfig clientv3.Config
+	etcdConfig     clientv3.Config
+	protectedUsers []string
 }
 
 type Client struct {
@@ -20,7 +21,8 @@ type Client struct {
 	tlsConfig *tls.Config
 }
 
-func NewClient(endpoints []string, options ...func(*Config)) (*Client, error) {
+// clientConfig validates transport policy without dialing or authenticating.
+func clientConfig(endpoints []string, options ...func(*Config)) (Config, error) {
 
 	cfg := Config{
 		etcdConfig: clientv3.Config{
@@ -34,7 +36,7 @@ func NewClient(endpoints []string, options ...func(*Config)) (*Client, error) {
 		o(&cfg)
 	}
 	if len(endpoints) == 0 {
-		return nil, errors.New("at least one etcd endpoint is required")
+		return Config{}, errors.New("at least one etcd endpoint is required")
 	}
 	for _, endpoint := range endpoints {
 		if strings.HasPrefix(endpoint, "https://") && cfg.etcdConfig.TLS == nil {
@@ -43,13 +45,21 @@ func NewClient(endpoints []string, options ...func(*Config)) (*Client, error) {
 	}
 	if cfg.etcdConfig.TLS != nil {
 		if err := validateTLSConfig(cfg.etcdConfig.TLS); err != nil {
-			return nil, err
+			return Config{}, err
 		}
 	}
 	for _, endpoint := range endpoints {
 		if err := validateEndpoint(endpoint, cfg.etcdConfig.TLS != nil); err != nil {
-			return nil, err
+			return Config{}, err
 		}
+	}
+	return cfg, nil
+}
+
+func NewClient(endpoints []string, options ...func(*Config)) (*Client, error) {
+	cfg, err := clientConfig(endpoints, options...)
+	if err != nil {
+		return nil, err
 	}
 
 	c, err := clientv3.New(cfg.etcdConfig)

@@ -1,10 +1,9 @@
 package etcd
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"time"
+	"strings"
 )
 
 type BackEndProvider struct {
@@ -21,46 +20,44 @@ func NewBackendProvider() *BackEndProvider {
 	}
 }
 
-// RegisterBackend registers a new ETCD backend
-func (bp *BackEndProvider) RegisterBackend(name string, endpoints []string, userName, password string, options ...func(*Config)) error {
+// RegisterBackend validates and records transport configuration only. It does
+// not create a shared client, dial endpoints, or require startup credentials.
+func (bp *BackEndProvider) RegisterBackend(name string, endpoints []string, options ...func(*Config)) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("backend name is required")
+	}
 
 	if _, exists := bp.backEnds[name]; exists {
 		return fmt.Errorf("duplicate backend %q", name)
 	}
-	clientOptions := append([]func(*Config){}, options...)
-	clientOptions = append(clientOptions, WithAuth(userName, password))
-	adminClient, err := NewClient(endpoints, clientOptions...)
+	cfg, err := clientConfig(endpoints, options...)
 	if err != nil {
 		return err
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err = adminClient.Authenticate(ctx, userName, password)
-	if err != nil {
-		_ = adminClient.Close()
-		return fmt.Errorf("%q: %w", name, err)
+	if cfg.etcdConfig.Username != "" || cfg.etcdConfig.Password != "" {
+		return errors.New("backend registration does not accept credentials; authenticate per connection")
+	}
+	protected := make(map[string]bool)
+	for _, user := range cfg.protectedUsers {
+		if user != "" {
+			protected[user] = true
+		}
 	}
 
 	bp.backEnds[name] = &BackEnd{
-		name:        name,
-		endpoints:   append([]string(nil), endpoints...),
-		adminClient: adminClient,
-		tlsConfig:   adminClient.tlsConfig,
+		name:           name,
+		endpoints:      append([]string(nil), endpoints...),
+		protectedUsers: protected,
+		tlsConfig:      cfg.etcdConfig.TLS,
 	}
 
 	return nil
 }
 
-// Close releases the registered clients. Call only after HTTP handlers stop.
+// Close is kept for lifecycle compatibility. Backends no longer own clients;
+// each request/stream owns and closes its caller-authenticated client.
 func (bp *BackEndProvider) Close() error {
-	var firstErr error
-	for _, backend := range bp.backEnds {
-		if err := backend.adminClient.Close(); err != nil && firstErr == nil {
-			firstErr = err
-		}
-	}
-	return firstErr
+	return nil
 }
 
 func (bp *BackEndProvider) GetBackend(name string) (*BackEnd, error) {

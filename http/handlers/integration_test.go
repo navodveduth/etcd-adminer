@@ -88,7 +88,7 @@ func TestRBACIntegration(t *testing.T) {
 	}
 	provider := etcd.NewBackendProvider()
 	defer provider.Close()
-	if err := provider.RegisterBackend("test", []string{endpoint}, "root", password, etcd.WithTLS(tlsConfig)); err != nil {
+	if err := provider.RegisterBackend("test", []string{endpoint}, etcd.WithTLS(tlsConfig), etcd.WithProtectedUsers("root")); err != nil {
 		t.Fatal(err)
 	}
 	backend, err := provider.GetBackend("test")
@@ -317,7 +317,7 @@ func TestRBACIntegration(t *testing.T) {
 		if _, err := admin.UserGrantRole(ctx, "service-admin", "root"); err != nil {
 			t.Fatal(err)
 		}
-		if err := provider.RegisterBackend("service-protection", []string{endpoint}, "service-admin", password, etcd.WithTLS(tlsConfig)); err != nil {
+		if err := provider.RegisterBackend("service-protection", []string{endpoint}, etcd.WithTLS(tlsConfig), etcd.WithProtectedUsers("service-admin")); err != nil {
 			t.Fatal(err)
 		}
 		serviceBackend, err := provider.GetBackend("service-protection")

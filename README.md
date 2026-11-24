@@ -19,9 +19,6 @@ etcd:
     - "http://127.0.0.1:23791"
     - "http://127.0.0.1:23792"
     - "http://127.0.0.1:23793"
-  superadmin:
-    username: root
-    password: root@123
 ```
 ## How to run
 
@@ -44,9 +41,11 @@ docker compose exec etcd1 etcdctl auth enable
 cp config.default.yaml config.yaml
 ```
 
-Set the actual root password in your protected `config.yaml` before starting
-the API. The example `root@123` is a development placeholder, not a production
-credential. `docker compose down` stops the fixture while retaining its named
+Enter the actual etcd username/password when opening a connection in the UI.
+No shared root password belongs in `config.yaml`, and the API can start while
+etcd is offline. Endpoint/TLS configuration is still validated at startup. The
+development cluster is not a production deployment.
+`docker compose down` stops the fixture while retaining its named
 volumes. Do not delete volumes unless you explicitly intend to discard their
 development data. The generated-certificate integration fixtures are separate
 disposable containers and never use these volumes.
@@ -125,7 +124,7 @@ avoid JavaScript integer precision loss; clients must not coerce them to numbers
 Use **Leases / TTL** to create a lease (1 second to 7 days), inspect attached
 keys and remaining TTL, renew it once, or revoke it with typed confirmation.
 Cluster-wide lease listing/administration requires the etcd **root role** and
-uses the caller's credentials, never the privileged metadata client.
+uses the caller's credentials. There is no shared privileged metadata client.
 
 In the key editor, **Expiration on save** can preserve the current lease,
 remove expiration, or attach a decimal lease ID. These changes share the
@@ -237,10 +236,10 @@ Use **Users** to create accounts, inspect role chips, assign/remove roles, and
 change passwords (1–72 UTF-8 bytes). Administrative mutations require the
 caller's etcd root role. Users cannot receive root during creation; explicit
 promotion requires typing `GRANT ROOT`. The built-in root role cannot be edited
-or deleted. The canonical `root` user and configured service administrator
-cannot be deleted or lose their root role through either API generation.
-Rotate the configured service-admin password externally, update its protected
-credential source, and restart Adminer. Confirmed own-password changes update
+or deleted. The canonical `root` user and accounts optionally listed in
+`protectedUsers` cannot be deleted or lose their root role through either API
+generation. Protected accounts must have passwords rotated externally; other
+root-authorized password changes can use the UI. Confirmed own-password changes update
 the matching tab-memory profile where possible; otherwise reauthenticate.
 Passwords are not persisted in browser storage.
 
@@ -298,9 +297,6 @@ For private CAs or client-certificate authentication, configure each backend:
 etcd:
   - name: secure
     endpoints: ["https://etcd.example.com:2379"]
-    superadmin:
-      username: root
-      password: "replace-with-protected-credentials"
     tls:
       enabled: true
       caFile: /run/secrets/etcd-ca.pem
@@ -330,10 +326,16 @@ runtime user to read them; never commit certificates/private keys. Run
 `ETCD_TEST_TLS=1 sh scripts/test-integration.sh` to verify real mTLS/RBAC behavior
 against a disposable cluster with generated, short-lived test certificates.
 
-### Protected privileged credentials and read-only deployments
+### Connection credentials, account protection and read-only deployments
 
-Choose exactly one privileged password source per backend: `password`,
-`passwordFile`, or `passwordEnv`. Prefer a protected, read-only secret mount:
+Backends configure endpoints and transport policy only. Startup never connects
+to etcd or authenticates with a shared administrator account. Each browser
+connection supplies its own credentials; all permission discovery, reads,
+mutations and administrative RPCs use that caller's etcd identity. A restricted
+user can inspect their own assigned roles/permissions, but cannot acquire
+administrator capabilities through Adminer.
+
+Optionally protect externally managed accounts without storing their passwords:
 
 ```yaml
 http:
@@ -342,27 +344,30 @@ http:
 etcd:
   - name: production
     endpoints: ["https://etcd.example.com:2379"]
-    superadmin:
-      username: root
-      passwordFile: /run/secrets/etcd-admin-password
-      # Alternatively: passwordEnv: ETCD_ADMIN_PASSWORD
+    protectedUsers: [service-admin]
     tls:
       enabled: true
       caFile: /run/secrets/etcd-ca.pem
 ```
 
-Remove the example inline password when selecting a file/environment source;
-ambiguous, missing, or empty sources fail startup with a nonzero exit status.
-Password files are bounded to 64 KiB and remove one final LF/CRLF; other spaces
-are preserved. Environment values are used exactly as provided. Relative file
-paths resolve beside the YAML file. Secrets are loaded at startup; restart after
-rotation. The configuration API does not expose credentials or their sources.
+`protectedUsers` prevents account deletion, root-role removal and in-app password
+changes. It grants no access and is not used to connect. The canonical `root`
+account always retains deletion/root-role-removal protection, even if this list
+is omitted. Admin RPCs still require the caller's etcd root role.
+
+**Migration:** remove the old `superadmin` block and any Adminer-only secret
+mount/environment variable used for it. Legacy blocks are accepted with a
+non-secret startup warning; `password`, `passwordFile` and `passwordEnv` are
+ignored (files/environment values are not read). The legacy username is treated
+as an additional protected account for compatibility. Move it to `protectedUsers`
+if that guard is still wanted. The configuration API does not expose this policy
+or legacy credentials. TLS certificate/key mounts remain required when configured.
 
 `http.readOnly: true` rejects all mutating API methods except authentication,
 including key writes/deletes and RBAC changes. The UI displays a read-only banner
 and disables mutation controls; if settings cannot be loaded, it fails closed.
 This is an additional application guard, not a substitute for etcd RBAC or
-protecting the privileged credential. It does not make an exposed instance safe
+protecting users' connection credentials. It does not make an exposed instance safe
 without HTTPS, authorization, and appropriate network access controls.
 
 ## Contributions

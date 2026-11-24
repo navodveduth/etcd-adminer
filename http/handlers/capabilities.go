@@ -15,13 +15,13 @@ func (jh *GenericHandler) Capabilities(w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, http.StatusBadRequest, "invalid_key", "key must contain 1 to 8192 bytes")
 		return
 	}
-	_, ctx, cleanup, ok := jh.requestClient(w, r, false)
+	client, ctx, cleanup, ok := jh.requestClient(w, r, false)
 	if !ok {
 		return
 	}
 	defer cleanup()
 	meta := r.Context().Value(META_KEY).(request.RequestMeta)
-	auth := meta.Backend.AdminConnection()
+	auth := client.Auth
 	user, err := auth.UserGet(ctx, meta.User)
 	if err != nil {
 		response.WriteRPCError(w, err)

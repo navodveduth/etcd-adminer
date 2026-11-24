@@ -248,8 +248,9 @@ export default function UserInfo(props) {
           Change password
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Password changes require the etcd root role. Configured service-admin credentials must be
-          rotated externally and updated in their protected source.
+          Password changes require the etcd root role. Accounts listed in the instance's
+          protectedUsers policy must be rotated externally. Adminer does not store a shared
+          administrator password.
         </Typography>
         <TextField
           label="New password"

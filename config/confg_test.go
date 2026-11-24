@@ -29,6 +29,23 @@ func TestPublicOriginValidation(t *testing.T) {
 	}
 }
 
+func TestDefaultConfigurationHasNoStartupCredentials(t *testing.T) {
+	previous := AppConfig
+	t.Cleanup(func() { AppConfig = previous })
+	config, err := Parse("../config.default.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(config.ETCD) == 0 {
+		t.Fatal("missing example backend")
+	}
+	for _, backend := range config.ETCD {
+		if backend.SuperAdmin != (AdminCredentials{}) {
+			t.Fatal("example must not contain startup credentials")
+		}
+	}
+}
+
 func TestTLSPathsAreRelativeToConfiguration(t *testing.T) {
 	directory := t.TempDir()
 	path := filepath.Join(directory, "config.yaml")

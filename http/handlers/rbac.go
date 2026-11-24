@@ -212,8 +212,8 @@ func (jh *GenericHandler) UserRoles(w http.ResponseWriter, r *http.Request) {
 	}
 	defer cleanup()
 	meta := r.Context().Value(META_KEY).(request.RequestMeta)
-	if body.Role == "root" && body.Operation == "revoke" && (body.UserName == "root" || body.UserName == meta.Backend.AdminConnection().Username) {
-		response.WriteError(w, 400, "protected_administrator", "cannot remove the canonical or configured service administrator's root role")
+	if body.Role == "root" && body.Operation == "revoke" && (body.UserName == "root" || meta.Backend.IsProtectedUser(body.UserName)) {
+		response.WriteError(w, 400, "protected_administrator", "cannot remove the canonical root user's or a protected account's root role")
 		return
 	}
 	var err error
@@ -248,8 +248,8 @@ func (jh *GenericHandler) UserPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer cleanup()
-	if body.UserName == meta.Backend.AdminConnection().Username {
-		response.WriteError(w, 400, "managed_credential", "rotate the configured service administrator's password externally, update its protected credential source, and restart adminer")
+	if meta.Backend.IsProtectedUser(body.UserName) {
+		response.WriteError(w, 400, "managed_credential", "this account is protected by instance policy; rotate its password externally")
 		return
 	}
 	if _, err := client.UserChangePassword(ctx, body.UserName, body.Password); err != nil {
@@ -281,8 +281,8 @@ func (jh *GenericHandler) UserDetail(w http.ResponseWriter, r *http.Request) {
 	defer cleanup()
 	meta := r.Context().Value(META_KEY).(request.RequestMeta)
 	if r.Method == http.MethodDelete {
-		if name == "root" || name == meta.Backend.AdminConnection().Username {
-			response.WriteError(w, http.StatusBadRequest, "protected_administrator", "cannot delete the canonical or configured service administrator")
+		if name == "root" || meta.Backend.IsProtectedUser(name) {
+			response.WriteError(w, http.StatusBadRequest, "protected_administrator", "cannot delete the canonical root user or a protected account")
 			return
 		}
 		if _, err := client.UserDelete(ctx, name); err != nil {

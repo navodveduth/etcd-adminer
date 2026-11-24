@@ -66,7 +66,7 @@ func (jh *GenericHandler) ExportPage(w http.ResponseWriter, r *http.Request) {
 		}
 		cursor = decoded
 	}
-	ranges, err := readableRanges(ctx, meta.Backend.AdminConnection().Auth, meta.User)
+	ranges, err := readableRanges(ctx, client.Auth, meta.User)
 	if err != nil {
 		response.WriteRPCError(w, err)
 		return

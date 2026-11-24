@@ -44,11 +44,11 @@ func (jh *GenericHandler) getKeys(ctx context.Context, backend *etcd.BackEnd, us
 
 	defer jh.closeEtcdClient(client)
 
-	// Authenticate before privileged permission discovery, including empty-role users.
+	// Authenticate before caller-scoped permission discovery, including empty-role users.
 	if _, err := client.Authenticate(ctx, user, pass); err != nil {
 		return nil, err
 	}
-	ranges, err := readableRanges(ctx, backend.AdminConnection().Auth, user)
+	ranges, err := readableRanges(ctx, client.Auth, user)
 	if err != nil {
 		return nil, err
 	}

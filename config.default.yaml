@@ -13,12 +13,10 @@ etcd:
     - "http://127.0.0.1:23791"
     - "http://127.0.0.1:23792"
     - "http://127.0.0.1:23793"
-  superadmin:
-    username: root
-    password: root@123
-    # Production: remove password above and choose exactly one protected source:
-    # passwordFile: /run/secrets/etcd-admin-password
-    # passwordEnv: ETCD_ADMIN_PASSWORD
+  # No startup credentials or cluster connection are required.
+  # Enter each connection's username/password in the browser.
+  # Optional: prevent changes to externally managed accounts (no passwords):
+  # protectedUsers: [service-admin]
   # For a TLS backend, use https:// endpoints and configure:
   # tls:
   #   enabled: true

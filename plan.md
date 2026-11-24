@@ -347,6 +347,17 @@ Vite should improve development startup/HMR and simplify the maintained build pi
 
 ## 10. Test and performance acceptance plan
 
+Formatting/startup checkpoint: pinned Prettier formats JSX/JS/CSS/frontend
+documentation and CI enforces `npm run format:check`; Go continues using gofmt.
+Removed shared administrator clients and startup authentication entirely.
+Backends register validated endpoints/TLS without dialing; callers inspect
+their own etcd roles/permissions for listing, export, capability hints and admin
+gates. The default YAML contains no `superadmin` credentials. Legacy secret
+sources are ignored with a non-secret warning; optional `protectedUsers` guards
+externally managed accounts without connecting as them. Offline-startup
+subprocess and no-dial registration tests cover the new lifecycle. This
+supersedes the earlier privileged password-file/environment startup workflow.
+
 Latest dashboard/transfer/workspace checkpoint: Go race tests/vet, **41 frontend
 tests**, lint, production build and Chromium production-bundle smoke all pass.
 Plaintext and mTLS real-etcd tests pass for maintenance access, scoped capability

@@ -12,6 +12,7 @@
 - `../internal/transfer/`: validated binary-safe atomic batch planning/execution.
 
 New business logic should use internal feature packages with explicit context
-and client dependencies. Never use the privileged metadata client to perform
-caller mutations. Handler-level integration tests cover real etcd authorization;
+and client dependencies. All metadata and mutations use caller-authenticated
+clients; backend registration is offline and holds no privileged client or
+administrator password. Handler-level integration tests cover real etcd authorization;
 internal-package tests cover pure validation and partial-failure semantics.

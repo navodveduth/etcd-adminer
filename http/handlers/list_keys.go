@@ -191,7 +191,7 @@ func (jh *GenericHandler) ListKeys(w http.ResponseWriter, r *http.Request) {
 		response.WriteRPCError(w, err)
 		return
 	}
-	ranges, err := readableRanges(ctx, meta.Backend.AdminConnection().Auth, meta.User)
+	ranges, err := readableRanges(ctx, client.Auth, meta.User)
 	if err != nil {
 		response.WriteRPCError(w, err)
 		return

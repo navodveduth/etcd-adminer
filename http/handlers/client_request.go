@@ -10,7 +10,7 @@ import (
 	"github.com/srimaln91/etcd-adminer/http/response"
 )
 
-// requestClient authenticates before privileged metadata discovery and bounds
+// requestClient authenticates before caller-scoped metadata discovery and bounds
 // ordinary RPCs. Streaming handlers must manage their own lifetime instead.
 func (jh *GenericHandler) requestClient(w http.ResponseWriter, r *http.Request, administrator bool) (*etcd.Client, context.Context, func(), bool) {
 	meta, ok := r.Context().Value(META_KEY).(request.RequestMeta)
@@ -32,7 +32,7 @@ func (jh *GenericHandler) requestClient(w http.ResponseWriter, r *http.Request, 
 		return nil, nil, nil, false
 	}
 	if administrator {
-		user, err := meta.Backend.AdminConnection().UserGet(ctx, meta.User)
+		user, err := client.UserGet(ctx, meta.User)
 		if err != nil {
 			cleanup()
 			response.WriteRPCError(w, err)

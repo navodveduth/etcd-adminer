@@ -33,7 +33,7 @@ func Init() error {
 		return fmt.Errorf("logger initialization failed: %w", err)
 	}
 
-	// Create admin backends
+	// Register transport configuration without connecting to any cluster.
 	backendProvider := etcd.NewBackendProvider()
 	defer func() {
 		if err := backendProvider.Close(); err != nil {
@@ -41,16 +41,20 @@ func Init() error {
 		}
 	}()
 
-	for _, cluster := range cfg.ETCD {
-		password, err := cluster.SuperAdmin.ResolvePassword()
-		if err != nil {
-			return fmt.Errorf("backend %q credentials configuration failed: %w", cluster.Name, err)
-		}
+	for index, cluster := range cfg.ETCD {
 		tlsConfig, err := cluster.TLS.Load()
 		if err != nil {
 			return fmt.Errorf("backend %q TLS configuration failed: %w", cluster.Name, err)
 		}
-		err = backendProvider.RegisterBackend(cluster.Name, cluster.Endpoints, cluster.SuperAdmin.UserName, password, etcd.WithTLS(tlsConfig))
+		protectedUsers := append([]string(nil), cluster.ProtectedUsers...)
+		if cluster.SuperAdmin.UserName != "" {
+			protectedUsers = append(protectedUsers, cluster.SuperAdmin.UserName)
+		}
+		if cluster.SuperAdmin != (config.AdminCredentials{}) {
+			logger.Warn(context.Background(), "legacy superadmin credentials are ignored; remove the block and optionally use protectedUsers", "backend", cluster.Name)
+			cfg.ETCD[index].SuperAdmin = config.AdminCredentials{}
+		}
+		err = backendProvider.RegisterBackend(cluster.Name, cluster.Endpoints, etcd.WithTLS(tlsConfig), etcd.WithProtectedUsers(protectedUsers...))
 		if err != nil {
 			return fmt.Errorf("backend registration failed: %w", err)
 		}
@@ -65,17 +69,14 @@ func Init() error {
 	}
 
 	// Init Http server
+	// Install termination handling before advertising readiness.
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
+	defer signal.Stop(c)
 	httpSrv, err := server.Start(fmt.Sprintf(":%d", cfg.HTTP.Port), httpHandler, logger)
 	if err != nil {
 		return fmt.Errorf("HTTP startup failed: %w", err)
 	}
-
-	// Listen for term signals
-	c := make(chan os.Signal, 1)
-
-	// We'll accept graceful shutdowns when quit via SIGINT (Ctrl+C)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT)
-	defer signal.Stop(c)
 
 	// Block until we receive our signal
 	signal := <-c

@@ -10,6 +10,8 @@ import (
 
 const maxPasswordBytes = 64 * 1024
 
+// AdminCredentials is retained only to parse older configuration files.
+// Startup ignores its secret sources; connections authenticate as their caller.
 type AdminCredentials struct {
 	UserName     string `yaml:"username"`
 	Password     string `yaml:"password"`
@@ -18,6 +20,7 @@ type AdminCredentials struct {
 }
 
 // ResolvePassword accepts exactly one source and never includes its value in errors.
+// Deprecated: retained for compatibility; application startup never calls it.
 func (credentials AdminCredentials) ResolvePassword() (string, error) {
 	sources := 0
 	for _, value := range []string{credentials.Password, credentials.PasswordFile, credentials.PasswordEnv} {

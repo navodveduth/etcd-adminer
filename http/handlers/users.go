@@ -184,8 +184,8 @@ func (jh *GenericHandler) UnassignRole(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	defer jh.closeEtcdClient(client)
-	if vars["role"] == "root" && (vars["name"] == "root" || vars["name"] == requestMeta.Backend.AdminConnection().Username) {
-		response.WriteError(rw, http.StatusBadRequest, "protected_administrator", "cannot remove the canonical or configured service administrator's root role")
+	if vars["role"] == "root" && (vars["name"] == "root" || requestMeta.Backend.IsProtectedUser(vars["name"])) {
+		response.WriteError(rw, http.StatusBadRequest, "protected_administrator", "cannot remove the canonical root user's or a protected account's root role")
 		return
 	}
 	_, err = client.UserRevokeRole(r.Context(), vars["name"], vars["role"])
@@ -222,8 +222,8 @@ func (jh *GenericHandler) DeleteUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer cleanup()
-	if vars["name"] == "root" || vars["name"] == requestMeta.Backend.AdminConnection().Username {
-		response.WriteError(rw, http.StatusBadRequest, "protected_administrator", "cannot delete the canonical or configured service administrator")
+	if vars["name"] == "root" || requestMeta.Backend.IsProtectedUser(vars["name"]) {
+		response.WriteError(rw, http.StatusBadRequest, "protected_administrator", "cannot delete the canonical root user or a protected account")
 		return
 	}
 	_, err := client.UserDelete(ctx, vars["name"])
