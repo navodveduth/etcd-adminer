@@ -46,8 +46,8 @@ export default class DataService {
         ...this.requestConfig(), params: { key }, signal,
     })).data;
 
-    PutKey = async (key, value) => {
-        await api.put('/api/keys', { key, value }, this.requestConfig());
+    PutKey = async (key, value, expectedRevision) => {
+        await api.put('/api/keys', { key, value, expectedRevision }, this.requestConfig());
         return true;
     };
 

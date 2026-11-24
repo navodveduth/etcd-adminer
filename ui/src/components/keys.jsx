@@ -39,6 +39,7 @@ export default function Keys(props) {
     const [activeKey, setActiveKey] = useState(null);
     const [keys, setKeys] = useState({ id: 'root', name: 'Parent' });
     const [isNewKey, setIsNewKey] = useState(false);
+    const [dirty, setDirty] = useState(false);
     const [tabValue, setTabValue] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -48,6 +49,7 @@ export default function Keys(props) {
     };
 
     const createVirtualFile = async (path) => {
+        if (dirty && !window.confirm('Discard unsaved changes?')) return;
         try {
             let fileTree = await dataService.CreateNode(path, false);
             setKeys(fileTree);
@@ -58,6 +60,18 @@ export default function Keys(props) {
             console.error(error);
         }
     }
+
+    const selectKey = (key) => {
+        if (key === activeKey) return;
+        if (dirty && !window.confirm('Discard unsaved changes?')) return;
+        setIsNewKey(false);
+        setActiveKey(key);
+    };
+
+    const onSaved = () => {
+        setIsNewKey(false);
+        fetchKeys();
+    };
 
     const createVirtualDirectory = async (path) => {
         try {
@@ -133,7 +147,7 @@ export default function Keys(props) {
                                 keys={keys}
                                 loading={loading}
                                 error={error}
-                                onKeyClick={setActiveKey}
+                                onKeyClick={selectKey}
                                 fetchKeys={fetchKeys}
                                 createFile={createVirtualFile}
                                 createDirectory={createVirtualDirectory}
@@ -146,7 +160,7 @@ export default function Keys(props) {
                                 keys={keys}
                                 loading={loading}
                                 error={error}
-                                onKeyClick={setActiveKey}
+                                onKeyClick={selectKey}
                                 fetchKeys={fetchKeys}
                                 deleteKey={deleteKey}
                             />
@@ -155,7 +169,7 @@ export default function Keys(props) {
                 </Grid>
 
                 <Grid size={{ xs: 12, md: 8, lg: 9 }}>
-                    <EditorComponent etcdKey={activeKey} isNewKey={isNewKey} />
+                    <EditorComponent etcdKey={activeKey} isNewKey={isNewKey} onSaved={onSaved} onDirtyChange={setDirty} />
                 </Grid>
 
                 <Grid size={12}>

@@ -1,6 +1,6 @@
-#!/usr/bin/env bash
-set -euo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")/.."
 
 # This script owns only the disposable container it creates. No host data mounts.
 container=$(docker run --rm --detach --publish 127.0.0.1::2379 \

@@ -3,13 +3,18 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"net/http/httptest"
 	"os"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/srimaln91/etcd-adminer/etcd"
+	"github.com/srimaln91/etcd-adminer/http/request"
 	"github.com/srimaln91/etcd-adminer/log"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
@@ -155,4 +160,48 @@ func TestRBACIntegration(t *testing.T) {
 			}
 		})
 	}
+	t.Run("conditional writes preserve leases and reject conflicts", func(t *testing.T) {
+		lease, err := admin.Grant(ctx, 120)
+		if err != nil {
+			t.Fatal(err)
+		}
+		written, err := admin.Put(ctx, "/leased", "before", clientv3.WithLease(lease.ID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		write := func(key, value, revision string) *httptest.ResponseRecorder {
+			body, err := json.Marshal(request.CreateKeyRequest{Key: key, Value: value, ExpectedRevision: revision})
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := httptest.NewRequest("PUT", "/api/keys", bytes.NewReader(body))
+			r = r.WithContext(context.WithValue(ctx, META_KEY, request.RequestMeta{Backend: backend, User: "root", Pass: password}))
+			w := httptest.NewRecorder()
+			handler.UpdateKey(w, r)
+			return w
+		}
+		revision := strconv.FormatInt(written.Header.Revision, 10)
+		if w := write("/leased", "after", revision); w.Code != 200 {
+			t.Fatalf("save: %d %s", w.Code, w.Body.String())
+		}
+		if w := write("/leased", "stale", revision); w.Code != 409 {
+			t.Fatalf("stale save: %d %s", w.Code, w.Body.String())
+		}
+		value, err := admin.Get(ctx, "/leased")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if value.Kvs[0].Lease != int64(lease.ID) || string(value.Kvs[0].Value) != "after" {
+			t.Fatal("lease or value changed unexpectedly")
+		}
+		if w := write("/new", "first", "0"); w.Code != 200 {
+			t.Fatalf("create: %d %s", w.Code, w.Body.String())
+		}
+		if w := write("/new", "overwrite", "0"); w.Code != 409 {
+			t.Fatalf("duplicate create: %d %s", w.Code, w.Body.String())
+		}
+		if w := write("/new", "unsafe", ""); w.Code != 400 {
+			t.Fatalf("missing revision: %d", w.Code)
+		}
+	})
 }

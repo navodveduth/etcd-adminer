@@ -1,194 +1,142 @@
-import * as React from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
-import { styled } from '@mui/material/styles';
-import Snackbar from '@mui/material/Snackbar';
-import MuiAlert from '@mui/material/Alert';
-import DataService from '../data/service'
+import Alert from '@mui/material/Alert';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import { useTheme } from '@mui/material/styles';
+import DataService from '../data/service';
 
-const Editor = React.lazy(() => import('./monacoEditor'));
+const MonacoEditor = lazy(() => import('./monacoEditor'));
 
-class EditorComponent extends React.Component {
-    dataService;
+export default function EditorComponent({ etcdKey, isNewKey, onSaved, onDirtyChange }) {
+    const service = useMemo(() => new DataService(), []);
+    const theme = useTheme();
+    const generation = useRef(0);
+    const [record, setRecord] = useState(null);
+    const [value, setValue] = useState('');
+    const [status, setStatus] = useState('idle');
+    const [saving, setSaving] = useState(false);
+    const [message, setMessage] = useState(null);
+    const [language, setLanguage] = useState('yaml');
+    const [reload, setReload] = useState(0);
+    const original = record?.value ?? '';
+    const dirty = value !== original;
 
-    constructor(props) {
-        super(props);
-        console.log(this.props);
-        this.state = {
-            key: "",
-            value: '// Please select a key',
-            remoteKey: {},
-            snackBarSuccess: false,
-            snackBarError: false
-        }
-
-        this.onChange = this.onChange.bind(this);
-        this.discard = this.discard.bind(this);
-        this.save = this.save.bind(this);
-
-        this.dataService = new DataService();
-    }
-
-    static getDerivedStateFromProps(props, state) {
-        if (props.etcdKey !== state.key) {
-            return {
-                key: props.etcdKey,
-            };
-        }
-
-        // Return null if the state hasn't changed
-        return null;
-    }
-
-    fetchKey = async (key) => {
-
-        this.setState({
-            value: "fetching...",
-            remoteKey: {
-                createRevision: "N/A",
-                modRevision: "N/A",
-                version: "N/A",
-                lease: 0
-            }
-        });
-
-        try {
-            let data = await this.dataService.FetchKey(key);
-            this.setState({
-                key: data.key,
-                value: data.value,
-                remoteKey: data
+    useEffect(() => {
+        const current = ++generation.current;
+        const controller = new AbortController();
+        setRecord(null);
+        setValue('');
+        setMessage(null);
+        setSaving(false);
+        onDirtyChange?.(false);
+        if (!etcdKey) {
+            setStatus('idle');
+        } else if (isNewKey) {
+            setStatus('ready');
+        } else {
+            setStatus('loading');
+            service.FetchKey(etcdKey, controller.signal).then((data) => {
+                if (controller.signal.aborted || generation.current !== current) return;
+                setRecord(data);
+                setValue(data.value);
+                setStatus('ready');
+            }).catch(() => {
+                if (controller.signal.aborted || generation.current !== current) return;
+                setStatus('error');
+                setMessage({ severity: 'error', text: 'Could not load this key. Reload before editing.' });
             });
-        } catch (error) {
-            console.error(error);
-            this.setState({ snackBarError: true });
         }
-    }
+        return () => {
+            controller.abort();
+            generation.current++;
+        };
+    }, [etcdKey, isNewKey, reload, service, onDirtyChange]);
 
-    discard = () => {
-        this.fetchKey(this.props.etcdKey)
-    }
+    useEffect(() => {
+        if (!dirty) return;
+        const warn = (event) => { event.preventDefault(); event.returnValue = ''; };
+        window.addEventListener('beforeunload', warn);
+        return () => window.removeEventListener('beforeunload', warn);
+    }, [dirty]);
 
-    save = async () => {
-        try {
-            let result = await this.dataService.PutKey(this.state.key, this.state.value);
-            if (result) {
-                this.setState({ snackBarSuccess: true });
-                this.fetchKey(this.props.etcdKey)
-            }
-        } catch (error) {
-            console.log(error);
-            this.setState({ snackBarError: true });
-        }
-    }
-
-    componentDidUpdate(prevProps) {
-        if (prevProps.isNewKey !== this.props.isNewKey && this.props.isNewKey) {
-            this.setState({
-                value: "Type your content here and click on save",
-                remoteKey: {
-                    createRevision: "N/A",
-                    modRevision: "N/A",
-                    version: "N/A",
-                    lease: 0
-                }
-            });
-
-            return;
-        }
-
-        if (this.props.etcdKey !== prevProps.etcdKey) {
-            this.fetchKey(this.props.etcdKey);
-        }
-    }
-
-    onChange(newValue, e) {
-        this.setState({
-            value: newValue
-        })
-    }
-
-
-    handleSnackBarClose = (event, reason) => {
-        this.setState({ snackBarSuccess: false });
-        this.setState({ snackBarError: false });
+    const changeValue = (next) => {
+        const text = next ?? '';
+        setValue(text);
+        onDirtyChange?.(text !== original);
     };
 
-    render() {
-        const code = this.state.value;
-        const options = {
-            selectOnLineNumbers: true
-        };
+    const reloadKey = () => {
+        if (dirty && !window.confirm('Discard unsaved changes and reload this key?')) return;
+        setReload((version) => version + 1);
+    };
 
-        const Item = styled(Paper)(({ theme }) => ({
-            ...theme.typography.body2,
-            padding: theme.spacing(1),
-            textAlign: 'center',
-            color: theme.palette.text.secondary,
-        }));
+    const save = async () => {
+        if (status !== 'ready' || saving || !etcdKey) return;
+        const current = generation.current;
+        setSaving(true);
+        setMessage(null);
+        try {
+            await service.PutKey(etcdKey, value, String(record?.modRevision ?? '0'));
+            if (generation.current !== current) return;
+            onDirtyChange?.(false);
+            onSaved?.(etcdKey);
+            setReload((version) => version + 1);
+        } catch (error) {
+            if (generation.current !== current) return;
+            setMessage({ severity: 'error', text: error.response?.status === 409
+                ? 'This key changed on the server. Your draft is preserved; copy it before reloading.'
+                : 'Could not save this key. Your draft is preserved.' });
+        } finally {
+            if (generation.current === current) setSaving(false);
+        }
+    };
 
-        const Alert = React.forwardRef(function Alert(props, ref) {
-            return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
-        });
+    const formatJSON = () => {
+        try {
+            changeValue(JSON.stringify(JSON.parse(value), null, 2));
+            setLanguage('json');
+            setMessage(null);
+        } catch {
+            setMessage({ severity: 'error', text: 'Invalid JSON. The value has not been changed.' });
+        }
+    };
 
-        return (
-            <React.Fragment>
-                <Paper
-                    sx={{
-                        p: 2,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        height: 800,
-                    }}
-                >
-                    <Paper sx={{ marginBottom: 1, padding: 2 }}>
-                        <Stack direction="row" spacing={2}>
-                            <Item><b>Key: </b> {this.state.key}</Item>
-                            <Item><b>Create Revision: </b> {this.state.remoteKey.createRevision} </Item>
-                            <Item><b>Mod Revision: </b> {this.state.remoteKey.modRevision}</Item>
-                            <Item><b>Version: </b> {this.state.remoteKey.version}</Item>
-                            <Item><b>Lease: </b> {this.state.remoteKey.lease === 0 ? "None" : this.state.remoteKey.lease}</Item>
-                        </Stack>
-                    </Paper>
-                    <div>
-
-                        {this.props.etcdKey ? <React.Suspense fallback={<div role="status">Loading editor…</div>}>
-                        <Editor
-                            width="100%"
-                            height="650px"
-                            defaultLanguage="yaml"
-                            theme="vs-dark"
-                            value={code}
-                            options={options}
-                            onChange={this.onChange}
-                            editorDidMount={this.editorDidMount}
-                        />
-                        </React.Suspense> : <p>Select a key to edit its value.</p>}
-
-                        <div style={{ float: "right", paddingTop: "10px" }}>
-                            <Button variant="contained" color="success" style={{ marginRight: "10px" }} onClick={this.save}>
-                                Save
-                            </Button>
-                            <Button variant="contained" color="error" onClick={this.discard}>
-                                Discard
-                            </Button>
-                        </div>
-                    </div>
-                </Paper>
-                <Snackbar open={this.state.snackBarSuccess} autoHideDuration={6000} onClose={this.handleSnackBarClose}>
-                    <Alert severity="success" sx={{ width: '100%' }} onClose={this.handleSnackBarClose}>
-                        Successfully updated the key!
-                    </Alert>
-                </Snackbar>
-                <Snackbar open={this.state.snackBarError} autoHideDuration={6000} onClose={this.handleSnackBarClose}>
-                    <Alert severity="error" sx={{ width: '100%' }} onClose={this.handleSnackBarClose}>
-                        Something went wrong!
-                    </Alert>
-                </Snackbar>
-            </React.Fragment>
-        )
-    }
+    return (
+        <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', minHeight: 500 }}>
+            <Stack direction="row" spacing={2} sx={{ mb: 2, flexWrap: 'wrap' }}>
+                <span><b>Key:</b> {etcdKey ?? 'None selected'}</span>
+                <span><b>Revision:</b> {record?.modRevision ?? 'New'}</span>
+                <span><b>Lease:</b> {record?.lease && String(record.lease) !== '0' ? record.lease : 'None'}</span>
+            </Stack>
+            {message && <Alert severity={message.severity} sx={{ mb: 2 }}>{message.text}</Alert>}
+            {status === 'loading' && <p role="status">Loading key…</p>}
+            {status === 'idle' && <p>Select a key to edit its value.</p>}
+            {status === 'ready' && (
+                <Suspense fallback={<p role="status">Loading editor…</p>}>
+                    <MonacoEditor
+                        height="60vh"
+                        language={language}
+                        theme={theme.palette.mode === 'dark' ? 'vs-dark' : 'light'}
+                        value={value}
+                        onChange={changeValue}
+                        options={{ readOnly: saving, automaticLayout: true }}
+                    />
+                </Suspense>
+            )}
+            <Stack direction="row" spacing={1} sx={{ mt: 2, flexWrap: 'wrap' }}>
+                <Select size="small" value={language} onChange={(event) => setLanguage(event.target.value)} inputProps={{ 'aria-label': 'Value language' }}>
+                    <MenuItem value="yaml">YAML</MenuItem>
+                    <MenuItem value="json">JSON</MenuItem>
+                    <MenuItem value="plaintext">Text</MenuItem>
+                </Select>
+                <Button onClick={formatJSON} disabled={status !== 'ready' || saving}>Format JSON</Button>
+                <Button variant="contained" onClick={save} disabled={status !== 'ready' || saving || !etcdKey}>Save</Button>
+                <Button onClick={() => changeValue(original)} disabled={!dirty || saving}>Discard</Button>
+                <Button onClick={reloadKey} disabled={!etcdKey || saving || isNewKey}>Reload</Button>
+            </Stack>
+        </Paper>
+    );
 }
-
-export default EditorComponent;

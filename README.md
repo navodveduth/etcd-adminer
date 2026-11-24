@@ -61,7 +61,7 @@ Use a supported etcd server; the client/API modules are pinned to 3.7.4.
 Compatibility with older server releases must be integration-tested before deployment.
 
 Run `go test -race ./...` and `go vet ./...` for backend checks. With Docker
-available, `bash scripts/test-integration.sh` creates an isolated etcd 3.7.4
+available, `sh scripts/test-integration.sh` creates an isolated etcd 3.7.4
 container, verifies real RBAC behavior, and removes only that container on exit.
 It does not use your configured cluster or mount any host etcd data.
 
@@ -81,6 +81,14 @@ npm run start
 Vite proxies `/api` requests to the Go API on port 8080. Run `npm test`,
 `npm run lint`, and `npm run build` in `ui/` to validate frontend changes.
 The production output remains `ui/build/`, compatible with the Go static server.
+
+### Safe key writes
+
+`PUT /api/keys` now requires `expectedRevision` as a decimal string. Send `"0"`
+to create a key only if absent, or the key's `modRevision` returned by a read
+to update it. Stale writes return HTTP 409 without changing the value. Updates
+preserve an existing lease. Revision/version/lease fields are JSON strings to
+avoid JavaScript integer precision loss; clients must not coerce them to numbers.
 
 ## Contributions
 

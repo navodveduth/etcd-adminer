@@ -1,5 +1,5 @@
 package response
 
 type UpdateKeyResponse struct {
-	Revision int64 `json:"revision"`
+	Revision int64 `json:"revision,string"`
 }
