@@ -214,6 +214,13 @@ The supplied checklist mentions a missing `get_cluster_metrics` command. This re
 
 ### D4. Bulk operations and import/export
 
+Bounded transfer checkpoint implemented: versioned base64 JSON, fixed-revision
+20-record export pages with caller-scoped signed cursors, file validation,
+create/overwrite previews, exact-key selection, typed confirmation and atomic
+CAS import/delete batches (50 keys / 1 MiB decoded). Cancellation explicitly
+warns about uncertain commit outcomes. Large resumable server jobs and streaming
+single-file exports remain future work; pages/batches are separate bounded units.
+
 - [ ] Add selected-key delete and bounded prefix export/import with progress, cancellation, size/key-count limits, and per-item results.
 - [ ] Define a versioned JSON format with explicit key/value encoding and optional metadata. Do not imply that revisions or lease IDs can be restored unchanged.
 - [ ] Validate before mutation; provide dry-run conflict/overwrite previews and an explicit overwrite policy. Make partial completion and non-atomic batches visible.

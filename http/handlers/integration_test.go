@@ -137,6 +137,42 @@ func TestRBACIntegration(t *testing.T) {
 		if !strings.Contains(capabilities.Body.String(), `"administrator":false`) {
 			t.Fatal("non-admin capability elevated")
 		}
+		t.Run("logical batches are atomic and export at one snapshot", func(t *testing.T) {
+			defer func() { if _, err := admin.Delete(ctx, "/bulk/", clientv3.WithPrefix()); err != nil { t.Error(err) } }()
+			payload := `{"version":1,"operation":"import","policy":"create","dryRun":true,"records":[{"keyBase64":"L2J1bGsvYQ==","valueBase64":"/wA="},{"keyBase64":"L2J1bGsvYg==","valueBase64":"dmFsdWU="}]}`
+			preview := call("POST", "/", payload, handler.TransferBatch, 200)
+			var result struct {
+				Records json.RawMessage `json:"records"`
+			}
+			if err := json.Unmarshal(preview.Body.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+			apply := `{"version":1,"operation":"import","policy":"create","dryRun":false,"confirmation":"IMPORT 2","records":` + string(result.Records) + `}`
+			call("POST", "/", apply, handler.TransferBatch, 200)
+			call("POST", "/", apply, handler.TransferBatch, 409)
+			value, err := admin.Get(ctx, "/bulk/a")
+			if err != nil || len(value.Kvs) != 1 || !bytes.Equal(value.Kvs[0].Value, []byte{255, 0}) {
+				t.Fatal("binary import did not round trip")
+			}
+			exported := call("GET", "/?prefix=%2Fbulk%2F", "", handler.ExportPage, 200)
+			if !strings.Contains(exported.Body.String(), `"valueBase64":"/wA="`) {
+				t.Fatal("binary export lost bytes")
+			}
+			deletePreview := call("POST", "/", strings.Replace(payload, `"operation":"import"`, `"operation":"delete"`, 1), handler.TransferBatch, 200)
+			if err := json.Unmarshal(deletePreview.Body.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+			deleteBatch := `{"version":1,"operation":"delete","policy":"overwrite","dryRun":false,"confirmation":"DELETE 2","records":` + string(result.Records) + `}`
+			if _, err := admin.Put(ctx, "/bulk/a", "changed"); err != nil {
+				t.Fatal(err)
+			}
+			call("POST", "/", deleteBatch, handler.TransferBatch, 409)
+			value, err = admin.Get(ctx, "/bulk/b")
+			if err != nil || len(value.Kvs) != 1 {
+				t.Fatal("conflicting batch partially deleted keys")
+			}
+			check(invoke("POST", "/", "person/one", "initial-password", payload, handler.TransferBatch, nil), 403)
+		})
 		check(invoke("GET", "/", "person/one", "initial-password", "", handler.Roles, nil), 403)
 		for _, rule := range []string{
 			`{"name":"team/reader","access":"read","scope":"exact","key":"/rbac/exact"}`,

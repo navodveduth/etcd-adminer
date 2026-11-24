@@ -164,6 +164,22 @@ endpoint and permit long-lived responses; `X-Accel-Buffering: no` is sent.
 
 ### Users, roles, and permissions
 
+**Import / export** transfers a version-1 JSON envelope with `records` containing
+`keyBase64` and `valueBase64`. Exports contain only the caller's readable keys,
+at a fixed snapshot revision across signed cursor pages (20 records, about
+1 MiB per page). Download each page separately; compaction requires restarting.
+Values above 128 KiB need external etcd tooling. Files contain secrets.
+
+Import and exact-key bulk deletion require a preview, an explicit create-only
+or overwrite policy, and typed `IMPORT N` / `DELETE N` confirmation. Batches
+are limited to 50 unique keys, 1 MiB decoded data, and a 2 MiB JSON request.
+Each batch is one revision-checked transaction: any conflict rejects all its
+mutations. Multiple pages/batches are not globally atomic. Existing leases are
+preserved on overwrite; new keys are unleased. Source revisions/lease IDs are
+not restored. Cancellation of a submitted transaction does not prove rollback;
+inspect keys and preview again before retrying. List view supports selection
+of up to 50 exact keys for deletion preview.
+
 **Overview** provides root-authorized maintenance metrics from configured
 endpoints: availability, DB size/in-use/quota (when reported), leader, Raft lag,
 and alarms. It keeps at most 60 local trend samples, pauses polling in hidden

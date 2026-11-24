@@ -49,12 +49,15 @@ export default class DataService {
     GetClusterInfo = async () => (await api.get('/api/clusterinfo', this.requestConfig())).data;
     GetMetrics = async (signal) => (await api.get('/api/v1/cluster/metrics', { ...this.requestConfig(), signal })).data;
     GetCapabilities = async (signal) => (await api.get('/api/v1/capabilities', { ...this.requestConfig(), signal })).data;
+    ExportPage = async (params, signal) => (await api.get('/api/v1/transfer/export', { ...this.requestConfig(), params, signal })).data;
+    TransferBatch = async (batch, signal) => (await api.post('/api/v1/transfer/batch', batch, { ...this.requestConfig(), signal })).data;
 
-    TestConnection = async (username, password, backend) => {
+    TestConnection = async (username, password, backend, signal) => {
         try {
             await api.post('/api/auth', null, {
                 auth: { username, password },
                 headers: { 'X-Backend': backend },
+                signal,
             });
             return true;
         } catch (error) {
@@ -133,7 +136,7 @@ export default class DataService {
     GetLeases = async (signal) => (await api.get('/api/v1/leases', { ...this.requestConfig(), signal })).data;
     GetLease = async (id, signal) => (await api.get(`/api/v1/leases/${segment(id)}`, { ...this.requestConfig(), signal })).data;
     GrantLease = async (ttl) => (await api.post('/api/v1/leases', { ttl }, this.requestConfig())).data;
-    RenewLease = async (id) => (await api.post(`/api/v1/leases/${segment(id)}/renew`, null, this.requestConfig())).data;
+    RenewLease = async (id, signal) => (await api.post(`/api/v1/leases/${segment(id)}/renew`, null, { ...this.requestConfig(), signal })).data;
     RevokeLease = async (id) => api.delete(`/api/v1/leases/${segment(id)}`, { ...this.requestConfig(), data: { confirmation: id } });
 
     DeleteUser = async (user) => {
