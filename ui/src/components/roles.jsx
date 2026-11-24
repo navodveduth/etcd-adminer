@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
@@ -17,7 +17,7 @@ import TableRow from '@mui/material/TableRow';
 import TableContainer from '@mui/material/TableContainer';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import DataService from '../data/service';
+import { useDataService } from '../data/context';
 import { useReadOnly } from '../readOnly';
 
 const scopeDescription = (scope, key, end) => scope === 'prefix'
@@ -26,7 +26,7 @@ const scopeDescription = (scope, key, end) => scope === 'prefix'
 
 export default function Roles() {
     const [params] = useSearchParams();
-    const service = useMemo(() => new DataService(), []);
+    const service = useDataService();
     const readOnly = useReadOnly();
     const [roles, setRoles] = useState([]);
     const [selected, setSelected] = useState(params.get('name') ?? '');

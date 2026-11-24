@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -11,11 +11,13 @@ import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import DataService from '../data/service';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Checkbox from '@mui/material/Checkbox';
+import { useDataService } from '../data/context';
 import { useReadOnly } from '../readOnly';
 
 export default function Leases() {
-    const service = useMemo(() => new DataService(), []);
+    const service = useDataService();
     const readOnly = useReadOnly();
     const [ids, setIDs] = useState([]);
     const [selected, setSelected] = useState('');
@@ -28,7 +30,32 @@ export default function Leases() {
     const [notice, setNotice] = useState('');
     const [revoking, setRevoking] = useState(false);
     const [confirmation, setConfirmation] = useState('');
+    const [autoRenew, setAutoRenew] = useState(false);
+    const [renewalStatus, setRenewalStatus] = useState('');
     const validTTL = /^\d+$/.test(ttl) && Number(ttl) >= 1 && Number(ttl) <= 604800;
+
+    useEffect(() => {
+        if (!autoRenew || autoRenew !== selected || readOnly || !selected) return;
+        const controller = new AbortController();
+        const lease = selected;
+        const expires = Date.now() + 15 * 60 * 1000;
+        let timer;
+        const renew = async () => {
+            if (Date.now() >= expires) { setAutoRenew(false); setRenewalStatus('Automatic renewal stopped after its 15-minute safety limit.'); return; }
+            try {
+                const result = await service.RenewLease(lease, controller.signal);
+                if (controller.signal.aborted) return;
+                if (result.ttl <= 0) throw new Error('Lease expired.');
+                setRenewalStatus(`Automatically renewed ${lease} at ${new Date().toLocaleTimeString()}.`);
+                timer = setTimeout(renew, Math.max(1000, Math.min(result.ttl * 1000 / 3, 30000)));
+            } catch (error) {
+                if (!controller.signal.aborted) { setAutoRenew(false); setRenewalStatus('Automatic renewal stopped: renewal could not be confirmed. The lease and attached keys may expire.'); setError(error.response?.data?.message ?? 'Lease renewal failed. Inspect its current TTL.'); }
+            }
+        };
+        renew();
+        return () => { controller.abort(); clearTimeout(timer); };
+    }, [autoRenew, selected, readOnly, service]);
+    useEffect(() => { setAutoRenew(false); }, [selected]);
 
     useEffect(() => {
         const controller = new AbortController();
@@ -104,7 +131,9 @@ export default function Leases() {
                     <Typography>Remaining TTL at last check: <b>{detail.ttl} seconds</b> (granted: {detail.grantedTTL} seconds)</Typography>
                     <Typography>Attached keys: <b>{detail.keyCount}</b>{detail.keyCount > detail.keys.length ? ' (first 100 shown)' : ''}</Typography>
                     <Box component="ul" sx={{ maxHeight: 240, overflow: 'auto' }}>{detail.keys.map((item) => <li key={`${item.keyEncoding}:${item.key}`}><code>{item.key}</code>{item.keyEncoding === 'base64' ? ' (base64)' : ''}</li>)}</Box>
-                    <Typography variant="body2" color="text.secondary">Renew once resets the TTL once. There is no automatic background renewal; leaving this page does not keep the lease alive.</Typography>
+                    <Typography variant="body2" color="text.secondary">Renew once resets the TTL once. Optional workspace renewal lasts at most 15 minutes. Closing this workspace, disconnecting, or reloading stops renewal; switching pages within it does not. Browser sleep/throttling can still let keys expire.</Typography>
+                    <FormControlLabel control={<Checkbox checked={autoRenew === selected} disabled={readOnly || busy} onChange={(event) => setAutoRenew(event.target.checked ? selected : false)} />} label="Automatically renew in this workspace (15-minute maximum)" />
+                    {renewalStatus && <Alert severity={autoRenew ? 'info' : 'warning'} role="status">{renewalStatus}</Alert>}
                     <Stack direction="row" spacing={2}>
                         <Button disabled={readOnly || busy} onClick={() => mutate(() => service.RenewLease(detail.id), 'Lease renewed once.')}>Renew once</Button>
                         <Button color="error" disabled={readOnly || busy} onClick={() => { setConfirmation(''); setRevoking(true); }}>Revoke lease…</Button>

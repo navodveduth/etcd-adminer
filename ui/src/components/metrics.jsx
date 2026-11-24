@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Box, Button, Chip, LinearProgress, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
-import DataService from '../data/service';
+import { useDataService, useWorkspaceActive } from '../data/context';
 
 const bytes = (value) => value == null ? 'Unavailable' : `${(value / 1048576).toFixed(2)} MiB`;
 
 export default function Metrics() {
-    const service = useMemo(() => new DataService().BindActiveSession(), []);
+    const service = useDataService();
+    const active = useWorkspaceActive();
     const [sample, setSample] = useState(null);
     const [history, setHistory] = useState([]);
     const [error, setError] = useState('');
@@ -19,7 +20,7 @@ export default function Metrics() {
         let inFlight = false;
         let failures = 0;
         const poll = async () => {
-            if (document.hidden || inFlight || controller.signal.aborted) return;
+            if (!active || document.hidden || inFlight || controller.signal.aborted) return;
             inFlight = true;
             setLoading(true);
             try {
@@ -42,7 +43,7 @@ export default function Metrics() {
         const visible = () => { if (!document.hidden) { clearTimeout(timer); poll(); } };
         poll(); document.addEventListener('visibilitychange', visible);
         return () => { controller.abort(); clearTimeout(timer); document.removeEventListener('visibilitychange', visible); };
-    }, [service, interval, version]);
+    }, [service, interval, version, active]);
     useEffect(() => {
         const timer = setInterval(() => setAge(sample ? Math.max(0, Math.floor((Date.now() - Date.parse(sample.sampledAt)) / 1000)) : 0), 1000);
         return () => clearInterval(timer);

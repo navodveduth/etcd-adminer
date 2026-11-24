@@ -133,11 +133,38 @@ revision-checked key transaction. The API accepts optional `"lease":"0"` to
 detach or another signed decimal ID to attach; omission preserves an existing
 lease. Revoking/expiring a lease deletes its attached keys; detaching does not
 revoke the lease. Renewal is explicitly one-shot, not an automatic background
-keepalive. Leaving the page does not extend a lease's lifetime. Read-only mode
+keepalive unless optional workspace auto-renewal is enabled (see below). Read-only mode
 disables lease/key mutations. Lease lists cap displayed IDs at 1,000 and details
 show at most 100 attached keys while confirming the full affected count.
 
 ### Live changes / watch
+
+The application now opens up to four independent connection workspaces. Each
+workspace binds requests to its own backend/user and keeps its own navigation,
+key draft, selection, cached pages and watches when switching tabs or feature
+pages. Profile editing/deletion and disconnect close affected workspaces;
+closing a workspace explicitly warns about discarded drafts and stopped watches
+and renewal. Workspaces are in-memory and require reopening after reload.
+Feature navigation uses workspace-local memory history, not global deep links.
+
+The key browser can watch a nonempty prefix from the loaded snapshot revision.
+It patches visible puts/deletes without replacing editor drafts. Partial pages,
+compaction or uncertain membership require an explicit refresh; these states
+are visibly marked. CAS checks remain authoritative when saving.
+
+Lease auto-renewal is optional and owned by the open workspace, with a 15-minute
+maximum. It continues across feature/tab switches, stops on teardown, and stops
+after any unconfirmed renewal. Browser sleep/throttling can still cause expiry;
+this is not a durable server-side keepalive service. Stopping renewal does not
+revoke a lease, but its attached keys may expire.
+
+Access hints refresh on focus/every 30 seconds; unavailable capability checks
+fail closed for mutations/admin pages. etcd still authorizes every operation.
+Profile **Edit / diagnose** requires a fresh authentication test before saving,
+labels the measured roundtrip, and explains server-side transport troubleshooting.
+F1 opens shortcut help; Alt+1–4 switches workspaces; focused key browsers support
+Alt+F (prefix) and Alt+R (refresh), and the focused editor supports Ctrl/Cmd+S.
+The shell includes a skip link, labeled tabs and keyboard-accessible controls.
 
 Open **Live changes**, or use **Watch this key** in the key browser. Choose an
 exact key or prefix, then Start/Stop explicitly. The screen shows new changes
@@ -152,7 +179,8 @@ headers, not credentials in URLs. Reconnects remain bound to their starting
 connection. Transaction events are delivered in complete batches before the
 revision is acknowledged; partial frames are retried from the prior revision.
 Each stream lasts up to 45 seconds and reconnects automatically, with bounded
-backoff for network failures. Stop/navigation cancels the upstream watch.
+backoff for network failures. Stop or closing/disconnecting the workspace cancels
+the upstream watch; switching feature pages retains it.
 
 Limits: two streams per user/backend, 16 per instance, 8 KiB key/prefix input,
 2 MiB gRPC/frame messages, and a 4 MiB pending-response budget. Slow consumers,

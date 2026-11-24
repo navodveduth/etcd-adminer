@@ -11,6 +11,7 @@ import { red } from '@mui/material/colors';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import { Link } from 'react-router-dom';
 
 const ITEM_HEIGHT = 48;
 
@@ -54,19 +55,19 @@ export default function ConnectionCard(props) {
     }
 
     const deleteConnection = () => {
-        props.deleteSession(props.connection);
+        if (window.confirm(`Delete profile ${props.connection.Name}? Its workspaces will close, discarding drafts and stopping watches and renewal. Cluster keys are not deleted.`)) props.deleteSession(props.connection);
     }
 
     return (
         <Card variant="outlined" sx={{ maxWidth: 345, m: 1, border: `${props.isActive ? "3px solid #1976d2" : "1px solid #1976d2"}` }}>
             <CardHeader
                 avatar={
-                    <Avatar sx={{ bgcolor: red[500] }} aria-label="recipe">
+                    <Avatar sx={{ bgcolor: red[500] }} aria-label={`User ${props.connection.UserName}`}>
                         {props.connection.UserName.charAt(0).toUpperCase()}
                     </Avatar>
                 }
                 action={
-                    <IconButton aria-label="settings" onClick={handleOptionMenuBtnClick}>
+                    <IconButton aria-label={`Options for ${props.connection.Name}`} onClick={handleOptionMenuBtnClick}>
                         <MoreVertIcon />
                     </IconButton>
                 }
@@ -83,11 +84,12 @@ export default function ConnectionCard(props) {
                     User: {props.connection.UserName}
                 </Typography>
                 <Typography sx={{ mb: 1.5 }} color="text.secondary">
-                    Is Active: {props.isActive ? "true" : "false"}
+                    {props.isActive ? 'Most recently selected connection' : 'Saved profile'}
                 </Typography>
             </CardContent>
             <CardActions>
-                <Button disabled={props.isActive} variant="contained" color="success" size="small" onClick={useSession}>Connect</Button>
+                <Button variant="contained" color="success" size="small" onClick={useSession}>Open workspace</Button>
+                <Button component={Link} to={`/connection/new?edit=${encodeURIComponent(props.connection.Name)}`} size="small">Edit / diagnose</Button>
             </CardActions>
 
             <Menu

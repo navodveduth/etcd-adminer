@@ -10,11 +10,11 @@ import { Link } from "react-router-dom";
 import UserTable from './userTable';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
-import DataService from '../data/service'
+import { useDataService } from '../data/context';
 
 export default function UserList(props) {
 
-    const dataService = new DataService();
+    const dataService = useDataService();
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState();
     const [showRightPane, setShowRightPain] = useState(false);

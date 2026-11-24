@@ -1,249 +1,103 @@
-import * as React from 'react';
-import { styled, createTheme, ThemeProvider } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
-import MuiDrawer from '@mui/material/Drawer';
-import Box from '@mui/material/Box';
-import MuiAppBar from '@mui/material/AppBar';
-import Toolbar from '@mui/material/Toolbar';
-import Typography from '@mui/material/Typography';
-import Divider from '@mui/material/Divider';
-import IconButton from '@mui/material/IconButton';
-import Container from '@mui/material/Container';
-import MenuIcon from '@mui/icons-material/Menu';
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
+import { Alert, AppBar, Box, Button, CircularProgress, Container, CssBaseline, Dialog, DialogContent, DialogTitle, IconButton, Toolbar, Typography } from '@mui/material';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
-import Brightness7Icon from '@mui/icons-material/Brightness7';
-import NavMenu from './components/navMenu';
-import ConnectionComponent from './components/connection';
-import { BrowserRouter, Route, Routes, Navigate, Link } from "react-router-dom";
-import Paper from '@mui/material/Paper';
-import CircularProgress from '@mui/material/CircularProgress';
-import Alert from '@mui/material/Alert';
-import Chip from '@mui/material/Chip';
+import { MemoryRouter, Navigate, Route, Routes } from 'react-router-dom';
 import DataService from './data/service';
 import { ReadOnlyContext } from './readOnly';
-import { SessionStore } from './storage/session'
+import { SessionStore } from './storage/session';
+import Workspace from './workspaces';
+import WorkspaceTabs from './components/workspaceTabs';
+import Connection from './components/connection';
 
+const NewConnection = lazy(() => import('./components/newConnection'));
+const About = lazy(() => import('./components/about'));
 
-const drawerWidth = 240;
-const KeysComponent = React.lazy(() => import('./components/keys'));
-const ClusterInfo = React.lazy(() => import('./components/cluster'));
-const UserList = React.lazy(() => import('./components/userList'));
-const CreateUser = React.lazy(() => import('./components/createUser'));
-const NewConnectionComponent = React.lazy(() => import('./components/newConnection'));
-const About = React.lazy(() => import('./components/about'));
-const Leases = React.lazy(() => import('./components/leases'));
-const Watch = React.lazy(() => import('./components/watch'));
-const Roles = React.lazy(() => import('./components/roles'));
-const Metrics = React.lazy(() => import('./components/metrics'));
-
-const AppBar = styled(MuiAppBar, {
-  shouldForwardProp: (prop) => prop !== 'open',
-})(({ theme, open }) => ({
-  zIndex: theme.zIndex.drawer + 1,
-  transition: theme.transitions.create(['width', 'margin'], {
-    easing: theme.transitions.easing.sharp,
-    duration: theme.transitions.duration.leavingScreen,
-  }),
-  ...(open && {
-    marginLeft: drawerWidth,
-    width: `calc(100% - ${drawerWidth}px)`,
-    transition: theme.transitions.create(['width', 'margin'], {
-      easing: theme.transitions.easing.sharp,
-      duration: theme.transitions.duration.enteringScreen,
-    }),
-  }),
-}));
-
-const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' })(
-  ({ theme, open }) => ({
-    '& .MuiDrawer-paper': {
-      position: 'relative',
-      whiteSpace: 'nowrap',
-      width: drawerWidth,
-      transition: theme.transitions.create('width', {
-        easing: theme.transitions.easing.sharp,
-        duration: theme.transitions.duration.enteringScreen,
-      }),
-      boxSizing: 'border-box',
-      ...(!open && {
-        overflowX: 'hidden',
-        transition: theme.transitions.create('width', {
-          easing: theme.transitions.easing.sharp,
-          duration: theme.transitions.duration.leavingScreen,
-        }),
-        width: theme.spacing(7),
-        [theme.breakpoints.up('sm')]: {
-          width: theme.spacing(9),
-        },
-      }),
-    },
-  }),
-);
-
-function App() {
-  const settingsService = React.useMemo(() => new DataService(), []);
-  const [readOnly, setReadOnly] = React.useState(true);
-  const [settingsError, setSettingsError] = React.useState(false);
-  React.useEffect(() => {
-    const controller = new AbortController();
-    settingsService.GetConfig(controller.signal).then((settings) => {
-      if (!controller.signal.aborted) setReadOnly(settings.readOnly !== false);
-    }).catch(() => {
-      if (!controller.signal.aborted) setSettingsError(true);
-    });
-    return () => controller.abort();
-  }, [settingsService]);
-  const [open, setOpen] = React.useState(true);
-  const [refreshNav, setRefreshNav] = React.useState(false);
-  
-  // initialize mode from localStorage or default to dark
-  const [mode, setMode] = React.useState(() => {
-    try {
-      return localStorage.getItem('themeMode') === 'light' ? 'light' : 'dark';
-    } catch {
-      return 'dark';
-    }
-  });
-
-  const toggleDrawer = () => {
-    setOpen(!open);
-  };
-
-  const forceRefreshNav = () => {
-    setRefreshNav(!refreshNav);
-  }
-
-  const toggleColorMode = () => {
-    setMode((prevMode) => {
-      const newMode = prevMode === 'light' ? 'dark' : 'light';
-      // save to localStorage
-      try { localStorage.setItem('themeMode', newMode); } catch { /* Keep an in-memory preference when storage is unavailable. */ }
-      return newMode;
-    });
-  };
-
-  const mdTheme = React.useMemo(
-    () =>
-      createTheme({
-        palette: {
-          mode,
-        },
-      }),
-    [mode],
-  );
-
-  const sessionStore = new SessionStore();
-  const activeProfile = sessionStore.GetActiveSession();
-
-  const requireConnection = (element) => sessionStore.GetActiveSession()
-    ? element
-    : <Navigate to="/connection" replace />;
-
-  return (
-    <ThemeProvider theme={mdTheme}>
-      <ReadOnlyContext.Provider value={readOnly}>
-      <BrowserRouter>
-        <Box sx={{ display: 'flex' }}>
-          <CssBaseline />
-          <AppBar position="absolute" open={open}>
-            <Toolbar
-              sx={{
-                pr: '24px', // keep right padding when drawer closed
-              }}
-            >
-              <IconButton
-                edge="start"
-                color="inherit"
-                aria-label="open drawer"
-                onClick={toggleDrawer}
-                sx={{
-                  marginRight: '36px',
-                  ...(open && { display: 'none' }),
-                }}
-              >
-                <MenuIcon />
-              </IconButton>
-              <Typography
-                component="h1"
-                variant="h6"
-                color="inherit"
-                noWrap
-                sx={{ flexGrow: 1 }}
-              >
-                ETCD Adminer
-              </Typography>
-              <Chip component={Link} to="/connection" clickable color="default" sx={{ mr: 2, maxWidth: { xs: 140, md: 360 } }}
-                label={activeProfile ? `${activeProfile.BackEnd} · ${activeProfile.UserName}` : 'Not connected'} />
-              <IconButton color="inherit" onClick={toggleColorMode}>
-                {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
-              </IconButton>
-            </Toolbar>
-          </AppBar>
-          <Drawer variant="permanent" open={open}>
-            <Toolbar
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                px: [1],
-                position: 'relative',
-              }}
-            >
-              <Link to="/" style={{ textDecoration: 'none' }}>
-                <Paper variant="outlined" sx={{maxHeight:50, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'}}>
-                  <img src="/images/logo100.png" alt="etcd-logo" height="50px" width="50px"/>
-                </Paper>
-              </Link>
-
-              <IconButton onClick={toggleDrawer} sx={{ position: 'absolute', right: 8 }}>
-                <ChevronLeftIcon />
-              </IconButton>
-
-            </Toolbar>
-            <Divider />
-            <NavMenu refreshNav={refreshNav} />
-          </Drawer>
-          <Box
-            component="main"
-            sx={{
-              backgroundColor: (theme) =>
-                theme.palette.mode === 'light'
-                  ? theme.palette.grey[100]
-                  : theme.palette.grey[900],
-              flexGrow: 1,
-              height: '100vh',
-              overflow: 'auto',
-            }}
-          >
-            <Toolbar />
-            <Container maxWidth={false} sx={{ mt: 4, mb: 4 }}>
-              {readOnly && <Alert severity={settingsError ? 'error' : 'info'} sx={{ mb: 2 }}>
-                {settingsError ? 'Could not load instance settings. Mutating controls are disabled.' : 'Read-only mode: cluster mutations are disabled.'}
-              </Alert>}
-              <React.Suspense fallback={<CircularProgress aria-label="Loading page" />}>
-              <Routes>
-                <Route path="/" element={<ConnectionComponent onSessionChange={forceRefreshNav} />} />
-                <Route path="connection" element={<ConnectionComponent onSessionChange={forceRefreshNav} />} />
-                <Route path="connection/new" element={<NewConnectionComponent forceRefreshNav={forceRefreshNav} />} />
-                <Route path="cluster" element={requireConnection(<ClusterInfo />)} />
-                <Route path="metrics" element={requireConnection(<Metrics />)} />
-                <Route path="keys" element={requireConnection(<KeysComponent />)} />
-                <Route path="leases" element={requireConnection(<Leases />)} />
-                <Route path="watchers" element={requireConnection(<Watch />)} />
-                <Route path="roles" element={requireConnection(<Roles />)} />
-                <Route path="users" element={requireConnection(<UserList />)} />
-                <Route path="users/new" element={requireConnection(<CreateUser />)} />
-                <Route path="about" element={<About />} />
-              </Routes>
-              </React.Suspense>
-            </Container>
-          </Box>
-        </Box>
-      </BrowserRouter>
-      </ReadOnlyContext.Provider>
-    </ThemeProvider>
-  );
+function Shell({ mode, toggleMode }) {
+    const [page, setPage] = useState('connection');
+    const store = useMemo(() => new SessionStore(), []);
+    const [workspaces, setWorkspaces] = useState([]);
+    const [active, setActive] = useState('');
+    const [notice, setNotice] = useState('');
+    const [help, setHelp] = useState(false);
+    const managing = page !== 'workspace';
+    const sessionChanged = ({ open = true, replaced } = {}) => {
+        const profile = store.GetActiveSession();
+        const retained = workspaces.filter(({ profile: previous }) => {
+            if (previous.Name === replaced) return false;
+            const current = store.Get(previous.Name);
+            return current?.Password !== undefined && current.BackEnd === previous.BackEnd && current.UserName === previous.UserName;
+        });
+        if (!open) { setWorkspaces(retained); if (!retained.some((item) => item.id === active)) setActive(retained[0]?.id ?? ''); return; }
+        if (!profile) { setWorkspaces(retained); if (!retained.some((item) => item.id === active)) setActive(retained[0]?.id ?? ''); return; }
+        const existing = retained.find((item) => item.profile.Name === profile.Name && item.profile.BackEnd === profile.BackEnd && item.profile.UserName === profile.UserName);
+        if (existing) { setActive(existing.id); setWorkspaces(retained); }
+        else if (retained.length >= 4) { setNotice('Four workspaces are already open. Close one before opening another.'); return; }
+        else {
+            const id = crypto.randomUUID(); setWorkspaces([...retained, { id, profile: { Name: profile.Name, BackEnd: profile.BackEnd, UserName: profile.UserName } }]); setActive(id);
+        }
+        setPage('workspace');
+    };
+    const close = (id) => {
+        if (!window.confirm('Close this workspace? Unsaved drafts are discarded; its watches and automatic lease renewal stop. Attached keys can expire when renewal stops.')) return;
+        const retained = workspaces.filter((item) => item.id !== id); setWorkspaces(retained);
+        if (active === id) setActive(retained[0]?.id ?? '');
+    };
+    useEffect(() => {
+        const shortcuts = (event) => {
+            if (event.key === 'F1') { event.preventDefault(); setHelp(true); }
+            if (event.altKey && !event.ctrlKey && /^[1-4]$/.test(event.key)) {
+                const workspace = workspaces[Number(event.key) - 1];
+                if (workspace) { event.preventDefault(); setActive(workspace.id); setPage('workspace'); }
+            }
+        };
+        window.addEventListener('keydown', shortcuts);
+        return () => window.removeEventListener('keydown', shortcuts);
+    }, [workspaces]);
+    return <>
+        <Box component="a" href="#main-content" sx={{ position: 'absolute', left: 8, top: -60, zIndex: 2000, '&:focus': { top: 8 }, bgcolor: 'background.paper', p: 1 }}>Skip to main content</Box>
+        <AppBar position="static" elevation={0}><Toolbar sx={{ gap: 2 }}>
+            <Typography variant="h6" component="h1" sx={{ flexGrow: 1 }}>ETCD Adminer</Typography>
+            <Button color="inherit" onClick={() => setPage('about')}>About</Button>
+            <Button color="inherit" onClick={() => setHelp(true)}>Shortcuts</Button>
+            <IconButton color="inherit" aria-label={`Switch to ${mode === 'dark' ? 'light' : 'dark'} theme`} onClick={toggleMode}><Brightness4Icon /></IconButton>
+        </Toolbar></AppBar>
+        <Container component="main" id="main-content" tabIndex={-1} maxWidth={false} sx={{ py: 3 }}>
+            <WorkspaceTabs workspaces={workspaces} active={managing ? '' : active} onChange={(id) => { setActive(id); setPage('workspace'); }} onClose={close} onConnections={() => setPage('connection')} />
+            {notice && <Alert severity="warning" onClose={() => setNotice('')} sx={{ mb: 2 }}>{notice}</Alert>}
+            <Suspense fallback={<CircularProgress aria-label="Loading page" />}>
+                {page === 'connection' && <MemoryRouter initialEntries={['/connection']}><Routes>
+                    <Route path="/connection" element={<Connection onSessionChange={sessionChanged} />} />
+                    <Route path="/connection/new" element={<NewConnection forceRefreshNav={sessionChanged} />} />
+                    <Route path="*" element={<Navigate to="/connection" replace />} />
+                </Routes></MemoryRouter>}
+                {page === 'about' && <About />}
+                {page === 'workspace' && !workspaces.length && <Button onClick={() => setPage('connection')}>Open a connection</Button>}
+            </Suspense>
+            {workspaces.map((workspace) => <Box key={workspace.id} id={`panel-${workspace.id}`} role="tabpanel" aria-labelledby={`tab-${workspace.id}`} hidden={managing || active !== workspace.id}>
+                <Workspace profile={workspace.profile} active={!managing && active === workspace.id} />
+            </Box>)}
+        </Container>
+        <Dialog open={help} onClose={() => setHelp(false)} aria-labelledby="shortcut-help"><DialogTitle id="shortcut-help">Keyboard shortcuts</DialogTitle><DialogContent>
+            <Typography>Ctrl/Cmd+S: save the focused key editor. Alt+R: refresh keys. Alt+F: focus key prefix. Alt+1–4: switch workspace. F1: this help. Escape: close dialogs.</Typography>
+            <Button autoFocus onClick={() => setHelp(false)}>Close help</Button>
+        </DialogContent></Dialog>
+    </>;
 }
 
-export default App;
+export default function App() {
+    const service = useMemo(() => new DataService(), []);
+    const [readOnly, setReadOnly] = useState(true);
+    const [settingsError, setSettingsError] = useState(false);
+    const [mode, setMode] = useState(() => { try { return localStorage.getItem('themeMode') === 'light' ? 'light' : 'dark'; } catch { return 'dark'; } });
+    const theme = useMemo(() => createTheme({ palette: { mode, primary: { main: mode === 'dark' ? '#80cbc4' : '#00695c' } }, shape: { borderRadius: 10 }, components: { MuiButton: { defaultProps: { disableElevation: true }, styleOverrides: { root: { textTransform: 'none' } } } } }), [mode]);
+    useEffect(() => {
+        const controller = new AbortController();
+        service.GetConfig(controller.signal).then((settings) => { if (!controller.signal.aborted) setReadOnly(settings.readOnly !== false); }).catch(() => { if (!controller.signal.aborted) setSettingsError(true); });
+        return () => controller.abort();
+    }, [service]);
+    return <ThemeProvider theme={theme}><CssBaseline /><ReadOnlyContext.Provider value={readOnly}>
+        {readOnly && <Alert severity={settingsError ? 'error' : 'info'}>{settingsError ? 'Could not load instance settings. Mutating controls are disabled.' : 'Read-only instance: mutations are disabled.'}</Alert>}
+        <Shell mode={mode} toggleMode={() => setMode((previous) => { const next = previous === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('themeMode', next); } catch { /* Memory-only preference. */ } return next; })} />
+    </ReadOnlyContext.Provider></ThemeProvider>;
+}

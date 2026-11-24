@@ -9,10 +9,11 @@ import IconButton from '@mui/material/IconButton';
 import DeleteIcon from '@mui/icons-material/Delete';
 import TextField from '@mui/material/TextField';
 import CircularProgress from '@mui/material/CircularProgress';
+import Checkbox from '@mui/material/Checkbox';
 import ConfirmationDialog from './dialogs/confirmationDialog';
 import { useReadOnly } from '../readOnly';
 
-export default function KeysList({ items, loading, onKeyClick, deleteKey }) {
+export default function KeysList({ items, loading, onKeyClick, deleteKey, selected = [], onSelect }) {
     const readOnly = useReadOnly();
     const [filter, setFilter] = useState('');
     const [deleting, setDeleting] = useState(null);
@@ -23,10 +24,11 @@ export default function KeysList({ items, loading, onKeyClick, deleteKey }) {
             {loading ? <CircularProgress aria-label="Loading keys" /> : (
                 <TableContainer sx={{ maxHeight: '60vh' }}>
                     <Table size="small" stickyHeader aria-label="Keys on this page">
-                        <TableHead><TableRow><TableCell>Key</TableCell><TableCell>Actions</TableCell></TableRow></TableHead>
+                        <TableHead><TableRow>{onSelect && <TableCell>Select</TableCell>}<TableCell>Key</TableCell><TableCell>Actions</TableCell></TableRow></TableHead>
                         <TableBody>
                             {filtered.map((item) => (
                                 <TableRow key={`${item.isVirtual ? 'draft:' : 'key:'}${item.key}`}>
+                                    {onSelect && <TableCell><Checkbox checked={selected.includes(item.key)} disabled={readOnly || item.isVirtual || (!selected.includes(item.key) && selected.length >= 50)} onChange={() => onSelect(item.key)} inputProps={{ 'aria-label': `Select ${item.key}` }} /></TableCell>}
                                     <TableCell><button type="button" onClick={() => onKeyClick(item.key)}>{item.key}{item.isVirtual ? ' (unsaved)' : ''}</button></TableCell>
                                     <TableCell><IconButton aria-label={`Delete ${item.key}`} disabled={readOnly} onClick={() => setDeleting(item)}><DeleteIcon /></IconButton></TableCell>
                                 </TableRow>

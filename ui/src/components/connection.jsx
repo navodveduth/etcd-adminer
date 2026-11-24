@@ -23,11 +23,11 @@ export default function Connection({ onSessionChange }) {
     const [connecting, setConnecting] = useState(false);
     const [error, setError] = useState(null);
 
-    const refresh = () => { setProfiles(store.GetAll()); onSessionChange?.(); };
+    const refresh = (open = false) => { setProfiles(store.GetAll()); onSessionChange?.({ open }); };
     const useSession = (profile) => {
         if (store.Get(profile.Name)?.Password !== undefined) {
             store.SetActiveSession(profile);
-            refresh();
+            refresh(true);
         } else {
             setPending(profile);
             setPassword('');
@@ -47,7 +47,7 @@ export default function Connection({ onSessionChange }) {
             store.SetActiveSession(pending);
             setPending(null);
             setPassword('');
-            refresh();
+            refresh(true);
         } catch {
             setError('Could not connect. Check cluster availability and try again.');
         } finally {

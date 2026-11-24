@@ -14,7 +14,7 @@ it('reauthenticates saved metadata without storing the password and supports dis
     const store = new SessionStore();
     store.Add({ Name: 'saved', BackEnd: 'cluster', Endpoints: [], UserName: 'alice' });
     render(<MemoryRouter><Connection /></MemoryRouter>);
-    await user.click(screen.getByRole('button', { name: 'Connect' }));
+    await user.click(screen.getByRole('button', { name: 'Open workspace' }));
     await user.type(screen.getByLabelText('Password'), 'ephemeral-password');
     await user.click(screen.getByRole('button', { name: 'Authenticate' }));
     await waitFor(() => expect(store.GetActiveSession()?.UserName).toBe('alice'));

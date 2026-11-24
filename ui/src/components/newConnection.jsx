@@ -1,243 +1,73 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom'
-import Grid from '@mui/material/Grid';
-import Paper from '@mui/material/Paper';
-import Typography from '@mui/material/Typography';
-import TextField from '@mui/material/TextField';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import SendIcon from '@mui/icons-material/Send';
-import Alert from '@mui/material/Alert';
-import Stack from '@mui/material/Stack';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
-import InputLabel from '@mui/material/InputLabel';
-import FormControl from '@mui/material/FormControl';
-import { SessionStore, Session } from '../storage/session'
-import DataService from '../data/service'
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Alert, Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
+import { SessionStore, Session } from '../storage/session';
+import DataService from '../data/service';
 
-export default function NewConnection(props) {
-
+export default function NewConnection({ forceRefreshNav }) {
+    const [params] = useSearchParams();
+    const editing = params.get('edit');
+    const store = useMemo(() => new SessionStore(), []);
+    const service = useMemo(() => new DataService(), []);
+    const original = useMemo(() => editing ? store.Get(editing) : null, [editing, store]);
+    const [name, setName] = useState(original?.Name ?? '');
+    const [backend, setBackend] = useState(original?.BackEnd ?? '');
+    const [username, setUsername] = useState(original?.UserName ?? '');
+    const [password, setPassword] = useState('');
+    const [clusters, setClusters] = useState([]);
+    const [tested, setTested] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [message, setMessage] = useState(null);
+    const controller = useRef(null);
     const navigate = useNavigate();
-    const dataService = useMemo(() => { return new DataService()}, []);
-    const sessionStore = useMemo(() => { return new SessionStore()}, []);
-
-    const [loading, setloading] = useState(false);
-    const [tested, settested] = useState(false);
-    const [success, setsuccess] = useState(false);
-    const [error, seterror] = useState(false);
-    const [errorMessage, seterrorMessage] = useState("Something went wrong!");
-    const [successMessage, setsuccessMessage] = useState("Success!");
-    const [name, setname] = useState("");
-    const [backEnds, setbackEnds] = useState([]);
-    const [selectedBackendIndex, setselectedBackendIndex] = useState(0);
-    const [username, setusername] = useState("");
-    const [password, setpassword] = useState("");
-
-    const handleTest = async() => {
-        setloading(true);
-        settested(false);
-        setsuccess(false);
-        seterror(false);
-        seterrorMessage("");
-        setsuccessMessage("");
-
-        try {
-            let status = await dataService.TestConnection(username, password, backEnds[selectedBackendIndex].name);
-            if (status === true) {
-                setloading(false);
-                settested(true);
-                setsuccess(true);
-                setsuccessMessage("Connection Succeeded!");
-            } else {
-                setloading(false);
-                settested(false);
-                setsuccess(false);
-                seterror(true);
-                seterrorMessage("Invalid Credentials!");
-                setsuccessMessage("");
-            }
-        } catch (error) {
-            setloading(false);
-            settested(false);
-            setsuccess(false);
-            seterror(true);
-            seterrorMessage("Something Went Wrong!");
-            setsuccessMessage("");
-        }
-    }
-
-    const handleChange = (e) => {
-        if (['backend', 'username', 'password'].includes(e.target.name)) settested(false);
-        let value = e.target.value;
-        switch (e.target.name) {
-            case "backend":
-                setselectedBackendIndex(value);
-                break;
-            case "username":
-                setusername(value);
-                break;
-            case "password":
-                setpassword(value);
-                break;
-            case "name":
-                setname(value);
-                break;
-            default:
-                return;
-        }
-    }
-
-    const handleSubmit = () => {
-        if (!tested || !backEnds[selectedBackendIndex]) return;
-        try {
-            const profile = new Session(
-                name.trim(), backEnds[selectedBackendIndex].name,
-                backEnds[selectedBackendIndex].endpoints, username, password,
-            );
-            sessionStore.Add(profile);
-            if (!sessionStore.SetActiveSession(profile)) throw new Error('Profile activation failed');
-            props.forceRefreshNav?.();
-            navigate('/keys');
-        } catch {
-            seterror(true);
-            seterrorMessage('Could not save this profile. Provide a name and allow local storage.');
-        }
-    }
-
-    const fetchData = useCallback(async () => {
-        try {
-            let config = await dataService.GetConfig();
-
-            let backEnds = [];
-            config.clusters.forEach(cluster => {
-                backEnds.push({ endpoints: cluster.endpoints, name: cluster.name });
-            })
-
-            setbackEnds(backEnds);
-            setselectedBackendIndex(undefined);
-
-        } catch (error) {
-            // TODO: display an error
-            console.error(error);
-        }
-    }, [dataService])
-
     useEffect(() => {
-        fetchData();
-    }, [fetchData])
-
-    const alert = (severity, message) => {
-        return (
-            <Stack sx={{ width: '100%' }} spacing={2}>
-                <Alert severity={severity}>{message}</Alert>
-            </Stack>
-        )
-    }
-
-    return (
-        <Grid container spacing={3}>
-
-            <Grid size={{ xs: 12, md: 6, lg: 6 }}>
-                <Paper
-                    sx={{
-                        p: 2,
-                        display: 'flex',
-                        flexDirection: 'column'
-                    }}
-                >
-                    <Typography variant="h6" gutterBottom>
-                        New Connection
-                    </Typography>
-                    <Grid container spacing={3}>
-                        <Grid size={12}>
-                            {success === true && successMessage !== "" ? alert("success", successMessage) : null}
-                            {error === true && errorMessage !== "" ? alert("error", errorMessage) : null}
-                            {loading === true ? alert("warning", "Checking...") : null}
-                        </Grid>
-                        <Grid size={12}>
-                            <TextField
-                                required
-                                id="name"
-                                name="name"
-                                label="Name"
-                                value={name}
-                                fullWidth
-                                autoComplete="given-name"
-                                variant="standard"
-                                onChange={handleChange}
-                            />
-                        </Grid>
-                        <Grid size={12}>
-                            <FormControl fullWidth>
-                                <InputLabel id="backend-lbl">BackEnd</InputLabel>
-                                <Select
-                                    labelId="backend-lbl"
-                                    id="backend"
-                                    value={selectedBackendIndex !== undefined ? selectedBackendIndex: ""}
-                                    label="Backend"
-                                    name="backend"
-                                    disabled={loading}
-                                    onChange={handleChange}
-                                >
-                                    {
-                                        backEnds.map((be, i) => {
-                                            return <MenuItem key={i} value={i}>{be.name + "[" + be.endpoints + "]"}</MenuItem>
-                                        })
-                                    }
-                                </Select>
-                            </FormControl>
-                        </Grid>
-                        <Grid size={{ xs: 12, sm: 6 }}>
-                            <TextField
-                                required
-                                id="username"
-                                name="username"
-                                label="User Name"
-                                disabled={loading}
-                                value={username}
-                                fullWidth
-                                autoComplete="user name"
-                                variant="standard"
-                                onChange={handleChange}
-                            />
-                        </Grid>
-                        <Grid size={{ xs: 12, sm: 6 }}>
-                            <TextField
-                                id="password"
-                                name="password"
-                                label="Password"
-                                disabled={loading}
-                                type="password"
-                                value={password}
-                                fullWidth
-                                autoComplete="current-password"
-                                variant="standard"
-                                onChange={handleChange}
-                            />
-                        </Grid>
-                        <Grid size={12}>
-                            <Box sx={{ '& > button': { m: 1, } }}>
-                                <Button
-                                    onClick={handleTest}
-                                    endIcon={<SendIcon />}
-                                    loading={loading}
-                                    loadingPosition="end"
-                                    variant="contained"
-                                    color="success"
-                                    disabled={selectedBackendIndex === undefined || !backEnds[selectedBackendIndex] || !username}
-                                >
-                                    Test
-                                </Button>
-                                <Button variant="contained" color="success" onClick={handleSubmit} sx={{ mt: 3, ml: 1 }} disabled={!tested}>
-                                    Save
-                                </Button>
-                            </Box>
-                        </Grid>
-
-                    </Grid>
-                </Paper>
-            </Grid>
-        </Grid>
-    )
+        const abort = new AbortController();
+        service.GetConfig(abort.signal).then((data) => { if (!abort.signal.aborted) setClusters(data.clusters ?? []); }).catch(() => { if (!abort.signal.aborted) setMessage({ severity: 'error', text: 'Could not load configured backends. Check the Adminer server and reload.' }); });
+        return () => { abort.abort(); controller.current?.abort(); };
+    }, [service]);
+    const change = (setter) => (event) => { setter(event.target.value); setTested(false); setMessage(null); };
+    const test = async () => {
+        if (busy) return;
+        const abort = new AbortController(); controller.current = abort;
+        setBusy(true); setTested(false); setMessage(null);
+        const start = performance.now();
+        try {
+            const success = await service.TestConnection(username, password, backend, abort.signal);
+            if (abort.signal.aborted) return;
+            setTested(success);
+            setMessage(success ? { severity: 'success', text: `Authentication succeeded in ${Math.round(performance.now() - start)} ms (HTTP + etcd authentication, not cluster operation latency). Access is checked separately per operation.` }
+                : { severity: 'error', text: 'Authentication rejected. Check username and password for this backend. This is not a network success guarantee for every member.' });
+        } catch (error) {
+            if (!abort.signal.aborted) setMessage({ severity: 'error', text: error.response?.data?.message ?? 'Connection failed. Verify the configured endpoints, backend TLS/CA/client certificate, server logs, and network reachability. Browser profiles cannot change server-side transport settings.' });
+        } finally { if (!abort.signal.aborted) setBusy(false); }
+    };
+    const save = () => {
+        if (!tested || busy || !name.trim()) return;
+        if ((!editing || name.trim() !== editing) && store.Get(name.trim())) { setMessage({ severity: 'error', text: 'That profile name already exists. Choose another name.' }); return; }
+        if (editing && !window.confirm('Save profile changes? Open workspaces for the old identity will close; their drafts, watches and automatic renewal will be discarded/stopped.')) return;
+        try {
+            const cluster = clusters.find((item) => item.name === backend);
+            const profile = new Session(name.trim(), backend, cluster?.endpoints ?? [], username, password);
+            store.Add(profile);
+            if (editing && editing !== profile.Name) store.Delete({ Name: editing });
+            store.SetActiveSession(profile); setPassword('');
+            forceRefreshNav?.({ open: true, replaced: editing }); navigate('/connection');
+        } catch { setMessage({ severity: 'error', text: 'Could not save the profile. Check local-storage permissions.' }); }
+    };
+    return <Paper sx={{ p: 3, maxWidth: 760, mx: 'auto' }}><Stack spacing={3}>
+        <Typography variant="h4" component="h1">{editing ? 'Edit connection' : 'New connection'}</Typography>
+        <Alert severity="info">Only profile metadata is saved. Passwords stay in browser-tab memory. Backend endpoints and TLS are configured on the Adminer server.</Alert>
+        {message && <Alert severity={message.severity} role="status">{message.text}</Alert>}
+        <TextField label="Profile name" value={name} onChange={(event) => setName(event.target.value)} disabled={busy} autoFocus required />
+        <TextField select label="Backend" value={clusters.some((item) => item.name === backend) ? backend : ''} onChange={change(setBackend)} disabled={busy} required>
+            {clusters.map((cluster) => <MenuItem key={cluster.name} value={cluster.name}>{cluster.name} · {cluster.endpoints?.join(', ')}</MenuItem>)}
+        </TextField>
+        <TextField label="Username" value={username} onChange={change(setUsername)} disabled={busy} autoComplete="username" required />
+        <TextField label="Password" type="password" value={password} onChange={change(setPassword)} disabled={busy} autoComplete="current-password" />
+        <Stack direction="row" spacing={2}>
+            <Button variant="outlined" disabled={busy || !backend || !username} onClick={test}>{busy ? 'Testing…' : 'Test & diagnose'}</Button>
+            <Button variant="contained" disabled={!tested || busy || !name.trim()} onClick={save}>Save & open workspace</Button>
+            {busy ? <Button onClick={() => { controller.current?.abort(); setBusy(false); setMessage({ severity: 'info', text: 'Connection test cancelled.' }); }}>Cancel test</Button> : <Button component={Link} to="/connection">Back</Button>}
+        </Stack>
+    </Stack></Paper>;
 }

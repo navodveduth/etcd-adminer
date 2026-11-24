@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
@@ -7,14 +7,14 @@ import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import { useTheme } from '@mui/material/styles';
-import DataService from '../data/service';
+import { useDataService } from '../data/context';
 import { useReadOnly } from '../readOnly';
 
 const MonacoEditor = lazy(() => import('./monacoEditor'));
 
-export default function EditorComponent({ etcdKey, isNewKey, onSaved, onDirtyChange }) {
+export default function EditorComponent({ etcdKey, isNewKey, onSaved, onDirtyChange, serverRevision }) {
     const readOnly = useReadOnly();
-    const service = useMemo(() => new DataService(), []);
+    const service = useDataService();
     const theme = useTheme();
     const generation = useRef(0);
     const [record, setRecord] = useState(null);
@@ -113,13 +113,14 @@ export default function EditorComponent({ etcdKey, isNewKey, onSaved, onDirtyCha
     };
 
     return (
-        <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', minHeight: 500 }}>
+        <Paper onKeyDownCapture={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); event.stopPropagation(); save(); } }} sx={{ p: 2, display: 'flex', flexDirection: 'column', minHeight: 500 }}>
             <Stack direction="row" spacing={2} sx={{ mb: 2, flexWrap: 'wrap' }}>
                 <span><b>Key:</b> {etcdKey ?? 'None selected'}</span>
                 <span><b>Revision:</b> {record?.modRevision ?? 'New'}</span>
                 <span><b>Lease:</b> {record?.lease && String(record.lease) !== '0' ? record.lease : 'None'}</span>
             </Stack>
             {message && <Alert severity={message.severity} sx={{ mb: 2 }}>{message.text}</Alert>}
+            {serverRevision && record && serverRevision !== record.modRevision && <Alert severity="warning" sx={{ mb: 2 }}>Live update: this key changed or was deleted. Your draft has not been replaced. Reload to inspect current data; saving still checks the loaded revision.</Alert>}
             {etcdKey && <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
                 <TextField select size="small" label="Expiration on save" value={leaseMode} disabled={readOnly || saving || status !== 'ready'} onChange={(event) => {
                     setLeaseMode(event.target.value);

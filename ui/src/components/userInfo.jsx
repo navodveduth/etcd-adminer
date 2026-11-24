@@ -10,7 +10,7 @@ import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Alert from '@mui/material/Alert';
-import DataService from '../data/service'
+import { useDataService } from '../data/context';
 import TextField from '@mui/material/TextField';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -33,7 +33,7 @@ export default function UserInfo(props) {
     const [removingRole, setRemovingRole] = React.useState('');
     const [revokeConfirmation, setRevokeConfirmation] = React.useState('');
 
-    const dataService = React.useMemo(() => new DataService(), []);
+    const dataService = useDataService();
     const ready = user.name === props.userName;
 
     const fetchUser = React.useCallback(async (username, signal) => {

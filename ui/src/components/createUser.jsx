@@ -18,7 +18,7 @@ import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Checkbox from '@mui/material/Checkbox';
 import ListItemText from '@mui/material/ListItemText';
-import DataService from '../data/service'
+import { useDataService } from '../data/context';
 import { useReadOnly } from '../readOnly';
 
 const ITEM_HEIGHT = 48;
@@ -35,7 +35,7 @@ const MenuProps = {
 export default function CreateUser(props) {
     const readOnly = useReadOnly();
 
-    const dataService = React.useMemo(() => new DataService(), []);
+    const dataService = useDataService();
     const [submitting, setSubmitting] = React.useState(false);
 
     let formDefaults = {

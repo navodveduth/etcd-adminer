@@ -21,6 +21,12 @@ export default function Transfer() {
     const [message, setMessage] = useState(null);
     const controller = useRef(null);
     useEffect(() => () => controller.current?.abort(), []);
+    useEffect(() => {
+        if (!location.state?.keys) return;
+        controller.current?.abort(); setBusy(false);
+        setOperation('delete'); setPreview(null); setConfirmation('');
+        setRecords(location.state.keys.map((key) => ({ keyBase64: encodeKey(key), valueBase64: '' })));
+    }, [location.key, location.state]);
     const invalidate = () => { setPreview(null); setConfirmation(''); setMessage(null); };
     const run = async (action) => {
         if (busy) return;

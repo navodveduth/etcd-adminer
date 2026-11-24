@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
@@ -16,7 +16,7 @@ import TableRow from '@mui/material/TableRow';
 import TableContainer from '@mui/material/TableContainer';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import DataService from '../data/service';
+import { useDataService } from '../data/context';
 
 function waitToReconnect(milliseconds, signal) {
     return new Promise((resolve, reject) => {
@@ -29,7 +29,7 @@ function waitToReconnect(milliseconds, signal) {
 
 export default function Watch() {
     const [params] = useSearchParams();
-    const service = useMemo(() => new DataService(), []);
+    const service = useDataService();
     const serviceRef = useRef(null);
     const controllerRef = useRef(null);
     const revisionRef = useRef('0');
@@ -42,6 +42,10 @@ export default function Watch() {
     const [lastRevision, setLastRevision] = useState('0');
     const [events, setEvents] = useState([]);
     const [error, setError] = useState('');
+    useEffect(() => {
+        if (run || !params.has('key')) return;
+        setKey(params.get('key')); setMode(params.get('mode') === 'exact' ? 'exact' : 'prefix');
+    }, [params, run]);
 
     useEffect(() => {
         if (!run) return;
@@ -135,7 +139,7 @@ export default function Watch() {
                         <Button onClick={() => { controllerRef.current?.abort(); setRun(null); setStatus('Stopped'); }} disabled={!run}>Stop</Button>
                         <Button onClick={() => setEvents([])} disabled={!events.length}>Clear visible log</Button>
                     </Stack>
-                    <Typography variant="body2">Last complete revision: <code>{lastRevision}</code>. Connections renew periodically and resume automatically. Stop or leave this page to release the watch.</Typography>
+                    <Typography variant="body2">Last complete revision: <code>{lastRevision}</code>. Connections renew periodically and resume automatically. Stop or close/disconnect this workspace to release the watch. Switching feature pages keeps it running.</Typography>
                 </Stack>
             </Paper>
             <TableContainer component={Paper} sx={{ maxHeight: '55vh' }}>

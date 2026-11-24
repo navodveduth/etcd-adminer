@@ -33,3 +33,17 @@ it('shows lease details but blocks creation and renewal in read-only mode', asyn
     expect(screen.getByRole('button', { name: 'Create lease' })).toBeDisabled();
     expect(await screen.findByRole('button', { name: 'Renew once' })).toBeDisabled();
 });
+
+it('owns optional renewal in the mounted workspace and cancels it on teardown', async () => {
+    const user = userEvent.setup();
+    calls.list.mockResolvedValue({ ids: ['123'], truncated: false });
+    calls.detail.mockResolvedValue({ id: '123', ttl: 50, grantedTTL: 60, keyCount: 0, keys: [] });
+    let renewalSignal;
+    calls.renew.mockImplementation((_id, signal) => { renewalSignal = signal; return new Promise(() => {}); });
+    const view = render(<Leases />);
+    await user.click(await screen.findByRole('checkbox', { name: 'Automatically renew in this workspace (15-minute maximum)' }));
+    await waitFor(() => expect(renewalSignal).toBeDefined());
+    expect(renewalSignal.aborted).toBe(false);
+    view.unmount();
+    expect(renewalSignal.aborted).toBe(true);
+});

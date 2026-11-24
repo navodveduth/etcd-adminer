@@ -229,6 +229,16 @@ single-file exports remain future work; pages/batches are separate bounded units
 
 ### D5. RBAC, workspaces, and usability
 
+Workspace UX checkpoint: four independently bound connection tabs with retained
+feature-page state, fail-closed capability hints/admin navigation, profile
+editing with cancellable diagnostics and retest-before-save, shortcut help and
+focused save/search/refresh, skip navigation, live prefix-page patches and
+explicit stale-membership warnings. Optional workspace-owned lease renewal is
+bounded to 15 minutes and cancelled on close/disconnect. These are browser-owned
+workspaces, not durable server sessions; deep links and full accessibility/E2E
+certification remain pending. Frontend regression tests verify identity/draft
+isolation across feature navigation and renewal teardown.
+
 RBAC checkpoint: role CRUD and permission previews, lossless binary-rule
 revocation, slash-safe user/role names, typed root promotion/removal, password
 management, protected canonical/service administrators (including legacy routes),

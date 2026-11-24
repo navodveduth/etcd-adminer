@@ -3,24 +3,25 @@ import Grid from '@mui/material/Grid';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import Node from './etcdNode';
-import DataService from '../data/service'
+import { useDataService } from '../data/context';
 import Alert from '@mui/material/Alert';
 
 export default function ClusterInfo(props) {
+    const service = useDataService();
 
     const [clusterInfo, setClusterInfo] = useState({ clusterInfo: {} });
     const [errorMessage, setErrorMessage] = useState("");
 
     const fetchData = useCallback(async() => {
         try {
-            let clusterInfo = await new DataService().GetClusterInfo();
+            let clusterInfo = await service.GetClusterInfo();
             setClusterInfo(clusterInfo);
             setErrorMessage("");
         } catch (err) {
             console.error(err);
             setErrorMessage("Something went wrong!")
         }
-      }, [])
+      }, [service])
 
     useEffect(() => {
         fetchData();
