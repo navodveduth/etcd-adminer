@@ -180,6 +180,12 @@ All tasks below start unchecked. Add an owner, linked issue/PR, and measured res
 
 ### D1. P.1 Performance metrics dashboard
 
+Implemented maintenance dashboard checkpoint: bounded concurrent Status sampling
+of operator-configured endpoints, partial availability, DB/quota, Raft apply lag,
+alarm guidance, freshness, hidden-tab polling pause/backoff, and 60-sample local
+DB trends. No key scans or browser-supplied metric URLs. Prometheus throughput,
+latency histograms and WAL/commit-rate integration remain unavailable/pending.
+
 The supplied checklist mentions a missing `get_cluster_metrics` command. This repository is HTTP-based, not a command-bridge app; implement `GET /api/v1/cluster/metrics` unless another frontend/backend is supplied.
 
 - [ ] First fix cluster status (B3). Define a metrics schema with timestamps, source, units, member identity, availability, and sample freshness.

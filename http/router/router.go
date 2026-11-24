@@ -42,6 +42,8 @@ func NewRouter(logger log.Logger, backendProvider *etcd.BackEndProvider) (http.H
 
 	r.Handle("/api/directory", validator.ValidateRequest(requestHandler.CreateDirectory)).Methods(http.MethodPost, http.MethodOptions)
 	r.Handle("/api/clusterinfo", validator.ValidateRequest(requestHandler.ClusterInfo)).Methods(http.MethodGet, http.MethodOptions)
+	r.Handle("/api/v1/cluster/metrics", validator.ValidateRequest(requestHandler.Metrics)).Methods(http.MethodGet)
+	r.Handle("/api/v1/capabilities", validator.ValidateRequest(requestHandler.Capabilities)).Methods(http.MethodGet)
 	r.Handle("/api/v1/leases", validator.ValidateRequest(requestHandler.Leases)).Methods(http.MethodGet, http.MethodPost)
 	r.Handle("/api/v1/leases/{id}", validator.ValidateRequest(requestHandler.Lease)).Methods(http.MethodGet, http.MethodDelete)
 	r.Handle("/api/v1/leases/{id}/renew", validator.ValidateRequest(requestHandler.Lease)).Methods(http.MethodPost)

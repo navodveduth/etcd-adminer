@@ -130,6 +130,13 @@ func TestRBACIntegration(t *testing.T) {
 		call("POST", "/", `{"name":"team/reader"}`, handler.Roles, 201)
 		call("POST", "/", `{"name":"team/reader"}`, handler.Roles, 409)
 		call("POST", "/", `{"userName":"person/one","password":"initial-password","roles":[]}`, handler.CreateUser, 201)
+		call("GET", "/", "", handler.Metrics, 200)
+		check(invoke("GET", "/", "person/one", "initial-password", "", handler.Metrics, nil), 403)
+		capabilities := invoke("GET", "/", "person/one", "initial-password", "", handler.Capabilities, nil)
+		check(capabilities, 200)
+		if !strings.Contains(capabilities.Body.String(), `"administrator":false`) {
+			t.Fatal("non-admin capability elevated")
+		}
 		check(invoke("GET", "/", "person/one", "initial-password", "", handler.Roles, nil), 403)
 		for _, rule := range []string{
 			`{"name":"team/reader","access":"read","scope":"exact","key":"/rbac/exact"}`,

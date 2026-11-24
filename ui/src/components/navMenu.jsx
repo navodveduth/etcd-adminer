@@ -16,6 +16,7 @@ import { SessionStore } from '../storage/session';
 const destinations = [
   { path: 'connection', label: 'Connection', icon: DashboardIcon },
   { path: 'cluster', label: 'Cluster', icon: StorageIcon, connection: true },
+  { path: 'metrics', label: 'Overview', icon: BarChartIcon, connection: true },
   { path: 'keys', label: 'Keys', icon: AssignmentIcon, connection: true },
   { path: 'leases', label: 'Leases / TTL', icon: TimerIcon, connection: true },
   { path: 'watchers', label: 'Live changes', icon: BarChartIcon, connection: true },

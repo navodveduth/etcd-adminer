@@ -164,6 +164,14 @@ endpoint and permit long-lived responses; `X-Accel-Buffering: no` is sent.
 
 ### Users, roles, and permissions
 
+**Overview** provides root-authorized maintenance metrics from configured
+endpoints: availability, DB size/in-use/quota (when reported), leader, Raft lag,
+and alarms. It keeps at most 60 local trend samples, pauses polling in hidden
+browser tabs, backs off after errors, and retains visibly stale samples during
+outages. Status availability is not a write-quorum test. Throughput/latency and
+WAL/commit rates require a future configured Prometheus integration; no arbitrary
+metrics URL fetching or inferred rates are used.
+
 Use **Roles** to create roles and grant or revoke read, write, or read/write
 permissions for exact keys, prefixes, or half-open byte-ordered ranges. Scope
 previews explain the affected keys: `/app` and `/app/` are different prefixes,

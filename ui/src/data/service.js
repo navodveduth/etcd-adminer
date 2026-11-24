@@ -47,6 +47,8 @@ export default class DataService {
     GetConfig = async (signal) => (await api.get('/api/getconfig', { signal })).data;
 
     GetClusterInfo = async () => (await api.get('/api/clusterinfo', this.requestConfig())).data;
+    GetMetrics = async (signal) => (await api.get('/api/v1/cluster/metrics', { ...this.requestConfig(), signal })).data;
+    GetCapabilities = async (signal) => (await api.get('/api/v1/capabilities', { ...this.requestConfig(), signal })).data;
 
     TestConnection = async (username, password, backend) => {
         try {
