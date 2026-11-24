@@ -8,6 +8,7 @@ import (
 	"github.com/srimaln91/etcd-adminer/etcd"
 	"github.com/srimaln91/etcd-adminer/http/handlers"
 	"github.com/srimaln91/etcd-adminer/http/request"
+	"github.com/srimaln91/etcd-adminer/http/response"
 )
 
 type requestValidateMiddleware struct {
@@ -27,7 +28,7 @@ func NewRequestValidateMiddleware(backendProvider *etcd.BackEndProvider) *reques
 func (rvm *requestValidateMiddleware) getRequestMeta(r *http.Request) (meta request.RequestMeta, err error) {
 	user, pass, ok := r.BasicAuth()
 	if !ok {
-		return meta, errors.New("credentials are not provided")
+		return meta, ErrCredentialsNotProvided
 	}
 
 	meta.User = user
@@ -40,7 +41,7 @@ func (rvm *requestValidateMiddleware) getRequestMeta(r *http.Request) (meta requ
 
 	meta.Backend, err = rvm.backendProvider.GetBackend(backend)
 	if err != nil {
-		return meta, nil
+		return meta, err
 	}
 
 	return meta, err
@@ -50,7 +51,15 @@ func (rvm *requestValidateMiddleware) ValidateRequest(next http.HandlerFunc) htt
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		meta, err := rvm.getRequestMeta(r)
 		if err != nil {
-			w.WriteHeader(http.StatusNotAcceptable)
+			switch {
+			case errors.Is(err, ErrCredentialsNotProvided):
+				w.Header().Set("WWW-Authenticate", `Basic realm="etcd-adminer"`)
+				response.WriteError(w, http.StatusUnauthorized, "unauthenticated", "credentials are required")
+			case errors.Is(err, etcd.ErrBackendNotFound):
+				response.WriteError(w, http.StatusBadRequest, "invalid_backend", "unknown backend")
+			default:
+				response.WriteError(w, http.StatusBadRequest, "invalid_request", "backend is required")
+			}
 			return
 		}
 

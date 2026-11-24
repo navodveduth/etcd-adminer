@@ -31,11 +31,9 @@ func (jh *GenericHandler) UpdateKey(rw http.ResponseWriter, r *http.Request) {
 	defer jh.closeEtcdClient(client)
 
 	reqDataDecoded := request.CreateKeyRequest{}
-	decoder := json.NewDecoder(r.Body)
-
-	err = decoder.Decode(&reqDataDecoded)
-	if err != nil {
-		rw.WriteHeader(http.StatusUnprocessableEntity)
+	err = request.DecodeJSON(rw, r, &reqDataDecoded)
+	if err != nil || reqDataDecoded.Key == "" {
+		response.WriteError(rw, http.StatusBadRequest, "invalid_request", "a non-empty key and valid JSON object are required")
 		return
 	}
 

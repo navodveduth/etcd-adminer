@@ -1,5 +1,7 @@
 package filetree
 
+import "strings"
+
 type Node struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`
@@ -44,12 +46,12 @@ func NewFileTree(basename string) *FileTree {
 
 func NewNode(name string, ID int64, isVirtual bool) *Node {
 	return &Node{
-		ID:      ID,
-		Name:    name,
-		Type:    "directory",
-		Typev2:  NODE_TYPE_DIRECTORY,
-		Nodes:   make([]*Node, 0),
-		AbsPath: "",
+		ID:        ID,
+		Name:      name,
+		Type:      "directory",
+		Typev2:    NODE_TYPE_DIRECTORY,
+		Nodes:     make([]*Node, 0),
+		AbsPath:   "",
 		IsVirtual: isVirtual,
 	}
 }
@@ -117,4 +119,43 @@ func (ft *FileTree) AddDirectory(baseNode *Node, path []string, isVirtual bool) 
 	// Setup the path
 	leafNode := ft.SetupPath(baseNode, path, isVirtual)
 	return leafNode
+}
+
+// AddKey creates a display hierarchy without normalizing the actual etcd key.
+// Empty segments, leading slashes, and trailing slashes are significant bytes.
+func (ft *FileTree) AddKey(key string, directory, virtual bool) *Node {
+	parts := strings.Split(key, "/")
+	prefix := ""
+	if strings.HasPrefix(key, "/") && len(parts) > 1 {
+		prefix = "/"
+		parts = parts[1:]
+	}
+	parent := ft.Root
+	for i, part := range parts {
+		path := prefix + strings.Join(parts[:i+1], "/")
+		isDirectory := i < len(parts)-1 || directory
+		kind := "file"
+		if isDirectory {
+			kind = "directory"
+		}
+		var child *Node
+		for _, node := range parent.Nodes {
+			if node.AbsPath == path && node.Type == kind {
+				child = node
+				break
+			}
+		}
+		if child == nil {
+			ft.NodeCount++
+			child = NewNode(part, ft.NodeCount, virtual)
+			child.AbsPath = path
+			child.Type = kind
+			if !isDirectory {
+				child.Typev2 = NODE_TYPE_FILE
+			}
+			parent.Nodes = append(parent.Nodes, child)
+		}
+		parent = child
+	}
+	return parent
 }

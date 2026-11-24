@@ -67,9 +67,9 @@ All tasks below start unchecked. Add an owner, linked issue/PR, and measured res
 
 ### A1. Fix request validation and crash paths
 
-- [ ] In `http/middlewares/validate.go`, return the backend lookup error rather than `meta, nil`. An unknown `X-Backend` currently reaches handlers with a nil backend.
-- [ ] In `http/handlers/handler.go`, return a non-nil empty result for users without readable permissions; `GetKeys` and `CreateDirectory` otherwise dereference a nil result.
-- [ ] Remove unchecked path slicing in `get_keys.go` and `create_directory.go`. A key without `/` is valid etcd data and can produce an invalid slice today.
+- [x] In `http/middlewares/validate.go`, return the backend lookup error rather than `meta, nil`. Invalid-request regression tests ensure handlers are not called.
+- [x] In `http/handlers/handler.go`, initialize a non-nil empty result for users without permissions; broader RBAC integration coverage remains in A2.
+- [x] Remove unchecked path slicing in `get_keys.go` and `create_directory.go`. Tree regression tests preserve slash/non-slash, repeated/trailing slash, Unicode, and punctuation keys.
 - [ ] Validate missing/empty fields, malformed JSON, trailing JSON, request sizes, and query limits. Do not silently normalize actual etcd key bytes as filesystem paths.
 - [ ] Add centralized JSON errors with stable codes and appropriate HTTP statuses: invalid request, unauthenticated, forbidden, not found, conflict, unavailable, and timeout. Use `errors.Is` / gRPC status handling rather than scattered direct equality checks.
 - [ ] Add panic recovery and request IDs as a final containment layer, not as a substitute for fixes.
@@ -351,3 +351,7 @@ Avoid raising timeouts as the primary performance fix. Current 30/60-second fron
 5. **Advanced release:** 3.4 → 3.1 → 3.2/3.3, with independently reviewed security and failure semantics.
 
 Each release should consist of small, reviewable PRs, with regression tests first where practical. A feature is “done” only when its backend, UI, authorization, cancellation/error behavior, tests, and documentation are complete—not because a button, navigation item, or client library API exists.
+
+## 12. Implementation journal
+
+- **Request/tree safety:** fixed unknown-backend propagation, empty listing initialization, lossless display-tree key paths, and added bounded strict JSON decoding to key/draft mutations. Prefix directory deletion now excludes sibling prefixes and rejects empty/root scopes; preview/confirmation improvements remain pending. `go test -race ./...` passes. `go vet ./...` identified the existing copied HTTP-server lock; lifecycle repair is the next commit. Full A1/A4 acceptance is not yet complete.

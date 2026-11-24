@@ -52,7 +52,7 @@ func (jh *GenericHandler) getKeys(ctx context.Context, backend *etcd.BackEnd, us
 
 	defer jh.closeEtcdClient(client)
 
-	var keys *clientv3.GetResponse
+	keys := &clientv3.GetResponse{}
 	if client.Username == "root" {
 		keys, err = client.Get(ctx, "/", clientv3.WithKeysOnly(), clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
 		if err != nil {

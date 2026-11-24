@@ -3,10 +3,10 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 
 	"github.com/srimaln91/etcd-adminer/filetree"
 	"github.com/srimaln91/etcd-adminer/http/request"
+	"github.com/srimaln91/etcd-adminer/http/response"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 )
 
@@ -19,17 +19,9 @@ func (jh *GenericHandler) CreateDirectory(rw http.ResponseWriter, r *http.Reques
 	}
 
 	reqDataDecoded := request.CreateDirectoryRequest{}
-	decoder := json.NewDecoder(r.Body)
-
-	err := decoder.Decode(&reqDataDecoded)
-	if err != nil {
-		rw.WriteHeader(http.StatusUnprocessableEntity)
-		return
-	}
-
-	path := strings.Split(reqDataDecoded.Path, "/")
-	if len(path) == 0 {
-		rw.WriteHeader(http.StatusNotAcceptable)
+	err := request.DecodeJSON(rw, r, &reqDataDecoded)
+	if err != nil || reqDataDecoded.Path == "" {
+		response.WriteError(rw, http.StatusBadRequest, "invalid_request", "a non-empty path and valid JSON object are required")
 		return
 	}
 
@@ -48,23 +40,11 @@ func (jh *GenericHandler) CreateDirectory(rw http.ResponseWriter, r *http.Reques
 	fileTree := filetree.NewFileTree("/")
 
 	for _, k := range keys.Kvs {
-		segments := strings.Split(string(k.Key), "/")
-
-		segments = segments[1:]
-		length := len(segments)
-
-		path := segments[:length-1]
-		filename := segments[length-1]
-
-		fileTree.AddFile(fileTree.Root, path, filename, false)
+		fileTree.AddKey(string(k.Key), false, false)
 	}
 
 	// Add virtual directory
-	if reqDataDecoded.IsDirectory {
-		fileTree.AddDirectory(fileTree.Root, path[1:], true)
-	} else {
-		fileTree.AddFile(fileTree.Root, path[1:len(path)-1], path[len(path)-1], true)
-	}
+	fileTree.AddKey(reqDataDecoded.Path, reqDataDecoded.IsDirectory, true)
 
 	respData, err := json.Marshal(fileTree.Root)
 	if err != nil {

@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/srimaln91/etcd-adminer/etcd"
 	"github.com/srimaln91/etcd-adminer/http/request"
@@ -32,11 +33,9 @@ func (jh *GenericHandler) DeleteKey(rw http.ResponseWriter, r *http.Request) {
 	defer jh.closeEtcdClient(client)
 
 	reqDataDecoded := request.DeleteKeyRequest{}
-	decoder := json.NewDecoder(r.Body)
-
-	err = decoder.Decode(&reqDataDecoded)
-	if err != nil {
-		rw.WriteHeader(http.StatusUnprocessableEntity)
+	err = request.DecodeJSON(rw, r, &reqDataDecoded)
+	if err != nil || reqDataDecoded.Key == "" || (reqDataDecoded.IsDirectory && strings.Trim(reqDataDecoded.Key, "/") == "") {
+		response.WriteError(rw, http.StatusBadRequest, "invalid_request", "a non-empty, non-root deletion target is required")
 		return
 	}
 
@@ -44,7 +43,11 @@ func (jh *GenericHandler) DeleteKey(rw http.ResponseWriter, r *http.Request) {
 
 	// Delete with a prefix if it is a directory
 	if reqDataDecoded.IsDirectory {
-		resp, err = client.Delete(r.Context(), reqDataDecoded.Key, clientv3.WithPrefix())
+		prefix := reqDataDecoded.Key
+		if !strings.HasSuffix(prefix, "/") {
+			prefix += "/"
+		}
+		resp, err = client.Delete(r.Context(), prefix, clientv3.WithPrefix())
 	} else {
 		resp, err = client.Delete(r.Context(), reqDataDecoded.Key)
 	}
