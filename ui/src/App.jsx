@@ -18,6 +18,9 @@ import ConnectionComponent from './components/connection';
 import { BrowserRouter, Route, Routes, Navigate, Link } from "react-router-dom";
 import Paper from '@mui/material/Paper';
 import CircularProgress from '@mui/material/CircularProgress';
+import Alert from '@mui/material/Alert';
+import DataService from './data/service';
+import { ReadOnlyContext } from './readOnly';
 import { SessionStore } from './storage/session'
 
 
@@ -74,6 +77,18 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
 );
 
 function App() {
+  const settingsService = React.useMemo(() => new DataService(), []);
+  const [readOnly, setReadOnly] = React.useState(true);
+  const [settingsError, setSettingsError] = React.useState(false);
+  React.useEffect(() => {
+    const controller = new AbortController();
+    settingsService.GetConfig(controller.signal).then((settings) => {
+      if (!controller.signal.aborted) setReadOnly(settings.readOnly !== false);
+    }).catch(() => {
+      if (!controller.signal.aborted) setSettingsError(true);
+    });
+    return () => controller.abort();
+  }, [settingsService]);
   const [open, setOpen] = React.useState(true);
   const [refreshNav, setRefreshNav] = React.useState(false);
   
@@ -121,6 +136,7 @@ function App() {
 
   return (
     <ThemeProvider theme={mdTheme}>
+      <ReadOnlyContext.Provider value={readOnly}>
       <BrowserRouter>
         <Box sx={{ display: 'flex' }}>
           <CssBaseline />
@@ -194,6 +210,9 @@ function App() {
           >
             <Toolbar />
             <Container maxWidth={false} sx={{ mt: 4, mb: 4 }}>
+              {readOnly && <Alert severity={settingsError ? 'error' : 'info'} sx={{ mb: 2 }}>
+                {settingsError ? 'Could not load instance settings. Mutating controls are disabled.' : 'Read-only mode: cluster mutations are disabled.'}
+              </Alert>}
               <React.Suspense fallback={<CircularProgress aria-label="Loading page" />}>
               <Routes>
                 <Route path="/" element={<ConnectionComponent onSessionChange={forceRefreshNav} />} />
@@ -210,6 +229,7 @@ function App() {
           </Box>
         </Box>
       </BrowserRouter>
+      </ReadOnlyContext.Provider>
     </ThemeProvider>
   );
 }

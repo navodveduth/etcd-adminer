@@ -17,18 +17,16 @@ type Config struct {
 	HTTP struct {
 		Port         int    `yaml:"port"`
 		PublicOrigin string `yaml:"publicOrigin"`
+		ReadOnly     bool   `yaml:"readOnly"`
 	} `yaml:"http"`
 	Logger struct {
 		Level log.Level `yaml:"level"`
 	} `yaml:"logger"`
 	ETCD []struct {
 		Name       string
-		Endpoints  []string        `yaml:"endpoints"`
-		TLS        etcd.TLSOptions `yaml:"tls"`
-		SuperAdmin struct {
-			UserName string `yaml:"username"`
-			Password string `yaml:"password"`
-		} `yaml:"superadmin"`
+		Endpoints  []string         `yaml:"endpoints"`
+		TLS        etcd.TLSOptions  `yaml:"tls"`
+		SuperAdmin AdminCredentials `yaml:"superadmin"`
 	} `yaml:"etcd"`
 }
 
@@ -68,6 +66,7 @@ func Parse(path string) (*Config, error) {
 		tls.CAFile = resolvePath(tls.CAFile)
 		tls.CertFile = resolvePath(tls.CertFile)
 		tls.KeyFile = resolvePath(tls.KeyFile)
+		config.ETCD[index].SuperAdmin.PasswordFile = resolvePath(config.ETCD[index].SuperAdmin.PasswordFile)
 	}
 
 	AppConfig = config

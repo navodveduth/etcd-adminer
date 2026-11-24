@@ -19,6 +19,7 @@ import Select from '@mui/material/Select';
 import Checkbox from '@mui/material/Checkbox';
 import ListItemText from '@mui/material/ListItemText';
 import DataService from '../data/service'
+import { useReadOnly } from '../readOnly';
 
 const ITEM_HEIGHT = 48;
 const ITEM_PADDING_TOP = 8;
@@ -32,6 +33,7 @@ const MenuProps = {
 };
 
 export default function CreateUser(props) {
+    const readOnly = useReadOnly();
 
     let dataService = new DataService();
 
@@ -117,6 +119,7 @@ export default function CreateUser(props) {
     }
 
     let handleSubmit = (e) => {
+        if (readOnly) return;
         e.preventDefault();
         clearMessages();
 
@@ -264,7 +267,7 @@ export default function CreateUser(props) {
                         </FormControl>
 
                         <Box sx={{ '& > button': { m: 1 } }}>
-                            <Button variant="contained" color="success" onClick={handleSubmit} sx={{ mt: 3, ml: 1 }}>
+                            <Button variant="contained" color="success" disabled={readOnly} onClick={handleSubmit} sx={{ mt: 3, ml: 1 }}>
                                 Save
                             </Button>
                         </Box>

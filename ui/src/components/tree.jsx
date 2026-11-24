@@ -19,8 +19,10 @@ import ConfirmationDialog from './dialogs/confirmationDialog';
 import NewDirectoryDialog from './dialogs/newDirectoryDialog'
 import NewFileDialog from './dialogs/newFileDialog';
 import ArticleIcon from '@mui/icons-material/Article';
+import { useReadOnly } from '../readOnly';
 
 export default function FSNavigator(props) {
+  const readOnly = useReadOnly();
 
   const [contextMenu, setContextMenu] = React.useState(null);
   const [deleteConfirmationDialogOpen, setdeleteConfirmationDialogOpen] = React.useState(false);
@@ -165,7 +167,7 @@ export default function FSNavigator(props) {
         }
       >
         <MenuItem onClick={() => handleAction('newfile')} data-id="newfile"
-          disabled={ contextMenuSelectedNode !== null && contextMenuSelectedNode.type === "file"}
+          disabled={readOnly || (contextMenuSelectedNode !== null && contextMenuSelectedNode.type === "file")}
         >
           <ListItemIcon>
             <AddIcon fontSize="small" />
@@ -173,14 +175,14 @@ export default function FSNavigator(props) {
           <ListItemText>New File</ListItemText>
         </MenuItem>
         <MenuItem onClick={() => handleAction('newdir')} data-id="newdir"
-          disabled={ contextMenuSelectedNode !== null && contextMenuSelectedNode.type === "file"}
+          disabled={readOnly || (contextMenuSelectedNode !== null && contextMenuSelectedNode.type === "file")}
         >
           <ListItemIcon>
             <CreateNewFolderIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText>New Directory</ListItemText>
         </MenuItem>
-        <MenuItem onClick={() => handleAction('delete')} data-id="delete" disabled={!contextMenuSelectedNode?.abspath}>
+        <MenuItem onClick={() => handleAction('delete')} data-id="delete" disabled={readOnly || !contextMenuSelectedNode?.abspath}>
           <ListItemIcon>
             <DeleteIcon fontSize="small" />
           </ListItemIcon>

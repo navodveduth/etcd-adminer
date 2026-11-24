@@ -2,6 +2,7 @@ import { render, screen, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import EditorComponent from './editor';
+import { ReadOnlyContext } from '../readOnly';
 
 const { fetchKey, putKey } = vi.hoisted(() => ({ fetchKey: vi.fn(), putKey: vi.fn() }));
 vi.mock('../data/service', () => ({ default: class { FetchKey = fetchKey; PutKey = putKey; } }));
@@ -49,6 +50,14 @@ it('does not allow saving when a key could not be loaded', async () => {
     fetchKey.mockRejectedValue(new Error('network failure'));
     render(<EditorComponent etcdKey="/key" />);
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(putKey).not.toHaveBeenCalled();
+});
+
+it('disables mutation controls and editing for a read-only instance', async () => {
+    fetchKey.mockResolvedValue({ key: '/key', value: 'visible', modRevision: '42' });
+    render(<ReadOnlyContext.Provider value={true}><EditorComponent etcdKey="/key" /></ReadOnlyContext.Provider>);
+    expect(await screen.findByRole('textbox', { name: 'Value' })).toHaveAttribute('readonly');
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     expect(putKey).not.toHaveBeenCalled();
 });

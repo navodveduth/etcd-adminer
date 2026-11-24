@@ -7,10 +7,12 @@ import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
 import DataService from '../data/service';
+import { useReadOnly } from '../readOnly';
 
 const MonacoEditor = lazy(() => import('./monacoEditor'));
 
 export default function EditorComponent({ etcdKey, isNewKey, onSaved, onDirtyChange }) {
+    const readOnly = useReadOnly();
     const service = useMemo(() => new DataService(), []);
     const theme = useTheme();
     const generation = useRef(0);
@@ -74,7 +76,7 @@ export default function EditorComponent({ etcdKey, isNewKey, onSaved, onDirtyCha
     };
 
     const save = async () => {
-        if (status !== 'ready' || saving || !etcdKey) return;
+        if (readOnly || status !== 'ready' || saving || !etcdKey) return;
         const current = generation.current;
         setSaving(true);
         setMessage(null);
@@ -122,7 +124,7 @@ export default function EditorComponent({ etcdKey, isNewKey, onSaved, onDirtyCha
                         theme={theme.palette.mode === 'dark' ? 'vs-dark' : 'light'}
                         value={value}
                         onChange={changeValue}
-                        options={{ readOnly: saving, automaticLayout: true }}
+                        options={{ readOnly: readOnly || saving, automaticLayout: true }}
                     />
                 </Suspense>
             )}
@@ -132,8 +134,8 @@ export default function EditorComponent({ etcdKey, isNewKey, onSaved, onDirtyCha
                     <MenuItem value="json">JSON</MenuItem>
                     <MenuItem value="plaintext">Text</MenuItem>
                 </Select>
-                <Button onClick={formatJSON} disabled={status !== 'ready' || saving}>Format JSON</Button>
-                <Button variant="contained" onClick={save} disabled={status !== 'ready' || saving || !etcdKey}>Save</Button>
+                <Button onClick={formatJSON} disabled={readOnly || status !== 'ready' || saving}>Format JSON</Button>
+                <Button variant="contained" onClick={save} disabled={readOnly || status !== 'ready' || saving || !etcdKey}>Save</Button>
                 <Button onClick={() => changeValue(original)} disabled={!dirty || saving}>Discard</Button>
                 <Button onClick={reloadKey} disabled={!etcdKey || saving || isNewKey}>Reload</Button>
             </Stack>

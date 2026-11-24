@@ -23,10 +23,13 @@ func NewRouter(logger log.Logger, backendProvider *etcd.BackEndProvider) (http.H
 
 	r := mux.NewRouter()
 	publicOrigin := ""
+	readOnly := false
 	if config.AppConfig != nil {
 		publicOrigin = config.AppConfig.HTTP.PublicOrigin
+		readOnly = config.AppConfig.HTTP.ReadOnly
 	}
 	r.Use(middlewares.SameOrigin(publicOrigin))
+	r.Use(middlewares.ReadOnly(readOnly))
 
 	r.HandleFunc("/api/getconfig", requestHandler.GetConfig).Methods(http.MethodGet, http.MethodOptions)
 	r.Handle("/api/auth", validator.ValidateRequest(requestHandler.Authenticate)).Methods(http.MethodPost, http.MethodOptions)

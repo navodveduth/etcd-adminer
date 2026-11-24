@@ -1,5 +1,6 @@
 http:
   port: 8080
+  readOnly: false
   # Behind an HTTPS reverse proxy, set the exact browser-visible origin, e.g.:
   # publicOrigin: "https://adminer.example.com"
 
@@ -15,6 +16,9 @@ etcd:
   superadmin:
     username: root
     password: root@123
+    # Production: remove password above and choose exactly one protected source:
+    # passwordFile: /run/secrets/etcd-admin-password
+    # passwordEnv: ETCD_ADMIN_PASSWORD
   # For a TLS backend, use https:// endpoints and configure:
   # tls:
   #   enabled: true

@@ -202,6 +202,41 @@ runtime user to read them; never commit certificates/private keys. Run
 `ETCD_TEST_TLS=1 sh scripts/test-integration.sh` to verify real mTLS/RBAC behavior
 against a disposable cluster with generated, short-lived test certificates.
 
+### Protected privileged credentials and read-only deployments
+
+Choose exactly one privileged password source per backend: `password`,
+`passwordFile`, or `passwordEnv`. Prefer a protected, read-only secret mount:
+
+```yaml
+http:
+  port: 8080
+  readOnly: true
+etcd:
+  - name: production
+    endpoints: ["https://etcd.example.com:2379"]
+    superadmin:
+      username: root
+      passwordFile: /run/secrets/etcd-admin-password
+      # Alternatively: passwordEnv: ETCD_ADMIN_PASSWORD
+    tls:
+      enabled: true
+      caFile: /run/secrets/etcd-ca.pem
+```
+
+Remove the example inline password when selecting a file/environment source;
+ambiguous, missing, or empty sources fail startup with a nonzero exit status.
+Password files are bounded to 64 KiB and remove one final LF/CRLF; other spaces
+are preserved. Environment values are used exactly as provided. Relative file
+paths resolve beside the YAML file. Secrets are loaded at startup; restart after
+rotation. The configuration API does not expose credentials or their sources.
+
+`http.readOnly: true` rejects all mutating API methods except authentication,
+including key writes/deletes and RBAC changes. The UI displays a read-only banner
+and disables mutation controls; if settings cannot be loaded, it fails closed.
+This is an additional application guard, not a substitute for etcd RBAC or
+protecting the privileged credential. It does not make an exposed instance safe
+without HTTPS, authorization, and appropriate network access controls.
+
 ## Contributions
 
 Contributions are welcome. Please free free to open PRs if you have anything to contribute with.

@@ -10,8 +10,10 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import TextField from '@mui/material/TextField';
 import CircularProgress from '@mui/material/CircularProgress';
 import ConfirmationDialog from './dialogs/confirmationDialog';
+import { useReadOnly } from '../readOnly';
 
 export default function KeysList({ items, loading, onKeyClick, deleteKey }) {
+    const readOnly = useReadOnly();
     const [filter, setFilter] = useState('');
     const [deleting, setDeleting] = useState(null);
     const filtered = useMemo(() => items.filter((item) => item.key.toLowerCase().includes(filter.toLowerCase())), [items, filter]);
@@ -26,7 +28,7 @@ export default function KeysList({ items, loading, onKeyClick, deleteKey }) {
                             {filtered.map((item) => (
                                 <TableRow key={`${item.isVirtual ? 'draft:' : 'key:'}${item.key}`}>
                                     <TableCell><button type="button" onClick={() => onKeyClick(item.key)}>{item.key}{item.isVirtual ? ' (unsaved)' : ''}</button></TableCell>
-                                    <TableCell><IconButton aria-label={`Delete ${item.key}`} onClick={() => setDeleting(item)}><DeleteIcon /></IconButton></TableCell>
+                                    <TableCell><IconButton aria-label={`Delete ${item.key}`} disabled={readOnly} onClick={() => setDeleting(item)}><DeleteIcon /></IconButton></TableCell>
                                 </TableRow>
                             ))}
                             {!filtered.length && <TableRow><TableCell colSpan={2}>No keys on this page match.</TableCell></TableRow>}

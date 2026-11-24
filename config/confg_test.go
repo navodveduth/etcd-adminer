@@ -32,7 +32,7 @@ func TestPublicOriginValidation(t *testing.T) {
 func TestTLSPathsAreRelativeToConfiguration(t *testing.T) {
 	directory := t.TempDir()
 	path := filepath.Join(directory, "config.yaml")
-	data := "etcd:\n- name: secure\n  endpoints: [https://localhost:2379]\n  tls:\n    enabled: true\n    caFile: certs/ca.pem\n    certFile: certs/client.pem\n    keyFile: certs/client-key.pem\n"
+	data := "etcd:\n- name: secure\n  endpoints: [https://localhost:2379]\n  superadmin:\n    passwordFile: secrets/password\n  tls:\n    enabled: true\n    caFile: certs/ca.pem\n    certFile: certs/client.pem\n    keyFile: certs/client-key.pem\n"
 	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -42,6 +42,9 @@ func TestTLSPathsAreRelativeToConfiguration(t *testing.T) {
 	}
 	if got := config.ETCD[0].TLS.CAFile; got != filepath.Join(directory, "certs/ca.pem") {
 		t.Fatalf("CA path = %q", got)
+	}
+	if got := config.ETCD[0].SuperAdmin.PasswordFile; got != filepath.Join(directory, "secrets/password") {
+		t.Fatalf("password path = %q", got)
 	}
 }
 

@@ -16,7 +16,7 @@ import (
 	"github.com/srimaln91/etcd-adminer/log"
 )
 
-func Init() {
+func Init() error {
 
 	// Read and parse config
 	configFilePath := flag.String("config", "config.yaml", "config filepath")
@@ -24,13 +24,13 @@ func Init() {
 
 	cfg, err := config.Parse(*configFilePath)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("configuration failed: %w", err)
 	}
 
 	// Init Logger
 	logger, err := log.NewLogger(cfg.Logger.Level)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("logger initialization failed: %w", err)
 	}
 
 	// Create admin backends
@@ -42,15 +42,17 @@ func Init() {
 	}()
 
 	for _, cluster := range cfg.ETCD {
+		password, err := cluster.SuperAdmin.ResolvePassword()
+		if err != nil {
+			return fmt.Errorf("backend %q credentials configuration failed: %w", cluster.Name, err)
+		}
 		tlsConfig, err := cluster.TLS.Load()
 		if err != nil {
-			logger.Error(context.Background(), "TLS configuration failed", "backend", cluster.Name, "error", err.Error())
-			return
+			return fmt.Errorf("backend %q TLS configuration failed: %w", cluster.Name, err)
 		}
-		err = backendProvider.RegisterBackend(cluster.Name, cluster.Endpoints, cluster.SuperAdmin.UserName, cluster.SuperAdmin.Password, etcd.WithTLS(tlsConfig))
+		err = backendProvider.RegisterBackend(cluster.Name, cluster.Endpoints, cluster.SuperAdmin.UserName, password, etcd.WithTLS(tlsConfig))
 		if err != nil {
-			logger.Error(context.Background(), "backend registration failed", "error", err.Error())
-			return
+			return fmt.Errorf("backend registration failed: %w", err)
 		}
 
 		logger.Info(context.TODO(), fmt.Sprintf("registered backend %s with endpoints %v", cluster.Name, cluster.Endpoints))
@@ -59,15 +61,13 @@ func Init() {
 	// Init Http handler
 	httpHandler, err := router.NewRouter(logger, backendProvider)
 	if err != nil {
-		logger.Error(context.Background(), "router initialization failed", "error", err.Error())
-		return
+		return fmt.Errorf("router initialization failed: %w", err)
 	}
 
 	// Init Http server
 	httpSrv, err := server.Start(fmt.Sprintf(":%d", cfg.HTTP.Port), httpHandler, logger)
 	if err != nil {
-		logger.Error(context.Background(), "HTTP startup failed", "error", err.Error())
-		return
+		return fmt.Errorf("HTTP startup failed: %w", err)
 	}
 
 	// Listen for term signals
@@ -87,6 +87,5 @@ func Init() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	_ = httpSrv.ShutDown(ctx)
-
+	return httpSrv.ShutDown(ctx)
 }

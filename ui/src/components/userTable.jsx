@@ -6,8 +6,10 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
+import { useReadOnly } from '../readOnly';
 
 export default function UserTable(props) {
+    const readOnly = useReadOnly();
     return (
         <TableContainer component={Paper}>
             <Table sx={{ minWidth: 650 }} aria-label="simple table">
@@ -28,7 +30,7 @@ export default function UserTable(props) {
                             </TableCell>
                             <TableCell align="right">
                                 <Button sx={{ m: 1 }} variant="contained" color="success" onClick={() => { props.selectUser(row) }}>View/Edit</Button>
-                                <Button sx={{ m: 1 }} variant="contained" color="error" onClick={() => {
+                                <Button sx={{ m: 1 }} variant="contained" color="error" disabled={readOnly} onClick={() => {
                                     props.setSelectedUser(row);
                                     props.setdeleteConfirmationDialogOpen(true);
                                 }}>Delete</Button>

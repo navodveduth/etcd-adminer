@@ -9,7 +9,11 @@ import (
 )
 
 func (jh *GenericHandler) GetConfig(rw http.ResponseWriter, r *http.Request) {
-	cfg := response.GetConfig{}
+	if config.AppConfig == nil {
+		response.WriteError(rw, http.StatusInternalServerError, "internal_error", "application configuration unavailable")
+		return
+	}
+	cfg := response.GetConfig{Clusters: []response.Cluster{}, ReadOnly: config.AppConfig.HTTP.ReadOnly}
 
 	for _, cluster := range config.AppConfig.ETCD {
 		cfg.Clusters = append(cfg.Clusters, response.Cluster{
@@ -25,6 +29,7 @@ func (jh *GenericHandler) GetConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.Header().Add("Content-Type", "application/json")
+	rw.Header().Set("Cache-Control", "no-store")
 	rw.WriteHeader(http.StatusOK)
 	rw.Write(responseBytes)
 }

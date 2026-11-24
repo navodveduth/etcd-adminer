@@ -13,8 +13,10 @@ import KeysList from './keysList';
 import EditorComponent from './editor';
 import DataService from '../data/service';
 import { buildKeyTree } from '../data/keyTree';
+import { useReadOnly } from '../readOnly';
 
 export default function Keys() {
+    const readOnly = useReadOnly();
     const service = useMemo(() => new DataService(), []);
     const [activeKey, setActiveKey] = useState(null);
     const [isNewKey, setIsNewKey] = useState(false);
@@ -62,6 +64,7 @@ export default function Keys() {
     };
 
     const createDraft = (key, isDirectory) => {
+        if (readOnly) return;
         if (!key) return;
         if (!isDirectory && dirty && !window.confirm('Discard unsaved changes?')) return;
         setDrafts((items) => [...items.filter((item) => item.key !== key), { key, isDirectory, isVirtual: true }]);
@@ -69,6 +72,7 @@ export default function Keys() {
     };
 
     const deleteKey = async (node) => {
+        if (readOnly) return;
         try {
             const deletingSelection = activeKey === node.abspath || (node.type === 'directory' && activeKey?.startsWith(`${node.abspath}/`));
             if (deletingSelection && dirty && !window.confirm('Discard unsaved changes and delete?')) return;

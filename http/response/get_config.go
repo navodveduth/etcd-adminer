@@ -6,4 +6,5 @@ type Cluster struct {
 }
 type GetConfig struct {
 	Clusters []Cluster `json:"clusters"`
+	ReadOnly bool      `json:"readOnly"`
 }

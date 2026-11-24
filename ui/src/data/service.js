@@ -18,7 +18,7 @@ export default class DataService {
         };
     };
 
-    GetConfig = async () => (await api.get('/api/getconfig')).data;
+    GetConfig = async (signal) => (await api.get('/api/getconfig', { signal })).data;
 
     GetClusterInfo = async () => (await api.get('/api/clusterinfo', this.requestConfig())).data;
 

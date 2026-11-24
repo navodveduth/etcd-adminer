@@ -11,8 +11,10 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Alert from '@mui/material/Alert';
 import DataService from '../data/service'
+import { useReadOnly } from '../readOnly';
 
 export default function UserInfo(props) {
+    const readOnly = useReadOnly();
 
     const [selectedRole, setSelectedRole] = React.useState('');
     const [user, setUser] = React.useState({ roles: [] });
@@ -43,6 +45,7 @@ export default function UserInfo(props) {
     };
 
     const handleClickAssignRole = async () => {
+        if (readOnly) return;
         try {
             let isSuccess = await dataService.AssignRole(user.name, selectedRole);
             if (isSuccess) {
@@ -55,6 +58,7 @@ export default function UserInfo(props) {
     };
 
     const handleDelete = async (role) => {
+        if (readOnly) return;
         try {
             let isSuccess = await dataService.RemoveRole(user.name, role);
             if (isSuccess) {
@@ -116,7 +120,7 @@ export default function UserInfo(props) {
                                                     label={role}
                                                     variant="outlined"
                                                     onClick={handleClickChip}
-                                                    onDelete={() => { handleDelete(role) }}
+                                                    onDelete={readOnly ? undefined : () => { handleDelete(role) }}
                                                 />
                                             ))}
                                         </Stack>
@@ -147,7 +151,7 @@ export default function UserInfo(props) {
                         </Select>
                     </FormControl>
                     <FormControl sx={{ m: 1 }}>
-                        <Button variant="contained" color="success" onClick={handleClickAssignRole}>
+                        <Button variant="contained" color="success" disabled={readOnly} onClick={handleClickAssignRole}>
                             Assign
                         </Button>
                     </FormControl>
