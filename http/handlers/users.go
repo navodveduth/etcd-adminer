@@ -30,6 +30,7 @@ func (jh *GenericHandler) GetUserList(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	defer jh.closeEtcdClient(client)
 	userList, err := client.UserList(r.Context())
 	if err != nil {
 		if err == rpctypes.ErrPermissionDenied || err == rpctypes.ErrPermissionNotGranted {
@@ -79,6 +80,7 @@ func (jh *GenericHandler) GetUserInfo(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	defer jh.closeEtcdClient(client)
 	etcdUser, err := client.UserGet(r.Context(), vars["name"])
 	if err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
@@ -132,6 +134,7 @@ func (jh *GenericHandler) AssignRole(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	defer jh.closeEtcdClient(client)
 	_, err = client.UserGrantRole(r.Context(), vars["name"], vars["role"])
 	if err != nil {
 		if err == rpctypes.ErrPermissionDenied || err == rpctypes.ErrPermissionNotGranted {
@@ -177,6 +180,7 @@ func (jh *GenericHandler) UnassignRole(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	defer jh.closeEtcdClient(client)
 	_, err = client.UserRevokeRole(r.Context(), vars["name"], vars["role"])
 	if err != nil {
 		if err == rpctypes.ErrPermissionDenied || err == rpctypes.ErrPermissionNotGranted {
@@ -217,6 +221,7 @@ func (jh *GenericHandler) DeleteUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	defer jh.closeEtcdClient(client)
 	_, err = client.UserDelete(r.Context(), vars["name"])
 	if err != nil {
 		if err == rpctypes.ErrPermissionDenied || err == rpctypes.ErrPermissionNotGranted {

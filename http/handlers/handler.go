@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 
-	"github.com/srimaln91/etcd-adminer/config"
 	"github.com/srimaln91/etcd-adminer/etcd"
 	"github.com/srimaln91/etcd-adminer/log"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -14,32 +13,13 @@ type MetaKey string
 const META_KEY MetaKey = "meta"
 
 type GenericHandler struct {
-	logger           log.Logger
-	superAdminClient map[string]*etcd.Client
+	logger log.Logger
 }
 
 func NewHTTPHandler(logger log.Logger) (*GenericHandler, error) {
 
-	superAdminClients := make(map[string]*etcd.Client)
-	for _, cluster := range config.AppConfig.ETCD {
-		superAdminClient, err := etcd.NewClient(
-			cluster.Endpoints,
-			etcd.WithAuth(
-				cluster.SuperAdmin.UserName,
-				cluster.SuperAdmin.Password,
-			),
-		)
-
-		if err != nil {
-			return nil, err
-		}
-
-		superAdminClients[cluster.Name] = superAdminClient
-	}
-
 	return &GenericHandler{
-		logger:           logger,
-		superAdminClient: superAdminClients,
+		logger: logger,
 	}, nil
 }
 
@@ -59,14 +39,14 @@ func (jh *GenericHandler) getKeys(ctx context.Context, backend *etcd.BackEnd, us
 			return nil, err
 		}
 	} else {
-		resp, err := jh.superAdminClient[backend.Name()].UserGet(ctx, client.Username)
+		resp, err := backend.AdminConnection().UserGet(ctx, client.Username)
 		if err != nil {
 			return nil, err
 		}
 
 		var permissions = make([]string, 0)
 		for _, role := range resp.Roles {
-			roleResponse, err := jh.superAdminClient[backend.Name()].RoleGet(ctx, role)
+			roleResponse, err := backend.AdminConnection().RoleGet(ctx, role)
 			if err != nil {
 				return nil, err
 			}

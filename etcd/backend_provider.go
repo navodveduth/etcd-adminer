@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 )
 
 type BackEndProvider struct {
@@ -23,13 +24,19 @@ func NewBackendProvider() *BackEndProvider {
 // RegisterBackend registers a new ETCD backend
 func (bp *BackEndProvider) RegisterBackend(name string, endpoints []string, userName, password string) error {
 
-	adminClient, err := NewClient(endpoints)
+	if _, exists := bp.backEnds[name]; exists {
+		return fmt.Errorf("duplicate backend %q", name)
+	}
+	adminClient, err := NewClient(endpoints, WithAuth(userName, password))
 	if err != nil {
 		return err
 	}
 
-	_, err = adminClient.Authenticate(context.Background(), userName, password)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err = adminClient.Authenticate(ctx, userName, password)
 	if err != nil {
+		_ = adminClient.Close()
 		return fmt.Errorf("%q: %w", name, err)
 	}
 
@@ -40,6 +47,17 @@ func (bp *BackEndProvider) RegisterBackend(name string, endpoints []string, user
 	}
 
 	return nil
+}
+
+// Close releases the registered clients. Call only after HTTP handlers stop.
+func (bp *BackEndProvider) Close() error {
+	var firstErr error
+	for _, backend := range bp.backEnds {
+		if err := backend.adminClient.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 func (bp *BackEndProvider) GetBackend(name string) (*BackEnd, error) {

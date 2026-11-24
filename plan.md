@@ -90,10 +90,10 @@ All tasks below start unchecked. Add an owner, linked issue/PR, and measured res
 
 ### A3. Stop leaking clients and repair shutdown
 
-- [ ] Add missing client cleanup in `GetUserList`, `GetUserInfo`, `AssignRole`, `UnassignRole`, and `DeleteUser` in `http/handlers/users.go`.
-- [ ] Close backend registration clients on authentication failure; define ownership and shutdown for long-lived clients in `backend_provider.go` and `handler.go`.
-- [ ] Configure authenticated long-lived clients with `WithAuth`; an explicit `Authenticate` call alone is not a substitute for client credential configuration.
-- [ ] Repair `http/server/server.go`: retain the same `*http.Server` that is started instead of copying it, initialize the logger, and treat `http.ErrServerClosed` as normal shutdown.
+- [x] Add missing client cleanup in `GetUserList`, `GetUserInfo`, `AssignRole`, `UnassignRole`, and `DeleteUser` in `http/handlers/users.go`.
+- [x] Close backend registration clients on authentication failure; provider owns and closes long-lived privileged clients after HTTP shutdown, without duplicate handler-owned clients.
+- [x] Configure authenticated long-lived clients with `WithAuth`; an explicit `Authenticate` call alone is not a substitute for client credential configuration.
+- [x] Repair `http/server/server.go`: retain the same `*http.Server` that is started instead of copying it, initialize the logger, and treat `http.ErrServerClosed` as normal shutdown.
 - [ ] Propagate startup/router errors, add bounded startup/RPC contexts, and implement resource cleanup in `bootstrap.Destruct` instead of waiting out the shutdown deadline unnecessarily.
 - [ ] Add a configurable read-header timeout and request/body limits. Later streaming routes need a separate timeout policy from ordinary API requests.
 
@@ -355,3 +355,4 @@ Each release should consist of small, reviewable PRs, with regression tests firs
 ## 12. Implementation journal
 
 - **Request/tree safety:** fixed unknown-backend propagation, empty listing initialization, lossless display-tree key paths, and added bounded strict JSON decoding to key/draft mutations. Prefix directory deletion now excludes sibling prefixes and rejects empty/root scopes; preview/confirmation improvements remain pending. `go test -race ./...` passes. `go vet ./...` identified the existing copied HTTP-server lock; lifecycle repair is the next commit. Full A1/A4 acceptance is not yet complete.
+- **Lifecycle repair:** fixed per-request user/role leaks, authenticated backend ownership and cleanup, startup error propagation, synchronous listener binding, and same-instance graceful shutdown. Added real HTTP listener/shutdown and bind-conflict tests. `go test -race ./...` and `go vet ./...` pass. Configurable deadlines and soak coverage remain pending.

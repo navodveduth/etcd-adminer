@@ -1,7 +1,6 @@
 package router
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -16,7 +15,7 @@ func NewRouter(logger log.Logger, backendProvider *etcd.BackEndProvider) (http.H
 	// Init handler
 	requestHandler, err := handlers.NewHTTPHandler(logger)
 	if err != nil {
-		logger.Fatal(context.Background(), err.Error())
+		return nil, err
 	}
 
 	validator := middlewares.NewRequestValidateMiddleware(backendProvider)

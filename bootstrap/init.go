@@ -35,23 +35,34 @@ func Init() {
 
 	// Create admin backends
 	backendProvider := etcd.NewBackendProvider()
+	defer func() {
+		if err := backendProvider.Close(); err != nil {
+			logger.Error(context.Background(), "backend cleanup failed", "error", err.Error())
+		}
+	}()
 
 	for _, cluster := range cfg.ETCD {
 		err := backendProvider.RegisterBackend(cluster.Name, cluster.Endpoints, cluster.SuperAdmin.UserName, cluster.SuperAdmin.Password)
 		if err != nil {
-			logger.Fatal(context.TODO(), err.Error())
+			logger.Error(context.Background(), "backend registration failed", "error", err.Error())
+			return
 		}
 
 		logger.Info(context.TODO(), fmt.Sprintf("registered backend %s with endpoints %v", cluster.Name, cluster.Endpoints))
 	}
 
 	// Init Http handler
-	httpHandler, _ := router.NewRouter(logger, backendProvider)
+	httpHandler, err := router.NewRouter(logger, backendProvider)
+	if err != nil {
+		logger.Error(context.Background(), "router initialization failed", "error", err.Error())
+		return
+	}
 
 	// Init Http server
 	httpSrv, err := server.Start(fmt.Sprintf(":%d", cfg.HTTP.Port), httpHandler, logger)
 	if err != nil {
-		logger.Fatal(context.TODO(), err.Error())
+		logger.Error(context.Background(), "HTTP startup failed", "error", err.Error())
+		return
 	}
 
 	// Listen for term signals
@@ -59,6 +70,7 @@ func Init() {
 
 	// We'll accept graceful shutdowns when quit via SIGINT (Ctrl+C)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT)
+	defer signal.Stop(c)
 
 	// Block until we receive our signal
 	signal := <-c
@@ -70,14 +82,6 @@ func Init() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	httpSrv.ShutDown(ctx)
+	_ = httpSrv.ShutDown(ctx)
 
-	<-ctx.Done()
-
-	// Destruct other resources and stop the service
-	Destruct()
-}
-
-func Destruct() {
-	// TODO: Release acquired resouces and exit gracefully
 }

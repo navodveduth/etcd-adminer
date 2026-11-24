@@ -2,67 +2,50 @@ package server
 
 import (
 	"context"
-	"fmt"
-
-	"github.com/srimaln91/etcd-adminer/log"
-
+	"errors"
+	"net"
 	"net/http"
 	"time"
+
+	"github.com/srimaln91/etcd-adminer/log"
 )
 
-type server struct {
-	httpServer http.Server
+type Server struct {
+	httpServer *http.Server
 	logger     log.Logger
 }
 
-// Init initializes the server
-func Start(address string, handler http.Handler, logger log.Logger) (server, error) {
-
-	// initialize the router
-	// r := router.Init(srv.container, srv.config.AppConfig)
-
-	httpServer := &http.Server{
-		Addr: address,
-
-		// good practice to set timeouts to avoid Slowloris attacks
-		WriteTimeout: time.Second * 60,
-		ReadTimeout:  time.Second * 60,
-		IdleTimeout:  time.Second * 60,
-
-		// pass our instance of gorilla/mux in
-		Handler: handler,
+// Start binds synchronously so address/permission failures reach the caller.
+func Start(address string, handler http.Handler, logger log.Logger) (*Server, error) {
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		return nil, err
 	}
-
-	// run our server in a goroutine so that it doesn't block
+	httpServer := &http.Server{
+		Addr:              listener.Addr().String(),
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+	srv := &Server{httpServer: httpServer, logger: logger}
 	go func() {
-
-		err := httpServer.ListenAndServe()
-		if err != nil {
-			logger.Fatal(context.TODO(), err.Error())
+		if err := httpServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error(context.Background(), "HTTP server stopped unexpectedly", "error", err.Error())
 		}
 	}()
-
-	// srv.server = server
-	logger.Info(context.Background(), fmt.Sprintf("HTTP server listening on %s", address), "functional_path", "http.server.Init")
-
-	return server{
-		httpServer: *httpServer,
-	}, nil
-
+	logger.Info(context.Background(), "HTTP server listening", "address", httpServer.Addr)
+	return srv, nil
 }
 
-// ShutDown releases all http connections gracefully and shut down the server
-func (srv *server) ShutDown(ctx context.Context) {
-
-	// srv.logger.Warn("http.server.ShutDown", "Stopping HTTP Server")
-	srv.httpServer.SetKeepAlivesEnabled(false)
-
-	// Doesn't block if no connections, but will otherwise wait
-	// until the timeout deadline.
+// ShutDown gracefully stops the same server instance started by Start.
+func (srv *Server) ShutDown(ctx context.Context) error {
 	err := srv.httpServer.Shutdown(ctx)
 	if err != nil {
-		srv.logger.Fatal(ctx, "Unable to stop HTTP server", "functional_path", "http.server.ShutDown")
-
+		srv.logger.Error(ctx, "HTTP shutdown failed", "error", err.Error())
+		// Do not leave active handlers alive after the graceful deadline.
+		_ = srv.httpServer.Close()
 	}
-
+	return err
 }
