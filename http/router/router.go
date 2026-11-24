@@ -45,6 +45,7 @@ func NewRouter(logger log.Logger, backendProvider *etcd.BackEndProvider) (http.H
 	r.Handle("/api/v1/leases", validator.ValidateRequest(requestHandler.Leases)).Methods(http.MethodGet, http.MethodPost)
 	r.Handle("/api/v1/leases/{id}", validator.ValidateRequest(requestHandler.Lease)).Methods(http.MethodGet, http.MethodDelete)
 	r.Handle("/api/v1/leases/{id}/renew", validator.ValidateRequest(requestHandler.Lease)).Methods(http.MethodPost)
+	r.Handle("/api/v1/watch", validator.ValidateRequest(requestHandler.Watch)).Methods(http.MethodGet)
 
 	r.Handle("/api/users", validator.ValidateRequest(requestHandler.GetUserList)).Methods(http.MethodGet, http.MethodOptions)
 	r.Handle("/api/users", validator.ValidateRequest(requestHandler.CreateUser)).Methods(http.MethodPost, http.MethodOptions)

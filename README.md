@@ -137,6 +137,31 @@ keepalive. Leaving the page does not extend a lease's lifetime. Read-only mode
 disables lease/key mutations. Lease lists cap displayed IDs at 1,000 and details
 show at most 100 attached keys while confirming the full affected count.
 
+### Live changes / watch
+
+Open **Live changes**, or use **Watch this key** in the key browser. Choose an
+exact key or prefix, then Start/Stop explicitly. The screen shows new changes
+only (not an initial snapshot), connection/retry status, the last complete
+revision, and the latest 500 events. Values are hidden unless explicitly
+requested and are never persisted by this UI. The active backend/user is shown
+in the application header.
+
+The authenticated SSE endpoint is `GET /api/v1/watch?key=...&mode=exact|prefix`;
+`afterRevision` resumes after a completed revision. Browser requests use auth
+headers, not credentials in URLs. Reconnects remain bound to their starting
+connection. Transaction events are delivered in complete batches before the
+revision is acknowledged; partial frames are retried from the prior revision.
+Each stream lasts up to 45 seconds and reconnects automatically, with bounded
+backoff for network failures. Stop/navigation cancels the upstream watch.
+
+Limits: two streams per user/backend, 16 per instance, 8 KiB key/prefix input,
+2 MiB gRPC/frame messages, and a 4 MiB pending-response budget. Slow consumers,
+oversized events, permission changes, and compacted history surface a resync
+warning rather than silently dropping events. Inspect the keys again or restart
+from a known retained revision after such a warning. Watch is available in
+read-only mode. Reverse proxies must disable response buffering for the watch
+endpoint and permit long-lived responses; `X-Accel-Buffering: no` is sent.
+
 ### Bounded key browsing
 
 The UI uses `GET /api/v1/keys?prefix=...&limit=100&cursor=...` (default 100,

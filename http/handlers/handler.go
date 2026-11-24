@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"crypto/rand"
+	"sync"
 
 	"github.com/srimaln91/etcd-adminer/etcd"
 	"github.com/srimaln91/etcd-adminer/log"
@@ -16,6 +17,9 @@ const META_KEY MetaKey = "meta"
 type GenericHandler struct {
 	logger       log.Logger
 	cursorSecret []byte
+	watchMu      sync.Mutex
+	watches      map[watchPrincipal]int
+	watchCount   int
 }
 
 func NewHTTPHandler(logger log.Logger) (*GenericHandler, error) {
@@ -27,6 +31,7 @@ func NewHTTPHandler(logger log.Logger) (*GenericHandler, error) {
 	return &GenericHandler{
 		logger:       logger,
 		cursorSecret: secret,
+		watches:      make(map[watchPrincipal]int),
 	}, nil
 }
 

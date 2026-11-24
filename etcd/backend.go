@@ -18,8 +18,10 @@ func (be *BackEnd) Endpoints() []string {
 }
 
 // NewClient applies the backend transport policy to every caller-scoped client.
-func (be *BackEnd) NewClient(user, password string) (*Client, error) {
-	return NewClient(be.endpoints, WithTLS(be.tlsConfig), WithAuth(user, password))
+func (be *BackEnd) NewClient(user, password string, options ...func(*Config)) (*Client, error) {
+	policy := append([]func(*Config){}, options...)
+	policy = append(policy, WithTLS(be.tlsConfig), WithAuth(user, password))
+	return NewClient(be.endpoints, policy...)
 }
 
 func (be *BackEnd) AdminConnection() *Client {

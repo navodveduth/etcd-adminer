@@ -10,6 +10,16 @@ const service = new DataService({ GetActiveSession: () => session });
 beforeEach(() => vi.resetAllMocks());
 
 describe('DataService', () => {
+    it('binds long-running workflows to their starting connection', async () => {
+        let active = session;
+        const bound = new DataService({ GetActiveSession: () => active }).BindActiveSession();
+        active = { UserName: 'other', Password: 'different', BackEnd: 'production' };
+        api.get.mockResolvedValue({ data: {} });
+        await bound.FetchKey('/key');
+        expect(api.get).toHaveBeenCalledWith('/api/keys', expect.objectContaining({
+            auth: { username: 'alice', password: 'secret' }, headers: { 'X-Backend': 'test' },
+        }));
+    });
     it('waits for user creation and propagates failure', async () => {
         api.post.mockRejectedValue(new Error('permission denied'));
         await expect(service.CreateUser('new', 'password', [])).rejects.toThrow('permission denied');

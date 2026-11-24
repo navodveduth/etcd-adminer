@@ -80,3 +80,8 @@ func WithLogger(logger *zap.Logger) func(*Config) {
 		cfg.etcdConfig.Logger = logger
 	}
 }
+
+// WithMaxReceiveBytes bounds individual gRPC messages for streaming workflows.
+func WithMaxReceiveBytes(limit int) func(*Config) {
+	return func(cfg *Config) { cfg.etcdConfig.MaxCallRecvMsgSize = limit }
+}

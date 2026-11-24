@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { SessionStore } from '../storage/session';
+import { readSSE } from './sse';
 
 const api = axios.create({ timeout: 30000 });
 const segment = (value) => encodeURIComponent(value);
@@ -16,6 +17,31 @@ export default class DataService {
             auth: { username: session.UserName, password: session.Password },
             headers: { 'X-Backend': session.BackEnd },
         };
+    };
+
+    BindActiveSession = () => {
+        const active = this.sessionStore.GetActiveSession();
+        if (!active) throw new Error('Select an active connection first.');
+        const snapshot = { ...active };
+        return new DataService({ GetActiveSession: () => snapshot });
+    };
+
+    WatchChanges = async (query, onFrame, signal) => {
+        const config = this.requestConfig();
+        const bytes = new TextEncoder().encode(`${config.auth.username}:${config.auth.password}`);
+        const encoded = btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(''));
+        const params = new URLSearchParams(Object.fromEntries(Object.entries(query).map(([key, value]) => [key, String(value)])));
+        const response = await fetch(`/api/v1/watch?${params}`, {
+            headers: { ...config.headers, Authorization: `Basic ${encoded}`, Accept: 'text/event-stream' }, signal,
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({ message: 'Could not establish the watch.' }));
+            const error = new Error(data.message);
+            error.response = { status: response.status, data };
+            throw error;
+        }
+        if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream')) throw new Error('The server did not return an event stream.');
+        await readSSE(response.body, onFrame, signal);
     };
 
     GetConfig = async (signal) => (await api.get('/api/getconfig', { signal })).data;

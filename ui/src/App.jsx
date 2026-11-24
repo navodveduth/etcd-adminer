@@ -19,6 +19,7 @@ import { BrowserRouter, Route, Routes, Navigate, Link } from "react-router-dom";
 import Paper from '@mui/material/Paper';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
+import Chip from '@mui/material/Chip';
 import DataService from './data/service';
 import { ReadOnlyContext } from './readOnly';
 import { SessionStore } from './storage/session'
@@ -32,6 +33,7 @@ const CreateUser = React.lazy(() => import('./components/createUser'));
 const NewConnectionComponent = React.lazy(() => import('./components/newConnection'));
 const About = React.lazy(() => import('./components/about'));
 const Leases = React.lazy(() => import('./components/leases'));
+const Watch = React.lazy(() => import('./components/watch'));
 
 const AppBar = styled(MuiAppBar, {
   shouldForwardProp: (prop) => prop !== 'open',
@@ -130,6 +132,7 @@ function App() {
   );
 
   const sessionStore = new SessionStore();
+  const activeProfile = sessionStore.GetActiveSession();
 
   const requireConnection = (element) => sessionStore.GetActiveSession()
     ? element
@@ -168,6 +171,8 @@ function App() {
               >
                 ETCD Adminer
               </Typography>
+              <Chip component={Link} to="/connection" clickable color="default" sx={{ mr: 2, maxWidth: { xs: 140, md: 360 } }}
+                label={activeProfile ? `${activeProfile.BackEnd} · ${activeProfile.UserName}` : 'Not connected'} />
               <IconButton color="inherit" onClick={toggleColorMode}>
                 {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
               </IconButton>
@@ -222,6 +227,7 @@ function App() {
                 <Route path="cluster" element={requireConnection(<ClusterInfo />)} />
                 <Route path="keys" element={requireConnection(<KeysComponent />)} />
                 <Route path="leases" element={requireConnection(<Leases />)} />
+                <Route path="watchers" element={requireConnection(<Watch />)} />
                 <Route path="users" element={requireConnection(<UserList />)} />
                 <Route path="users/new" element={requireConnection(<CreateUser />)} />
                 <Route path="about" element={<About />} />

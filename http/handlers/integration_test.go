@@ -3,6 +3,7 @@
 package handlers
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -377,6 +378,133 @@ func TestRBACIntegration(t *testing.T) {
 		}
 		if w := invoke("GET", lease.ID, "root", "", handler.Lease); w.Code != 404 {
 			t.Fatalf("expired lease: %d %s", w.Code, w.Body.String())
+		}
+	})
+	t.Run("watch frames resume transactions without leaking values or permissions", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			user := r.Header.Get("X-Test-User")
+			if user == "" {
+				user = "root"
+			}
+			r = r.WithContext(context.WithValue(r.Context(), META_KEY, request.RequestMeta{Backend: backend, User: user, Pass: password}))
+			handler.Watch(w, r)
+		}))
+		defer server.Close()
+		client := &http.Client{Timeout: 10 * time.Second}
+		open := func(after string) (*http.Response, *bufio.Reader) {
+			query := url.Values{"key": {"/watch-test/"}, "mode": {"prefix"}, "afterRevision": {after}}
+			response, err := client.Get(server.URL + "?" + query.Encode())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if response.StatusCode != 200 {
+				response.Body.Close()
+				t.Fatalf("watch status: %d", response.StatusCode)
+			}
+			return response, bufio.NewReader(response.Body)
+		}
+		read := func(reader *bufio.Reader) (string, map[string]json.RawMessage) {
+			kind, data := "", ""
+			for {
+				line, err := reader.ReadString('\n')
+				if err != nil {
+					t.Fatal(err)
+				}
+				if strings.HasPrefix(line, "event:") {
+					kind = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+				}
+				if strings.HasPrefix(line, "data:") {
+					data = strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+				}
+				if line == "\n" {
+					break
+				}
+			}
+			var frame map[string]json.RawMessage
+			if err := json.Unmarshal([]byte(data), &frame); err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(data, "secret-value") {
+				t.Fatal("watch leaked a value without explicit opt-in")
+			}
+			return kind, frame
+		}
+		first, reader := open("0")
+		defer first.Body.Close()
+		if kind, _ := read(reader); kind != "ready" {
+			t.Fatal("watch did not establish a baseline revision")
+		}
+		if _, err := admin.Txn(ctx).Then(clientv3.OpPut("/watch-test/a", "secret-value"), clientv3.OpPut("/watch-test/b", "secret-value")).Commit(); err != nil {
+			t.Fatal(err)
+		}
+		kind, frame := read(reader)
+		var events []changeEvent
+		if err := json.Unmarshal(frame["events"], &events); err != nil {
+			t.Fatal(err)
+		}
+		if kind != "changes" || len(events) != 2 || events[0].Revision != events[1].Revision {
+			t.Fatalf("transaction split: %s %+v", kind, events)
+		}
+		var revision string
+		if err := json.Unmarshal(frame["revision"], &revision); err != nil {
+			t.Fatal(err)
+		}
+		_ = first.Body.Close()
+		if _, err := admin.Put(ctx, "/watch-test/c", "secret-value"); err != nil {
+			t.Fatal(err)
+		}
+		second, reader := open(revision)
+		defer second.Body.Close()
+		if kind, _ := read(reader); kind != "ready" {
+			t.Fatal("resume missing ready frame")
+		}
+		kind, frame = read(reader)
+		if err := json.Unmarshal(frame["events"], &events); err != nil {
+			t.Fatal(err)
+		}
+		if kind != "changes" || len(events) != 1 || events[0].Key != "/watch-test/c" {
+			t.Fatalf("resume skipped or repeated changes: %+v", events)
+		}
+		if _, err := admin.Delete(ctx, "/watch-test/c"); err != nil {
+			t.Fatal(err)
+		}
+		kind, frame = read(reader)
+		if err := json.Unmarshal(frame["events"], &events); err != nil {
+			t.Fatal(err)
+		}
+		if kind != "changes" || len(events) != 1 || events[0].Type != "DELETE" {
+			t.Fatalf("missing delete event: %+v", events)
+		}
+		_ = second.Body.Close()
+		request, err := http.NewRequest("GET", server.URL+"?key=exact&mode=prefix", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("X-Test-User", "exact")
+		denied, err := client.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = denied.Body.Close()
+		if denied.StatusCode != 403 {
+			t.Fatalf("unauthorized watch started: %d", denied.StatusCode)
+		}
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		deadline := time.NewTimer(2 * time.Second)
+		defer deadline.Stop()
+		for {
+			handler.watchMu.Lock()
+			active := handler.watchCount
+			handler.watchMu.Unlock()
+			if active == 0 {
+				break
+			}
+			select {
+			case <-ticker.C:
+			case <-deadline.C:
+				t.Fatal("stopped watches retained resources")
+			}
 		}
 	})
 	t.Run("100k key first page benchmark", func(t *testing.T) {

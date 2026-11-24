@@ -14,6 +14,7 @@ import EditorComponent from './editor';
 import DataService from '../data/service';
 import { buildKeyTree } from '../data/keyTree';
 import { useReadOnly } from '../readOnly';
+import { Link } from 'react-router-dom';
 
 export default function Keys() {
     const readOnly = useReadOnly();
@@ -118,6 +119,7 @@ export default function Keys() {
                 </Paper>
             </Grid>
             <Grid size={{ xs: 12, md: 8, lg: 9 }}>
+                {activeKey && <Button component={Link} to={`/watchers?mode=exact&key=${encodeURIComponent(activeKey)}`}>Watch this key</Button>}
                 <EditorComponent etcdKey={activeKey} isNewKey={isNewKey} onSaved={onSaved} onDirtyChange={setDirty} />
             </Grid>
         </Grid>

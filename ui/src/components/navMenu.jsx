@@ -18,7 +18,7 @@ const destinations = [
   { path: 'cluster', label: 'Cluster', icon: StorageIcon, connection: true },
   { path: 'keys', label: 'Keys', icon: AssignmentIcon, connection: true },
   { path: 'leases', label: 'Leases / TTL', icon: TimerIcon, connection: true },
-  { path: 'watchers', label: 'Watchers', icon: BarChartIcon, disabled: true },
+  { path: 'watchers', label: 'Live changes', icon: BarChartIcon, connection: true },
   { path: 'users', label: 'Users', icon: PeopleIcon, connection: true },
   { path: 'roles', label: 'Roles', icon: LayersIcon, disabled: true },
   { path: 'about', label: 'About', icon: InfoIcon },
