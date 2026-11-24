@@ -9,5 +9,8 @@ ui/test-results
 ui/playwright-report
 config.yaml
 certs
+secrets
+**/*.pem
+**/*.key
 **/.env*
 coverage.out

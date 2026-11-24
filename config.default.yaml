@@ -4,14 +4,14 @@ http:
   # publicOrigin: "https://adminer.example.com"
 
 logger:
-  level: "DEBUG"
+  level: "INFO"
 
 etcd:
 - name: "LOCAL"
   endpoints:
-    - "0.0.0.0:23791"
-    - "0.0.0.0:23792"
-    - "0.0.0.0:23793"
+    - "http://127.0.0.1:23791"
+    - "http://127.0.0.1:23792"
+    - "http://127.0.0.1:23793"
   superadmin:
     username: root
     password: root@123

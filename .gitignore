@@ -3,3 +3,7 @@ static/*
 build/*
 coverage.out
 config.yaml
+certs/
+secrets/
+*.pem
+*.key

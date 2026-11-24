@@ -4,26 +4,52 @@
 ![image info](./resources/screenshot.png)
 
 ## Configuration
-The application config is defined in yaml format.  You may obtain it from (config.default.yaml)[config.default.yaml].
+The application configuration uses YAML; start from [config.default.yaml](config.default.yaml).
 
 ```yaml
 http:
   port: 8080
 
 logger:
-  level: "DEBUG"
+  level: "INFO"
 
 etcd:
 - name: "LOCAL"
   endpoints:
-    - "0.0.0.0:23791"
-    - "0.0.0.0:23792"
-    - "0.0.0.0:23793"
+    - "http://127.0.0.1:23791"
+    - "http://127.0.0.1:23792"
+    - "http://127.0.0.1:23793"
   superadmin:
     username: root
     password: root@123
 ```
 ## How to run
+
+### Local development cluster
+
+The Compose fixture uses etcd 3.7.4, separate project-scoped volumes per node,
+and loopback-only client ports. It is intended for a **host-run API**, not a
+production deployment. It does not touch or migrate the previous shared
+`/srv/docker/etcd` directory; do not mount old 3.2 data directly into a newer
+server as an upgrade shortcut.
+
+```sh
+docker compose up -d
+# Check readiness before initializing auth:
+docker compose exec etcd1 etcdctl --endpoints=http://127.0.0.1:2379 endpoint health
+# First initialization only; user add prompts for a password:
+docker compose exec etcd1 etcdctl user add root
+docker compose exec etcd1 etcdctl user grant-role root root
+docker compose exec etcd1 etcdctl auth enable
+cp config.default.yaml config.yaml
+```
+
+Set the actual root password in your protected `config.yaml` before starting
+the API. The example `root@123` is a development placeholder, not a production
+credential. `docker compose down` stops the fixture while retaining its named
+volumes. Do not delete volumes unless you explicitly intend to discard their
+development data. The generated-certificate integration fixtures are separate
+disposable containers and never use these volumes.
 
 ### Using Docker
 
@@ -35,6 +61,10 @@ docker run -d --name etcd-adminer -p 8080:8080 srimaln91/etcd-adminer:latest
 #### Run the application using a custom configuration file
 
 You can mount the config file as a bind mount.
+
+For a containerized API, configure etcd URLs reachable **inside that container**;
+the sample loopback endpoints are for a host-run API. Mount configuration and
+TLS secrets read-only with permissions for the non-root runtime user.
 
 ```bash
 docker run -d --name etcd-adminer -p 8080:8080 -v /path/to/config.yaml:/app/config.yaml srimaln91/etcd-adminer:latest

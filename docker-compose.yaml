@@ -1,66 +1,51 @@
-version: '2'
-services:
+# Development only: the API runs on the host, and client ports bind to loopback.
+# Fresh project-scoped volumes deliberately do not reuse /srv/docker/etcd data.
+x-etcd: &etcd
+  image: quay.io/coreos/etcd:v3.7.4@sha256:641c8cb2492aedf4c693b20029a56f325f9b18754bb7dc9f6eac22c99786228c
+  restart: unless-stopped
+  entrypoint: /usr/local/bin/etcd
 
-    etcd1:
-        image: quay.io/coreos/etcd:v3.2.5
-        restart: always
-        ports:
-             - 23791:2379
-             - 23801:2380
-        volumes:
-          - ./certs/:/srv/
-          - /srv/docker/etcd:/etcd-data
-        environment:
-            ETCD_NAME: node1
-            ETCD_DATA_DIR: /etcd-data/etcd1.etcd
-            ETCDCTL_API: 3
-            ETCD_DEBUG: 1
-            ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd1:2380
-            ETCD_INITIAL_CLUSTER: node3=http://etcd3:2380,node1=http://etcd1:2380,node2=http://etcd2:2380
-            ETCD_INITIAL_CLUSTER_STATE: new
-            ETCD_INITIAL_CLUSTER_TOKEN: etcd-ftw
-            ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
-            ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
-            ETCD_ADVERTISE_CLIENT_URLS: http://etcd1:2379
-    etcd2:
-        image: quay.io/coreos/etcd:v3.2.5
-        restart: always
-        ports:
-            - 23792:2379
-            - 23802:2380
-        volumes:
-          - ./certs/:/srv/
-          - /srv/docker/etcd:/etcd-data
-        environment:
-            ETCD_NAME: node2
-            ETCD_DATA_DIR: /etcd-data/etcd2.etcd
-            ETCDCTL_API: 3
-            ETCD_DEBUG: 1
-            ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd2:2380
-            ETCD_INITIAL_CLUSTER: node3=http://etcd3:2380,node1=http://etcd1:2380,node2=http://etcd2:2380
-            ETCD_INITIAL_CLUSTER_STATE: new
-            ETCD_INITIAL_CLUSTER_TOKEN: etcd-ftw
-            ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
-            ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
-            ETCD_ADVERTISE_CLIENT_URLS: http://etcd2:2379
-    etcd3:
-        image: quay.io/coreos/etcd:v3.2.5
-        restart: always
-        ports:
-            - 23793:2379
-            - 23803:2380
-        volumes:
-          - ./certs/:/srv/
-          - /srv/docker/etcd:/etcd-data
-        environment:
-            ETCD_NAME: node3
-            ETCD_DATA_DIR: /etcd-data/etcd3.etcd
-            ETCDCTL_API: 3
-            ETCD_DEBUG: 1
-            ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd3:2380
-            ETCD_INITIAL_CLUSTER: node3=http://etcd3:2380,node1=http://etcd1:2380,node2=http://etcd2:2380
-            ETCD_INITIAL_CLUSTER_STATE: new
-            ETCD_INITIAL_CLUSTER_TOKEN: etcd-ftw
-            ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
-            ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
-            ETCD_ADVERTISE_CLIENT_URLS: http://etcd3:2379
+x-etcd-environment: &etcd-environment
+  ETCD_DATA_DIR: /etcd-data
+  ETCD_INITIAL_CLUSTER: node1=http://etcd1:2380,node2=http://etcd2:2380,node3=http://etcd3:2380
+  ETCD_INITIAL_CLUSTER_STATE: new
+  ETCD_INITIAL_CLUSTER_TOKEN: etcd-adminer-development
+  ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+  ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+  ETCD_LOG_LEVEL: warn
+
+services:
+  etcd1:
+    <<: *etcd
+    ports: ["127.0.0.1:23791:2379"]
+    volumes: ["etcd1-data:/etcd-data"]
+    environment:
+      <<: *etcd-environment
+      ETCD_NAME: node1
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd1:2380
+      ETCD_ADVERTISE_CLIENT_URLS: http://127.0.0.1:23791
+
+  etcd2:
+    <<: *etcd
+    ports: ["127.0.0.1:23792:2379"]
+    volumes: ["etcd2-data:/etcd-data"]
+    environment:
+      <<: *etcd-environment
+      ETCD_NAME: node2
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd2:2380
+      ETCD_ADVERTISE_CLIENT_URLS: http://127.0.0.1:23792
+
+  etcd3:
+    <<: *etcd
+    ports: ["127.0.0.1:23793:2379"]
+    volumes: ["etcd3-data:/etcd-data"]
+    environment:
+      <<: *etcd-environment
+      ETCD_NAME: node3
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd3:2380
+      ETCD_ADVERTISE_CLIENT_URLS: http://127.0.0.1:23793
+
+volumes:
+  etcd1-data:
+  etcd2-data:
+  etcd3-data:
