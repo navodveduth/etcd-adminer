@@ -32,7 +32,7 @@ func NewHTTPHandler(logger log.Logger) (*GenericHandler, error) {
 
 func (jh *GenericHandler) getKeys(ctx context.Context, backend *etcd.BackEnd, user, pass string) (*clientv3.GetResponse, error) {
 
-	client, err := etcd.NewClient(backend.Endpoints(), etcd.WithAuth(user, pass))
+	client, err := backend.NewClient(user, pass)
 	if err != nil {
 		return nil, err
 	}

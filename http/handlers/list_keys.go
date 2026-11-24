@@ -13,7 +13,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/srimaln91/etcd-adminer/etcd"
 	"github.com/srimaln91/etcd-adminer/http/request"
 	"github.com/srimaln91/etcd-adminer/http/response"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -181,7 +180,7 @@ func (jh *GenericHandler) ListKeys(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	client, err := etcd.NewClient(meta.Backend.Endpoints(), etcd.WithAuth(meta.User, meta.Pass))
+	client, err := meta.Backend.NewClient(meta.User, meta.Pass)
 	if err != nil {
 		response.WriteRPCError(w, err)
 		return

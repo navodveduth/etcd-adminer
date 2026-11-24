@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/srimaln91/etcd-adminer/etcd"
 	"github.com/srimaln91/etcd-adminer/http/request"
 	"github.com/srimaln91/etcd-adminer/http/response"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -27,7 +26,7 @@ func (jh *GenericHandler) UpdateKey(w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, http.StatusBadRequest, "invalid_revision", "expectedRevision must be a non-negative decimal string; use 0 to create a key")
 		return
 	}
-	client, err := etcd.NewClient(meta.Backend.Endpoints(), etcd.WithAuth(meta.User, meta.Pass))
+	client, err := meta.Backend.NewClient(meta.User, meta.Pass)
 	if err != nil {
 		response.WriteRPCError(w, err)
 		return

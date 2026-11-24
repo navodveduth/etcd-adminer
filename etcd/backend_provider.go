@@ -22,12 +22,14 @@ func NewBackendProvider() *BackEndProvider {
 }
 
 // RegisterBackend registers a new ETCD backend
-func (bp *BackEndProvider) RegisterBackend(name string, endpoints []string, userName, password string) error {
+func (bp *BackEndProvider) RegisterBackend(name string, endpoints []string, userName, password string, options ...func(*Config)) error {
 
 	if _, exists := bp.backEnds[name]; exists {
 		return fmt.Errorf("duplicate backend %q", name)
 	}
-	adminClient, err := NewClient(endpoints, WithAuth(userName, password))
+	clientOptions := append([]func(*Config){}, options...)
+	clientOptions = append(clientOptions, WithAuth(userName, password))
+	adminClient, err := NewClient(endpoints, clientOptions...)
 	if err != nil {
 		return err
 	}
@@ -42,8 +44,9 @@ func (bp *BackEndProvider) RegisterBackend(name string, endpoints []string, user
 
 	bp.backEnds[name] = &BackEnd{
 		name:        name,
-		endpoints:   endpoints,
+		endpoints:   append([]string(nil), endpoints...),
 		adminClient: adminClient,
+		tlsConfig:   adminClient.tlsConfig,
 	}
 
 	return nil

@@ -15,3 +15,10 @@ etcd:
   superadmin:
     username: root
     password: root@123
+  # For a TLS backend, use https:// endpoints and configure:
+  # tls:
+  #   enabled: true
+  #   caFile: /run/secrets/etcd-ca.pem
+  #   certFile: /run/secrets/etcd-client.pem
+  #   keyFile: /run/secrets/etcd-client-key.pem
+  #   serverName: etcd.example.com

@@ -6,10 +6,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strconv"
@@ -19,6 +21,7 @@ import (
 	"github.com/srimaln91/etcd-adminer/etcd"
 	"github.com/srimaln91/etcd-adminer/http/request"
 	"github.com/srimaln91/etcd-adminer/log"
+	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -30,7 +33,15 @@ func TestRBACIntegration(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	setup, err := clientv3.New(clientv3.Config{Endpoints: []string{endpoint}, DialTimeout: 5 * time.Second})
+	tlsOptions := etcd.TLSOptions{}
+	if directory := os.Getenv("ETCD_TEST_CERTIFICATES"); directory != "" {
+		tlsOptions = etcd.TLSOptions{Enabled: true, CAFile: filepath.Join(directory, "ca.pem"), CertFile: filepath.Join(directory, "client.pem"), KeyFile: filepath.Join(directory, "client-key.pem")}
+	}
+	tlsConfig, err := tlsOptions.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	setup, err := clientv3.New(clientv3.Config{Endpoints: []string{endpoint}, DialTimeout: 5 * time.Second, TLS: tlsConfig})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +71,7 @@ func TestRBACIntegration(t *testing.T) {
 	if _, err := setup.AuthEnable(ctx); err != nil {
 		t.Fatal(err)
 	}
-	admin, err := clientv3.New(clientv3.Config{Endpoints: []string{endpoint}, Username: "root", Password: password})
+	admin, err := clientv3.New(clientv3.Config{Endpoints: []string{endpoint}, Username: "root", Password: password, TLS: tlsConfig})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +83,7 @@ func TestRBACIntegration(t *testing.T) {
 	}
 	provider := etcd.NewBackendProvider()
 	defer provider.Close()
-	if err := provider.RegisterBackend("test", []string{endpoint}, "root", password); err != nil {
+	if err := provider.RegisterBackend("test", []string{endpoint}, "root", password, etcd.WithTLS(tlsConfig)); err != nil {
 		t.Fatal(err)
 	}
 	backend, err := provider.GetBackend("test")
@@ -131,6 +142,16 @@ func TestRBACIntegration(t *testing.T) {
 			}
 			if _, err := handler.getKeys(ctx, backend, tc.name, "wrong"); err == nil {
 				t.Fatal("wrong password accepted")
+			}
+			if !tc.root {
+				caller, err := backend.NewClient(tc.name, password)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer caller.Close()
+				if _, err := caller.Get(ctx, "/forbidden"); !errors.Is(err, rpctypes.ErrPermissionDenied) {
+					t.Fatalf("transport overrode caller permissions: %v", err)
+				}
 			}
 			if tc.name == "range" {
 				if _, err := admin.RoleAdd(ctx, "overlap"); err != nil {

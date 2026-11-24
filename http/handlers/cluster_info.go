@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/srimaln91/etcd-adminer/etcd"
 	"github.com/srimaln91/etcd-adminer/http/request"
 	"github.com/srimaln91/etcd-adminer/http/response"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
@@ -84,7 +83,7 @@ func (jh *GenericHandler) ClusterInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	client, err := etcd.NewClient(meta.Backend.Endpoints(), etcd.WithAuth(meta.User, meta.Pass))
+	client, err := meta.Backend.NewClient(meta.User, meta.Pass)
 	if err != nil {
 		response.WriteRPCError(w, err)
 		return
@@ -98,7 +97,7 @@ func (jh *GenericHandler) ClusterInfo(w http.ResponseWriter, r *http.Request) {
 	result := response.ClusterInfo{
 		ClusterID: members.Header.GetClusterId(), MemberID: members.Header.GetMemberId(),
 		RaftTerm: members.Header.GetRaftTerm(), Revision: members.Header.GetRevision(),
-		Nodes: collectMemberStatus(ctx, client.Maintenance, members.Members),
+		Nodes: collectMemberStatus(ctx, client, members.Members),
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")

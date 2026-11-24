@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/srimaln91/etcd-adminer/etcd"
 	"github.com/srimaln91/etcd-adminer/http/request"
 	"github.com/srimaln91/etcd-adminer/http/response"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
@@ -18,7 +17,7 @@ func (jh *GenericHandler) GetKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client, err := etcd.NewClient(requestMeta.Backend.Endpoints(), etcd.WithAuth(requestMeta.User, requestMeta.Pass))
+	client, err := requestMeta.Backend.NewClient(requestMeta.User, requestMeta.Pass)
 	if err != nil {
 		if err == rpctypes.ErrAuthFailed {
 			rw.WriteHeader(http.StatusForbidden)

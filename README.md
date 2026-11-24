@@ -118,8 +118,8 @@ Saved browser profiles contain metadata only. Legacy stored passwords are
 removed on access; you must reauthenticate after reloading/opening a tab.
 Passwords remain in tab memory until disconnect, deletion, or tab closure;
 they are still sent as HTTP Basic credentials to the API. **Use HTTPS for
-non-local deployments.** Full short-lived server-side cookie sessions and
-configurable upstream TLS remain planned; these changes are not a claim of
+non-local deployments.** Full short-lived server-side cookie sessions
+remain planned; these changes are not a claim of
 complete production security hardening.
 
 The API no longer enables wildcard CORS and rejects cross-origin browser
@@ -129,6 +129,48 @@ slash). Forward the correct Host header. Do not trust arbitrary forwarded
 scheme headers. The Vite development proxy handles same-origin development
 requests without weakening the production origin policy. JSON mutations
 require `Content-Type: application/json`; form/plaintext bodies are rejected.
+
+### Upstream TLS / mTLS
+
+All etcd handlers use the selected backend's transport policy, including
+authentication, RBAC, key operations, and discovered-member status calls.
+For private CAs or client-certificate authentication, configure each backend:
+
+```yaml
+etcd:
+  - name: secure
+    endpoints: ["https://etcd.example.com:2379"]
+    superadmin:
+      username: root
+      password: "replace-with-protected-credentials"
+    tls:
+      enabled: true
+      caFile: /run/secrets/etcd-ca.pem
+      certFile: /run/secrets/etcd-client.pem
+      keyFile: /run/secrets/etcd-client-key.pem
+      # Optional override, still verified against the server certificate:
+      serverName: etcd.example.com
+```
+
+TLS requires certificate/hostname verification and TLS 1.2 or newer; insecure
+verification and plaintext fallback are not supported. Use explicit `https://`
+URLs for every configured/discovered client endpoint. Without `caFile`, system
+trust roots are used. A configured CA file replaces the system pool. Client
+certificate/key fields are optional but must be supplied together; relative
+paths resolve beside the configuration file. Configuration rejects unknown
+fields and multiple YAML documents instead of silently ignoring them.
+
+**Caller isolation:** a shared client certificate must have an **empty Common
+Name**. etcd can derive user identity from the TLS CN instead of the supplied
+username/token; accepting a shared `root` certificate could bypass per-user
+RBAC. Such certificates are deliberately rejected. Use an empty-CN certificate
+for transport-level mTLS and username/password for each caller. Dedicated
+per-user certificate identities are not supported yet.
+
+Mount private key files read-only with permissions allowing the non-root
+runtime user to read them; never commit certificates/private keys. Run
+`ETCD_TEST_TLS=1 sh scripts/test-integration.sh` to verify real mTLS/RBAC behavior
+against a disposable cluster with generated, short-lived test certificates.
 
 ## Contributions
 

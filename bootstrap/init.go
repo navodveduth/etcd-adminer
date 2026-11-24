@@ -42,7 +42,12 @@ func Init() {
 	}()
 
 	for _, cluster := range cfg.ETCD {
-		err := backendProvider.RegisterBackend(cluster.Name, cluster.Endpoints, cluster.SuperAdmin.UserName, cluster.SuperAdmin.Password)
+		tlsConfig, err := cluster.TLS.Load()
+		if err != nil {
+			logger.Error(context.Background(), "TLS configuration failed", "backend", cluster.Name, "error", err.Error())
+			return
+		}
+		err = backendProvider.RegisterBackend(cluster.Name, cluster.Endpoints, cluster.SuperAdmin.UserName, cluster.SuperAdmin.Password, etcd.WithTLS(tlsConfig))
 		if err != nil {
 			logger.Error(context.Background(), "backend registration failed", "error", err.Error())
 			return

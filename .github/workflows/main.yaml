@@ -25,6 +25,8 @@ jobs:
       - run: go build ./...
       - name: Isolated etcd RBAC integration tests
         run: sh scripts/test-integration.sh
+      - name: Isolated mTLS and caller-isolation tests
+        run: ETCD_TEST_TLS=1 sh scripts/test-integration.sh
       - name: Vulnerability scan
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 

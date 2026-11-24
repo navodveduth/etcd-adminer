@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/srimaln91/etcd-adminer/etcd"
 	"github.com/srimaln91/etcd-adminer/http/request"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 )
@@ -19,7 +18,7 @@ func (jh *GenericHandler) Authenticate(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	client, err := etcd.NewClient(requestMeta.Backend.Endpoints())
+	client, err := requestMeta.Backend.NewClient(requestMeta.User, requestMeta.Pass)
 	if err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
 		jh.logger.Error(r.Context(), err.Error())
