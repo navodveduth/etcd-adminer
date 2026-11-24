@@ -20,7 +20,7 @@ const destinations = [
   { path: 'leases', label: 'Leases / TTL', icon: TimerIcon, connection: true },
   { path: 'watchers', label: 'Live changes', icon: BarChartIcon, connection: true },
   { path: 'users', label: 'Users', icon: PeopleIcon, connection: true },
-  { path: 'roles', label: 'Roles', icon: LayersIcon, disabled: true },
+  { path: 'roles', label: 'Roles', icon: LayersIcon, connection: true },
   { path: 'about', label: 'About', icon: InfoIcon },
 ];
 

@@ -45,7 +45,7 @@ This plan is based on the code in this checkout, not just the supplied feature c
 | Cluster status & metrics | Partial | Membership, leader status, and database size code exists; endpoint handling is faulty; no time-series metrics |
 | Dark mode | Present | Application theme toggle exists; synchronize Monaco and test contrast |
 | Keyboard shortcuts | Not found as application feature | Add discoverable shortcuts without overriding editor/browser behavior |
-| User/role management (RBAC) | Partial | User CRUD and role assignment/listing exist; add role CRUD and exact/range permission editing |
+| User/role management (RBAC) | Implemented core workflow | Role CRUD, exact/prefix/range permissions, user/password management, explicit root promotion and protected service admin; capability-aware navigation remains pending |
 | Snapshots | Not found | Add controlled snapshot download; keep restore out of the normal running-cluster UI |
 | Tabs / multiple connections | Partial | Multiple saved profiles and folder/list tabs exist, not independent connection workspaces |
 | P.1 Performance metrics dashboard | Not found in this checkout | No metrics dashboard or `get_cluster_metrics` command found; use a Go HTTP endpoint in this architecture |
@@ -216,7 +216,19 @@ The supplied checklist mentions a missing `get_cluster_metrics` command. This re
 
 ### D5. RBAC, workspaces, and usability
 
-- [ ] Add role create/delete, exact/range/prefix permission grant/revoke, user password changes, capability-aware UI, and stronger confirmation for removing administrative access.
+RBAC checkpoint: role CRUD and permission previews, lossless binary-rule
+revocation, slash-safe user/role names, typed root promotion/removal, password
+management, protected canonical/service administrators (including legacy routes),
+and fixed async user creation are implemented. Real-etcd mTLS tests cover scope
+boundaries, revocation, root promotion, password authorization/change, deletion,
+and protected accounts. Validation: Go race tests/vet, 32 frontend tests,
+lint/production build, and plaintext plus mTLS real-etcd integration pass.
+Workspace isolation and capability discovery remain pending. The existing
+Monaco chunk-size warning remains; Docker image validation is still blocked
+by the previously recorded base-layer download failures.
+
+- [x] Add role create/delete, exact/range/prefix permission grant/revoke, root-authorized user password changes, and stronger confirmation for administrative role changes.
+- [ ] Add caller-capability-aware navigation and controls beyond the global read-only guard; current administrative screens explain root-role requirements and surface authorization errors.
 - [ ] Add independent connection tabs with isolated requests, drafts, watches, and selection; clearly label backend/environment and warn before production mutations.
 - [ ] Improve profile editing, connection diagnostics, recent connections, and import/export of non-secret profile metadata.
 - [ ] Add keyboard shortcuts (save, search, refresh, tab navigation), a shortcut help panel, keyboard tree/context-menu access, focus management, and screen-reader labels.

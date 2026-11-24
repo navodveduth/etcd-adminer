@@ -34,13 +34,25 @@ describe('DataService', () => {
         await expect(service.TestConnection('alice', 'bad', 'test')).resolves.toBe(false);
     });
 
-    it('passes raw keys through params and encodes role path segments', async () => {
+    it('passes raw keys through params and role names through JSON', async () => {
         api.get.mockResolvedValue({ data: {} });
         await service.FetchKey('a?&#% /日本語');
         expect(api.get).toHaveBeenCalledWith('/api/keys', expect.objectContaining({ params: { key: 'a?&#% /日本語' } }));
         api.post.mockResolvedValue({});
         await service.AssignRole('a/b', 'read/write');
-        expect(api.post).toHaveBeenCalledWith('/api/users/a%2Fb/role/read%2Fwrite', null, expect.any(Object));
+        expect(api.post).toHaveBeenCalledWith('/api/v1/users/roles', { userName: 'a/b', role: 'read/write', operation: 'grant' }, expect.any(Object));
+    });
+
+    it('updates an own-password profile only after the server confirms success', async () => {
+        const profile = { ...session, Name: 'test-profile' };
+        const save = vi.fn();
+        const service = new DataService({ GetActiveSession: () => profile, Get: () => profile, Add: save });
+        api.post.mockRejectedValueOnce(new Error('unavailable'));
+        await expect(service.ChangePassword('alice', 'new-secret')).rejects.toThrow('unavailable');
+        expect(save).not.toHaveBeenCalled();
+        api.post.mockResolvedValue({});
+        await expect(service.ChangePassword('alice', 'new-secret')).resolves.toEqual({ reauthenticate: false });
+        expect(save).toHaveBeenCalledWith({ ...profile, Password: 'new-secret' });
     });
 
     it('rejects requests with no active connection before network access', async () => {

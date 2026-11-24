@@ -30,6 +30,10 @@ func WriteRPCError(w http.ResponseWriter, err error) {
 		WriteError(w, http.StatusForbidden, "forbidden", "permission denied")
 	case errors.Is(err, rpctypes.ErrLeaseNotFound):
 		WriteError(w, http.StatusNotFound, "lease_expired", "lease expired or was revoked")
+	case errors.Is(err, rpctypes.ErrRoleNotFound), errors.Is(err, rpctypes.ErrUserNotFound):
+		WriteError(w, http.StatusNotFound, "not_found", "user or role no longer exists; refresh and retry")
+	case errors.Is(err, rpctypes.ErrRoleAlreadyExist), errors.Is(err, rpctypes.ErrUserAlreadyExist):
+		WriteError(w, http.StatusConflict, "already_exists", "a user or role with this name already exists")
 	case errors.Is(err, rpctypes.ErrCompacted):
 		WriteError(w, http.StatusConflict, "compacted_revision", "the requested revision was compacted; refresh and retry")
 	case errors.Is(err, context.DeadlineExceeded), status.Code(err) == codes.DeadlineExceeded:

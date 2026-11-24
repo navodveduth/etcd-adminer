@@ -61,7 +61,13 @@ export default class DataService {
         }
     };
 
-    GetRoles = async () => (await api.get('/api/role', this.requestConfig())).data;
+    GetRoles = async (signal) => (await api.get('/api/role', { ...this.requestConfig(), signal })).data;
+    ListRoles = async (signal) => (await api.get('/api/v1/roles', { ...this.requestConfig(), signal })).data;
+    GetRole = async (name, signal) => (await api.get('/api/v1/roles/detail', { ...this.requestConfig(), params: { name }, signal })).data;
+    CreateRole = async (name) => api.post('/api/v1/roles', { name }, this.requestConfig());
+    DeleteRole = async (name) => api.delete('/api/v1/roles/detail', { ...this.requestConfig(), params: { name }, data: { confirmation: name } });
+    GrantPermission = async (permission) => api.post('/api/v1/roles/permissions', permission, this.requestConfig());
+    RevokePermission = async (name, permission) => api.delete('/api/v1/roles/permissions', { ...this.requestConfig(), data: { name, keyBase64: permission.keyBase64, rangeEndBase64: permission.rangeEndBase64 } });
 
     CreateUser = async (userName, password, roles) => {
         await api.post('/api/users', { userName, password, roles }, this.requestConfig());
@@ -94,19 +100,33 @@ export default class DataService {
         ...this.requestConfig(), params: { prefix, cursor, limit }, signal,
     })).data;
 
-    FetchUser = async (username) => (await api.get(`/api/users/${segment(username)}`, this.requestConfig())).data;
+    FetchUser = async (name, signal) => (await api.get('/api/v1/users/detail', { ...this.requestConfig(), params: { name }, signal })).data;
 
-    AssignRole = async (user, role) => {
-        await api.post(`/api/users/${segment(user)}/role/${segment(role)}`, null, this.requestConfig());
+    AssignRole = async (user, role, confirmation) => {
+        await api.post('/api/v1/users/roles', { userName: user, role, operation: 'grant', ...(confirmation ? { confirmation } : {}) }, this.requestConfig());
         return true;
     };
 
     RemoveRole = async (user, role) => {
-        await api.delete(`/api/users/${segment(user)}/role/${segment(role)}`, this.requestConfig());
+        await api.post('/api/v1/users/roles', { userName: user, role, operation: 'revoke' }, this.requestConfig());
         return true;
     };
 
     GetUsers = async () => (await api.get('/api/users', this.requestConfig())).data;
+
+    ChangePassword = async (userName, password) => {
+        const profile = this.sessionStore.GetActiveSession();
+        const config = this.requestConfig();
+        await api.post('/api/v1/users/password', { userName, password }, config);
+        let reauthenticate = config.auth.username === userName;
+        if (reauthenticate && this.sessionStore.Get && this.sessionStore.Add) {
+            const saved = this.sessionStore.Get(profile.Name);
+            if (saved?.BackEnd === config.headers['X-Backend'] && saved.UserName === userName) {
+                try { this.sessionStore.Add({ ...saved, Password: password }); reauthenticate = false; } catch { /* The server change succeeded; require explicit reauthentication instead. */ }
+            }
+        }
+        return { reauthenticate };
+    };
 
     GetLeases = async (signal) => (await api.get('/api/v1/leases', { ...this.requestConfig(), signal })).data;
     GetLease = async (id, signal) => (await api.get(`/api/v1/leases/${segment(id)}`, { ...this.requestConfig(), signal })).data;
@@ -115,7 +135,7 @@ export default class DataService {
     RevokeLease = async (id) => api.delete(`/api/v1/leases/${segment(id)}`, { ...this.requestConfig(), data: { confirmation: id } });
 
     DeleteUser = async (user) => {
-        await api.delete(`/api/users/${segment(user)}`, this.requestConfig());
+        await api.delete('/api/v1/users/detail', { ...this.requestConfig(), params: { name: user }, data: { confirmation: user } });
         return true;
     };
 }

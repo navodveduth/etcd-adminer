@@ -55,6 +55,12 @@ func NewRouter(logger log.Logger, backendProvider *etcd.BackEndProvider) (http.H
 	r.Handle("/api/users/{name}/role/{role}", validator.ValidateRequest(requestHandler.UnassignRole)).Methods(http.MethodDelete, http.MethodOptions)
 
 	r.Handle("/api/role", validator.ValidateRequest(requestHandler.GetRoles)).Methods(http.MethodGet, http.MethodOptions)
+	r.Handle("/api/v1/roles", validator.ValidateRequest(requestHandler.Roles)).Methods(http.MethodGet, http.MethodPost)
+	r.Handle("/api/v1/roles/detail", validator.ValidateRequest(requestHandler.RoleDetail)).Methods(http.MethodGet, http.MethodDelete)
+	r.Handle("/api/v1/roles/permissions", validator.ValidateRequest(requestHandler.RolePermissions)).Methods(http.MethodPost, http.MethodDelete)
+	r.Handle("/api/v1/users/roles", validator.ValidateRequest(requestHandler.UserRoles)).Methods(http.MethodPost)
+	r.Handle("/api/v1/users/password", validator.ValidateRequest(requestHandler.UserPassword)).Methods(http.MethodPost)
+	r.Handle("/api/v1/users/detail", validator.ValidateRequest(requestHandler.UserDetail)).Methods(http.MethodGet, http.MethodDelete)
 
 	spa := spaHandler{staticPath: "static", indexPath: "index.html"}
 	r.PathPrefix("/").Handler(spa)

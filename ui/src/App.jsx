@@ -34,6 +34,7 @@ const NewConnectionComponent = React.lazy(() => import('./components/newConnecti
 const About = React.lazy(() => import('./components/about'));
 const Leases = React.lazy(() => import('./components/leases'));
 const Watch = React.lazy(() => import('./components/watch'));
+const Roles = React.lazy(() => import('./components/roles'));
 
 const AppBar = styled(MuiAppBar, {
   shouldForwardProp: (prop) => prop !== 'open',
@@ -228,6 +229,7 @@ function App() {
                 <Route path="keys" element={requireConnection(<KeysComponent />)} />
                 <Route path="leases" element={requireConnection(<Leases />)} />
                 <Route path="watchers" element={requireConnection(<Watch />)} />
+                <Route path="roles" element={requireConnection(<Roles />)} />
                 <Route path="users" element={requireConnection(<UserList />)} />
                 <Route path="users/new" element={requireConnection(<CreateUser />)} />
                 <Route path="about" element={<About />} />

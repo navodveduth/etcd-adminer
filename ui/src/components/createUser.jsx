@@ -35,7 +35,8 @@ const MenuProps = {
 export default function CreateUser(props) {
     const readOnly = useReadOnly();
 
-    let dataService = new DataService();
+    const dataService = React.useMemo(() => new DataService(), []);
+    const [submitting, setSubmitting] = React.useState(false);
 
     let formDefaults = {
         userName: '',
@@ -118,8 +119,8 @@ export default function CreateUser(props) {
         )
     }
 
-    let handleSubmit = (e) => {
-        if (readOnly) return;
+    let handleSubmit = async (e) => {
+        if (readOnly || submitting) return;
         e.preventDefault();
         clearMessages();
 
@@ -133,6 +134,11 @@ export default function CreateUser(props) {
             formErr = true;
             setPasswodError(true);
         }
+		if (new TextEncoder().encode(values.password).length > 72) {
+			formErr = true;
+			setPasswodError(true);
+			printErrorMessage('Passwords must be at most 72 UTF-8 bytes.');
+		}
 
         if (values.password !== values.confirmPassword) {
             formErr = true;
@@ -144,32 +150,34 @@ export default function CreateUser(props) {
         }
 
         // Create User
+        setSubmitting(true);
         try {
-            let status = dataService.CreateUser(values.userName, values.password, roles);
+            let status = await dataService.CreateUser(values.userName, values.password, roles);
             if (status) {
                 printSuccessMessage("User created Successfully");
                 setValues(formDefaults);
+                setRoles([]);
             }
         } catch (error) {
-            console.error(error);
-            printErrorMessage("User creation failed!");
-        }
+            printErrorMessage(error.response?.data?.message ?? 'User creation could not be confirmed. Inspect the user list before retrying.');
+        } finally { setSubmitting(false); }
     }
 
     React.useEffect(() => {
 
+        const controller = new AbortController();
         let fetchData = async () => {
             try {
-                let roles = await dataService.GetRoles();
-                setAvailableRoles(roles);
+                let roles = await dataService.GetRoles(controller.signal);
+                if (!controller.signal.aborted) setAvailableRoles(roles.filter((role) => role !== 'root'));
             } catch (error) {
-                alert(error);
+                if (!controller.signal.aborted) printErrorMessage(error.response?.data?.message ?? 'Could not load roles. Check your administrator permissions.');
             }
         }
 
         fetchData();
-
-    });
+        return () => controller.abort();
+    }, [dataService]);
 
     return (
         <Grid container spacing={3}>
@@ -185,6 +193,7 @@ export default function CreateUser(props) {
                     <Typography variant="h6" gutterBottom>
                         New User
                     </Typography>
+                    <Alert severity="info">Create with least-privilege roles. Administrator access can be granted afterwards from user details with explicit confirmation.</Alert>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap' }} >
                         <Grid size={12}>
                             {success === true && successMessage !== "" ? alert("success", successMessage) : null}
@@ -195,6 +204,7 @@ export default function CreateUser(props) {
                             <InputLabel htmlFor="user-name">User Name</InputLabel>
                             <Input
                                 required
+                                disabled={readOnly || submitting}
                                 id="user-name"
                                 value={values.userName}
                                 onChange={handleChange('userName')}
@@ -206,6 +216,7 @@ export default function CreateUser(props) {
                             <InputLabel htmlFor="password">Password</InputLabel>
                             <Input
                                 id="password"
+                                disabled={readOnly || submitting}
                                 type={values.showPassword ? 'text' : 'password'}
                                 value={values.password}
                                 onChange={handleChange('password')}
@@ -225,9 +236,10 @@ export default function CreateUser(props) {
                         </FormControl>
 
                         <FormControl fullWidth sx={{ m: 1, mt: 3 }} variant="standard">
-                            <InputLabel htmlFor="confirm-password">Password</InputLabel>
+                            <InputLabel htmlFor="confirm-password">Confirm password</InputLabel>
                             <Input
                                 id="confirm-password"
+                                disabled={readOnly || submitting}
                                 type={values.showConfirmPassword ? 'text' : 'password'}
                                 value={values.confirmPassword}
                                 onChange={handleChange('confirmPassword')}
@@ -250,10 +262,11 @@ export default function CreateUser(props) {
                             <Select
                                 labelId="multi-select-label"
                                 id="roles-multi-select"
+                                disabled={readOnly || submitting}
                                 multiple
                                 value={roles}
                                 onChange={handleSelectChange}
-                                input={<OutlinedInput label="Tag" />}
+                                input={<OutlinedInput label="Roles" />}
                                 renderValue={(selected) => selected.join(', ')}
                                 MenuProps={MenuProps}
                             >
@@ -267,8 +280,8 @@ export default function CreateUser(props) {
                         </FormControl>
 
                         <Box sx={{ '& > button': { m: 1 } }}>
-                            <Button variant="contained" color="success" disabled={readOnly} onClick={handleSubmit} sx={{ mt: 3, ml: 1 }}>
-                                Save
+                            <Button variant="contained" color="success" disabled={readOnly || submitting} onClick={handleSubmit} sx={{ mt: 3, ml: 1 }}>
+                                {submitting ? 'Creating user…' : 'Create user'}
                             </Button>
                         </Box>
 

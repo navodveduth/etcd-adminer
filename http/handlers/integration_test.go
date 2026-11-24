@@ -103,6 +103,137 @@ func TestRBACIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Run("RBAC administration and legacy protections", func(t *testing.T) {
+		invoke := func(method, path, user, pass, body string, action http.HandlerFunc, vars map[string]string) *httptest.ResponseRecorder {
+			r := httptest.NewRequest(method, path, strings.NewReader(body))
+			r.Header.Set("Content-Type", "application/json")
+			r = r.WithContext(context.WithValue(ctx, META_KEY, request.RequestMeta{Backend: backend, User: user, Pass: pass}))
+			if vars != nil {
+				r = mux.SetURLVars(r, vars)
+			}
+			w := httptest.NewRecorder()
+			action(w, r)
+			return w
+		}
+		check := func(w *httptest.ResponseRecorder, status int) {
+			t.Helper()
+			if w.Code != status {
+				t.Fatalf("wanted %d, got %d: %s", status, w.Code, w.Body.String())
+			}
+		}
+		call := func(method, path, body string, action http.HandlerFunc, status int) *httptest.ResponseRecorder {
+			t.Helper()
+			w := invoke(method, path, "root", password, body, action, nil)
+			check(w, status)
+			return w
+		}
+		call("POST", "/", `{"name":"team/reader"}`, handler.Roles, 201)
+		call("POST", "/", `{"name":"team/reader"}`, handler.Roles, 409)
+		call("POST", "/", `{"userName":"person/one","password":"initial-password","roles":[]}`, handler.CreateUser, 201)
+		check(invoke("GET", "/", "person/one", "initial-password", "", handler.Roles, nil), 403)
+		for _, rule := range []string{
+			`{"name":"team/reader","access":"read","scope":"exact","key":"/rbac/exact"}`,
+			`{"name":"team/reader","access":"read","scope":"prefix","key":"/rbac/prefix/"}`,
+			`{"name":"team/reader","access":"read","scope":"range","key":"/rbac/range/a","rangeEnd":"/rbac/range/c"}`,
+		} {
+			call("POST", "/", rule, handler.RolePermissions, 204)
+		}
+		call("POST", "/", `{"userName":"person/one","role":"team/reader","operation":"grant"}`, handler.UserRoles, 204)
+		reader, err := backend.NewClient("person/one", "initial-password")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer reader.Close()
+		for _, key := range []string{"/rbac/exact", "/rbac/prefix/a", "/rbac/range/b"} {
+			if _, err := reader.Get(ctx, key); err != nil {
+				t.Fatalf("granted read %q failed: %v", key, err)
+			}
+		}
+		for _, key := range []string{"/rbac/exact/child", "/rbac/prefix-other", "/rbac/range/c"} {
+			if _, err := reader.Get(ctx, key); err == nil {
+				t.Fatalf("scope leaked read to %q", key)
+			}
+		}
+		detail := call("GET", "/?name=team%2Freader", "", handler.RoleDetail, 200)
+		var role struct {
+			Permissions []permissionInput `json:"permissions"`
+		}
+		if err := json.Unmarshal(detail.Body.Bytes(), &role); err != nil {
+			t.Fatal(err)
+		}
+		if len(role.Permissions) != 3 {
+			t.Fatalf("wrong permissions: %s", detail.Body.String())
+		}
+		for _, permission := range role.Permissions {
+			permission.Name = "team/reader"
+			body, _ := json.Marshal(permission)
+			call("DELETE", "/", string(body), handler.RolePermissions, 204)
+		}
+		if _, err := reader.Get(ctx, "/rbac/exact"); err == nil {
+			t.Fatal("revoked permission still readable")
+		}
+		call("GET", "/?name=person%2Fone", "", handler.UserDetail, 200)
+		call("POST", "/", `{"userName":"person/one","role":"root","operation":"grant"}`, handler.UserRoles, 400)
+		check(invoke("POST", "/", "root", password, "", handler.AssignRole, map[string]string{"name": "person/one", "role": "root"}), 400)
+		call("POST", "/", `{"userName":"person/one","role":"root","operation":"grant","confirmation":"GRANT ROOT"}`, handler.UserRoles, 204)
+		call("POST", "/", `{"userName":"person/one","role":"root","operation":"revoke"}`, handler.UserRoles, 204)
+		call("POST", "/", `{"userName":"root","role":"root","operation":"revoke"}`, handler.UserRoles, 400)
+		check(invoke("DELETE", "/", "root", password, "", handler.UnassignRole, map[string]string{"name": "root", "role": "root"}), 400)
+		check(invoke("DELETE", "/", "root", password, "", handler.DeleteUser, map[string]string{"name": "root"}), 400)
+		call("DELETE", "/?name=root", `{"confirmation":"root"}`, handler.RoleDetail, 400)
+		call("DELETE", "/?name=root", `{"confirmation":"root"}`, handler.UserDetail, 400)
+		call("POST", "/", `{"userName":"root","password":"changed"}`, handler.UserPassword, 400)
+		if _, err := admin.UserAdd(ctx, "service-admin", password); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := admin.UserGrantRole(ctx, "service-admin", "root"); err != nil {
+			t.Fatal(err)
+		}
+		if err := provider.RegisterBackend("service-protection", []string{endpoint}, "service-admin", password, etcd.WithTLS(tlsConfig)); err != nil {
+			t.Fatal(err)
+		}
+		serviceBackend, err := provider.GetBackend("service-protection")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			action             http.HandlerFunc
+			method, path, body string
+			vars               map[string]string
+		}{
+			{handler.UserPassword, "POST", "/", `{"userName":"service-admin","password":"changed"}`, nil},
+			{handler.UserRoles, "POST", "/", `{"userName":"service-admin","role":"root","operation":"revoke"}`, nil},
+			{handler.UserDetail, "DELETE", "/?name=service-admin", `{"confirmation":"service-admin"}`, nil},
+			{handler.UnassignRole, "DELETE", "/", "", map[string]string{"name": "service-admin", "role": "root"}},
+			{handler.DeleteUser, "DELETE", "/", "", map[string]string{"name": "service-admin"}},
+		} {
+			r := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			r.Header.Set("Content-Type", "application/json")
+			r = r.WithContext(context.WithValue(ctx, META_KEY, request.RequestMeta{Backend: serviceBackend, User: "root", Pass: password}))
+			if tc.vars != nil {
+				r = mux.SetURLVars(r, tc.vars)
+			}
+			w := httptest.NewRecorder()
+			tc.action(w, r)
+			check(w, 400)
+		}
+		check(invoke("POST", "/", "person/one", "initial-password", `{"userName":"person/one","password":"changed-password"}`, handler.UserPassword, nil), 403)
+		call("POST", "/", `{"userName":"person/one","password":"changed-password"}`, handler.UserPassword, 204)
+		changed, err := backend.NewClient("person/one", "changed-password")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer changed.Close()
+		if _, err := changed.Authenticate(ctx, "person/one", "changed-password"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := changed.Authenticate(ctx, "person/one", "initial-password"); err == nil {
+			t.Fatal("old password still authenticates")
+		}
+		call("DELETE", "/?name=team%2Freader", `{"confirmation":"team/reader"}`, handler.RoleDetail, 204)
+		call("DELETE", "/?name=person%2Fone", `{"confirmation":"person/one"}`, handler.UserDetail, 204)
+		call("GET", "/?name=person%2Fone", "", handler.UserDetail, 404)
+	})
 	for _, tc := range []struct {
 		name, start, end string
 		permission       clientv3.PermissionType

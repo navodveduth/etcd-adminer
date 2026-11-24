@@ -30,7 +30,7 @@ export default function UserTable(props) {
                             </TableCell>
                             <TableCell align="right">
                                 <Button sx={{ m: 1 }} variant="contained" color="success" onClick={() => { props.selectUser(row) }}>View/Edit</Button>
-                                <Button sx={{ m: 1 }} variant="contained" color="error" disabled={readOnly} onClick={() => {
+                                <Button sx={{ m: 1 }} variant="contained" color="error" disabled={readOnly || row === 'root'} onClick={() => {
                                     props.setSelectedUser(row);
                                     props.setdeleteConfirmationDialogOpen(true);
                                 }}>Delete</Button>

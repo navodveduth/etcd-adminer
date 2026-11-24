@@ -162,6 +162,30 @@ from a known retained revision after such a warning. Watch is available in
 read-only mode. Reverse proxies must disable response buffering for the watch
 endpoint and permit long-lived responses; `X-Accel-Buffering: no` is sent.
 
+### Users, roles, and permissions
+
+Use **Roles** to create roles and grant or revoke read, write, or read/write
+permissions for exact keys, prefixes, or half-open byte-ordered ranges. Scope
+previews explain the affected keys: `/app` and `/app/` are different prefixes,
+not filesystem directories. Existing binary permissions can be inspected and
+revoked losslessly; new rules use UTF-8 text inputs. All assigned roles combine.
+Deleting a role removes its assignments, not keys, and requires its typed name.
+
+Use **Users** to create accounts, inspect role chips, assign/remove roles, and
+change passwords (1–72 UTF-8 bytes). Administrative mutations require the
+caller's etcd root role. Users cannot receive root during creation; explicit
+promotion requires typing `GRANT ROOT`. The built-in root role cannot be edited
+or deleted. The canonical `root` user and configured service administrator
+cannot be deleted or lose their root role through either API generation.
+Rotate the configured service-admin password externally, update its protected
+credential source, and restart Adminer. Confirmed own-password changes update
+the matching tab-memory profile where possible; otherwise reauthenticate.
+Passwords are not persisted in browser storage.
+
+The versioned RBAC API uses JSON bodies and query-based user/role detail routes,
+supporting names containing slashes. Mutations use caller credentials, bounded
+RPC deadlines, same-origin enforcement, and the read-only guard.
+
 ### Bounded key browsing
 
 The UI uses `GET /api/v1/keys?prefix=...&limit=100&cursor=...` (default 100,

@@ -134,6 +134,10 @@ func (jh *GenericHandler) AssignRole(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	defer jh.closeEtcdClient(client)
+	if vars["role"] == "root" && r.Header.Get("X-Admin-Confirmation") != "GRANT ROOT" {
+		response.WriteError(rw, http.StatusBadRequest, "confirmation_required", "root grants require explicit GRANT ROOT confirmation")
+		return
+	}
 	_, err = client.UserGrantRole(r.Context(), vars["name"], vars["role"])
 	if err != nil {
 		if err == rpctypes.ErrPermissionDenied || err == rpctypes.ErrPermissionNotGranted {
@@ -180,6 +184,10 @@ func (jh *GenericHandler) UnassignRole(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	defer jh.closeEtcdClient(client)
+	if vars["role"] == "root" && (vars["name"] == "root" || vars["name"] == requestMeta.Backend.AdminConnection().Username) {
+		response.WriteError(rw, http.StatusBadRequest, "protected_administrator", "cannot remove the canonical or configured service administrator's root role")
+		return
+	}
 	_, err = client.UserRevokeRole(r.Context(), vars["name"], vars["role"])
 	if err != nil {
 		if err == rpctypes.ErrPermissionDenied || err == rpctypes.ErrPermissionNotGranted {
@@ -209,19 +217,16 @@ func (jh *GenericHandler) DeleteUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client, err := requestMeta.Backend.NewClient(requestMeta.User, requestMeta.Pass)
-	if err != nil {
-		if err == rpctypes.ErrAuthFailed {
-			rw.WriteHeader(http.StatusForbidden)
-			return
-		}
-
-		rw.WriteHeader(http.StatusInternalServerError)
+	client, ctx, cleanup, ok := jh.requestClient(rw, r, true)
+	if !ok {
 		return
 	}
-
-	defer jh.closeEtcdClient(client)
-	_, err = client.UserDelete(r.Context(), vars["name"])
+	defer cleanup()
+	if vars["name"] == "root" || vars["name"] == requestMeta.Backend.AdminConnection().Username {
+		response.WriteError(rw, http.StatusBadRequest, "protected_administrator", "cannot delete the canonical or configured service administrator")
+		return
+	}
+	_, err := client.UserDelete(ctx, vars["name"])
 	if err != nil {
 		if err == rpctypes.ErrPermissionDenied || err == rpctypes.ErrPermissionNotGranted {
 			rw.WriteHeader(http.StatusForbidden)
@@ -236,51 +241,34 @@ func (jh *GenericHandler) DeleteUser(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (jh *GenericHandler) CreateUser(rw http.ResponseWriter, r *http.Request) {
-	requestMeta, ok := r.Context().Value(META_KEY).(request.RequestMeta)
-	if !ok {
-		rw.WriteHeader(http.StatusInternalServerError)
-		return
-	}
 	var reqDataDecoded request.CreateUserRequest
-	if err := request.DecodeJSON(rw, r, &reqDataDecoded); err != nil || reqDataDecoded.UserName == "" || reqDataDecoded.Password == "" {
+	if err := request.DecodeJSON(rw, r, &reqDataDecoded); err != nil || !validIdentity(reqDataDecoded.UserName) || reqDataDecoded.Password == "" || len(reqDataDecoded.Password) > 72 || len(reqDataDecoded.Roles) > 32 {
 		response.WriteError(rw, http.StatusBadRequest, "invalid_request", "a username, password, and valid JSON object are required")
 		return
 	}
-
-	client, err := requestMeta.Backend.NewClient(requestMeta.User, requestMeta.Pass)
-	if err != nil {
-		if err == rpctypes.ErrAuthFailed {
-			rw.WriteHeader(http.StatusForbidden)
+	for _, role := range reqDataDecoded.Roles {
+		if role == "root" {
+			response.WriteError(rw, http.StatusBadRequest, "confirmation_required", "create the user first, then explicitly grant root from user details")
 			return
 		}
-
-		rw.WriteHeader(http.StatusInternalServerError)
-		return
 	}
 
-	defer jh.closeEtcdClient(client)
-
-	_, err = client.UserAdd(r.Context(), reqDataDecoded.UserName, reqDataDecoded.Password)
+	client, ctx, cleanup, ok := jh.requestClient(rw, r, true)
+	if !ok {
+		return
+	}
+	defer cleanup()
+	_, err := client.UserAdd(ctx, reqDataDecoded.UserName, reqDataDecoded.Password)
 	if err != nil {
-		if err == rpctypes.ErrPermissionDenied || err == rpctypes.ErrPermissionNotGranted {
-			rw.WriteHeader(http.StatusForbidden)
-			return
-		}
-
-		rw.WriteHeader(http.StatusInternalServerError)
+		response.WriteRPCError(rw, err)
 		return
 	}
 
 	// Assign Roles
 	for _, role := range reqDataDecoded.Roles {
-		_, err := client.UserGrantRole(r.Context(), reqDataDecoded.UserName, role)
+		_, err := client.UserGrantRole(ctx, reqDataDecoded.UserName, role)
 		if err != nil {
-			if err == rpctypes.ErrPermissionDenied || err == rpctypes.ErrPermissionNotGranted {
-				rw.WriteHeader(http.StatusForbidden)
-				return
-			}
-
-			rw.WriteHeader(http.StatusInternalServerError)
+			response.WriteError(rw, http.StatusConflict, "partial_user_creation", "the user was created but role assignment was incomplete; inspect the existing user before retrying")
 			return
 		}
 	}

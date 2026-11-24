@@ -37,7 +37,7 @@ export default function UserList(props) {
     }
 
     let getDeleteDialogContent = () => {
-        return "Do you really want to delete this user?"
+        return `Delete user ${JSON.stringify(selectedUser)}? This removes their login and role assignments, not their etcd keys. This cannot be undone.`
     }
 
     let fetchUsers = async () => {
@@ -46,7 +46,7 @@ export default function UserList(props) {
             setUsers(users);
         } catch (error) {
             console.log(error);
-            if (error.response.status === 403) {
+            if (error.response?.status === 403) {
                 setErrorMessage("Permission Denied!");
             } else {
                 setErrorMessage("Something went wrong!");
@@ -59,7 +59,7 @@ export default function UserList(props) {
             let roles = await dataService.GetRoles();
             setRoles(roles);
         } catch (error) {
-            if (error.response.status === 403) {
+            if (error.response?.status === 403) {
                 setErrorMessage("Error fetching roles. Permission Denied!");
             } else {
                 setErrorMessage("Something went wrong!");
