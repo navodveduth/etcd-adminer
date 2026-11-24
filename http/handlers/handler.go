@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"crypto/rand"
 
 	"github.com/srimaln91/etcd-adminer/etcd"
 	"github.com/srimaln91/etcd-adminer/log"
@@ -13,13 +14,19 @@ type MetaKey string
 const META_KEY MetaKey = "meta"
 
 type GenericHandler struct {
-	logger log.Logger
+	logger       log.Logger
+	cursorSecret []byte
 }
 
 func NewHTTPHandler(logger log.Logger) (*GenericHandler, error) {
+	secret := make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		return nil, err
+	}
 
 	return &GenericHandler{
-		logger: logger,
+		logger:       logger,
+		cursorSecret: secret,
 	}, nil
 }
 

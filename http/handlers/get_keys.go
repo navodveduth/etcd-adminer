@@ -10,6 +10,8 @@ import (
 )
 
 func (jh *GenericHandler) GetKeys(rw http.ResponseWriter, r *http.Request) {
+	rw.Header().Set("Deprecation", "true")
+	rw.Header().Set("Link", `</api/v1/keys>; rel="successor-version"`)
 
 	requestMeta, ok := r.Context().Value(META_KEY).(request.RequestMeta)
 	if !ok {

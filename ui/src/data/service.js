@@ -64,6 +64,10 @@ export default class DataService {
         ...this.requestConfig(), signal,
     })).data;
 
+    GetKeyPage = async ({ prefix = '', cursor, limit = 100 }, signal) => (await api.get('/api/v1/keys', {
+        ...this.requestConfig(), params: { prefix, cursor, limit }, signal,
+    })).data;
+
     FetchUser = async (username) => (await api.get(`/api/users/${segment(username)}`, this.requestConfig())).data;
 
     AssignRole = async (user, role) => {

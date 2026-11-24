@@ -6,9 +6,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"reflect"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -25,7 +28,7 @@ func TestRBACIntegration(t *testing.T) {
 	if endpoint == "" {
 		t.Fatal("use scripts/test-integration.sh to create an isolated cluster")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	setup, err := clientv3.New(clientv3.Config{Endpoints: []string{endpoint}, DialTimeout: 5 * time.Second})
 	if err != nil {
@@ -203,5 +206,94 @@ func TestRBACIntegration(t *testing.T) {
 		if w := write("/new", "unsafe", ""); w.Code != 400 {
 			t.Fatalf("missing revision: %d", w.Code)
 		}
+	})
+	t.Run("bounded pages retain their snapshot and reject altered cursors", func(t *testing.T) {
+		list := func(prefix, cursor string) *httptest.ResponseRecorder {
+			query := url.Values{"prefix": {prefix}, "limit": {"1"}}
+			if cursor != "" {
+				query.Set("cursor", cursor)
+			}
+			r := httptest.NewRequest("GET", "/api/v1/keys?"+query.Encode(), nil)
+			r = r.WithContext(context.WithValue(ctx, META_KEY, request.RequestMeta{Backend: backend, User: "root", Pass: password}))
+			w := httptest.NewRecorder()
+			handler.ListKeys(w, r)
+			return w
+		}
+		firstResponse := list("/a", "")
+		if firstResponse.Code != 200 {
+			t.Fatalf("first page: %d %s", firstResponse.Code, firstResponse.Body.String())
+		}
+		var first keyPage
+		if err := json.Unmarshal(firstResponse.Body.Bytes(), &first); err != nil {
+			t.Fatal(err)
+		}
+		if len(first.Items) != 1 || first.Items[0].Key != "/a" || !first.HasMore {
+			t.Fatalf("unexpected first page: %+v", first)
+		}
+		if _, err := admin.Put(ctx, "/a/new", "must not appear in old snapshot"); err != nil {
+			t.Fatal(err)
+		}
+		secondResponse := list("/a", first.NextCursor)
+		if secondResponse.Code != 200 {
+			t.Fatalf("second page: %d %s", secondResponse.Code, secondResponse.Body.String())
+		}
+		var second keyPage
+		if err := json.Unmarshal(secondResponse.Body.Bytes(), &second); err != nil {
+			t.Fatal(err)
+		}
+		if len(second.Items) != 1 || second.Items[0].Key != "/a/child" || second.HasMore || second.Revision != first.Revision {
+			t.Fatalf("inconsistent snapshot: %+v", second)
+		}
+		if w := list("/b", first.NextCursor); w.Code != 400 {
+			t.Fatalf("changed query accepted: %d", w.Code)
+		}
+		if w := list("/a", first.NextCursor+"tamper"); w.Code != 400 {
+			t.Fatalf("tampered cursor accepted: %d", w.Code)
+		}
+		revision, err := strconv.ParseInt(first.Revision, 10, 64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := admin.Compact(ctx, revision+1); err != nil {
+			t.Fatal(err)
+		}
+		if w := list("/a", first.NextCursor); w.Code != 409 {
+			t.Fatalf("compacted cursor: %d %s", w.Code, w.Body.String())
+		}
+	})
+	t.Run("100k key first page benchmark", func(t *testing.T) {
+		if os.Getenv("ETCD_TEST_LARGE") != "1" {
+			t.Skip("set ETCD_TEST_LARGE=1 to seed 100k keys in the disposable cluster")
+		}
+		for start := 0; start < 100000; start += 100 {
+			operations := make([]clientv3.Op, 0, 100)
+			for index := start; index < start+100; index++ {
+				operations = append(operations, clientv3.OpPut(fmt.Sprintf("/benchmark/%06d", index), "representative value"))
+			}
+			if _, err := admin.Txn(ctx).Then(operations...).Commit(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		latencies := make([]time.Duration, 0, 20)
+		for sample := 0; sample < 20; sample++ {
+			r := httptest.NewRequest("GET", "/api/v1/keys?prefix=%2Fbenchmark%2F&limit=100", nil)
+			r = r.WithContext(context.WithValue(ctx, META_KEY, request.RequestMeta{Backend: backend, User: "root", Pass: password}))
+			w := httptest.NewRecorder()
+			start := time.Now()
+			handler.ListKeys(w, r)
+			latencies = append(latencies, time.Since(start))
+			if w.Code != 200 {
+				t.Fatalf("benchmark request: %d %s", w.Code, w.Body.String())
+			}
+			var page keyPage
+			if err := json.Unmarshal(w.Body.Bytes(), &page); err != nil {
+				t.Fatal(err)
+			}
+			if len(page.Items) != 100 || !page.HasMore || w.Body.Len() > 64*1024 {
+				t.Fatal("first-page work was not bounded")
+			}
+		}
+		sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
+		t.Logf("100k-key authenticated first page, 20 samples: p50=%s p95=%s", latencies[9], latencies[18])
 	})
 }

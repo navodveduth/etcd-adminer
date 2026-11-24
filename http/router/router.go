@@ -28,6 +28,7 @@ func NewRouter(logger log.Logger, backendProvider *etcd.BackEndProvider) (http.H
 
 	r.Handle("/api/keys", validator.ValidateRequest(requestHandler.GetKey)).Methods(http.MethodGet, http.MethodOptions).Queries("key", "")
 	r.Handle("/api/keys", validator.ValidateRequest(requestHandler.GetKeys)).Methods(http.MethodGet, http.MethodOptions)
+	r.Handle("/api/v1/keys", validator.ValidateRequest(requestHandler.ListKeys)).Methods(http.MethodGet, http.MethodOptions)
 	r.Handle("/api/keys", validator.ValidateRequest(requestHandler.UpdateKey)).Methods(http.MethodPut, http.MethodOptions)
 	r.Handle("/api/keys", validator.ValidateRequest(requestHandler.DeleteKey)).Methods(http.MethodDelete, http.MethodOptions)
 

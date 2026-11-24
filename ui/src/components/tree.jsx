@@ -104,6 +104,10 @@ export default function FSNavigator(props) {
     if (contextMenuSelectedNode === null) {
       return ""
     }
+    if (contextMenuSelectedNode.type === 'directory') {
+      const prefix = contextMenuSelectedNode.abspath.endsWith('/') ? contextMenuSelectedNode.abspath : `${contextMenuSelectedNode.abspath}/`;
+      return `Delete ALL keys with raw prefix ${JSON.stringify(prefix)}? This includes keys not shown on this page.`;
+    }
     return "Do you really want to delete key " + contextMenuSelectedNode.abspath + " ?"
   }
 
@@ -176,7 +180,7 @@ export default function FSNavigator(props) {
           </ListItemIcon>
           <ListItemText>New Directory</ListItemText>
         </MenuItem>
-        <MenuItem onClick={() => handleAction('delete')} data-id="delete">
+        <MenuItem onClick={() => handleAction('delete')} data-id="delete" disabled={!contextMenuSelectedNode?.abspath}>
           <ListItemIcon>
             <DeleteIcon fontSize="small" />
           </ListItemIcon>

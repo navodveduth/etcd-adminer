@@ -10,4 +10,4 @@ container=$(docker run --rm --detach --publish 127.0.0.1::2379 \
   --advertise-client-urls http://127.0.0.1:2379 --log-level error)
 trap 'docker stop "$container" >/dev/null' EXIT
 endpoint="http://$(docker port "$container" 2379/tcp)"
-ETCD_TEST_ENDPOINT="$endpoint" go test -race -tags=integration ./http/handlers -count=1
+ETCD_TEST_ENDPOINT="$endpoint" go test -race -tags=integration ./http/handlers -count=1 "$@"

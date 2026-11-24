@@ -35,10 +35,10 @@ This plan is based on the code in this checkout, not just the supplied feature c
 | Connection history & profiles | Partial | Saved local profiles exist; add safe metadata/history storage and edit/test workflows |
 | Split-pane UI | Partial | Fixed grid layout exists; add resizable, responsive panes |
 | TLS/SSL support | Not found as configurable feature | CA validation, client certificates, server name, secure configuration |
-| Pagination | Partial | Client-side slicing only; implement backend cursor pagination |
+| Pagination | Implemented, broader load validation pending | UI uses bounded server cursor pages; snapshot/compaction and 100k-key tests pass; legacy whole-tree endpoint is deprecated |
 | Watch/subscribe | Not found | Navigation item is disabled; implement streaming and reconnect semantics |
 | Leases / TTL | Partial | Lease ID is displayed; no grant/revoke/keepalive/TTL workflow |
-| JSON formatting | Partial | Monaco exists but defaults to YAML; no explicit JSON formatting/validation workflow |
+| JSON formatting | Implemented | Explicit format/validation action with JSON/YAML/text modes; malformed JSON preserves the draft |
 | Bulk operations | Partial | Recursive prefix delete exists; no general bulk workflow or result reporting |
 | Import/export JSON | Not found | Versioned, binary-safe format; validation and bounded jobs |
 | Prefix/range queries | Partial | Internal prefix reads/deletes exist; no general bounded query UI/API |
@@ -127,22 +127,22 @@ All tasks below start unchecked. Add an owner, linked issue/PR, and measured res
 
 ### B1. Bounded cursor pagination and explicit query semantics
 
-- [ ] Replace whole-keyspace browsing with a versioned list contract, for example `GET /api/v1/keys?prefix=...&limit=100&cursor=...` returning `items`, `nextCursor`, `revision`, and `hasMore`.
-- [ ] Use etcd keys-only range reads with a default limit of 100 and configurable hard cap (initially 1,000). Fetch values only when selected.
-- [ ] Use bytewise key ordering, etcd prefix range-end semantics, and a continuation start strictly after the last returned key. Preserve the original range end on every page.
-- [ ] Pin subsequent pages to the first response revision for a consistent view. Bind opaque, validated cursors to query parameters and authorization scope; handle expired/compacted revisions with a clear restart action.
+- [x] Replace UI whole-keyspace browsing with `GET /api/v1/keys?prefix=...&limit=100&cursor=...` returning `items`, `nextCursor`, `revision`, and `hasMore`; legacy API is explicitly deprecated.
+- [ ] Make the hard cap configurable. New API already uses keys-only reads, default 100 and enforced cap 1,000; values load only on selection.
+- [x] Use bytewise key ordering, prefix range-end semantics, and continuation strictly after the last key, preserving bounds across pages.
+- [x] Pin pages to the first revision; sign cursors with query/backend/user/credential scope and 10-minute expiry. Compaction produces a structured conflict and the UI provides restart.
 - [ ] Keep revisions, IDs, leases, and other 64-bit identifiers as decimal strings across JSON/JavaScript to avoid precision loss (`http/response/key.go`, `cluster_info.go`).
 - [ ] Stop assuming `/` covers the complete keyspace: root currently queries only slash-prefixed keys. Add explicit support for all keys and arbitrary binary key/value representations using an encoding field/base64 where necessary.
-- [ ] Separate prefix/range querying from substring search. Substring search is not an etcd server index: label loaded-page filtering honestly, or offer an explicitly bounded/cancellable scan with progress and limits.
-- [ ] Design multi-permission-range cursors with deduplication and revision consistency; do not recreate unbounded reads behind a paginated UI.
+- [x] Separate server prefix queries from explicitly labelled loaded-page substring filtering. General range queries and optional cancellable global scans remain future features.
+- [x] Page over merged readable permission ranges with deduplication and revision consistency, fetching at most limit+1 records per page request.
 
 **Acceptance:** 100k-key datasets load the first page without fetching the remaining keys; complete pagination has no duplicates/skips at the pinned revision; special/binary keys round-trip without changing bytes.
 
 ### B2. Lazy tree and cheaper tree construction
 
-- [ ] Return flat key metadata for flat mode instead of building a tree and flattening it again.
+- [x] Return flat metadata directly; build only a bounded page-local tree in the browser, without flattening a backend whole-tree response.
 - [ ] Load tree prefixes on expansion and cache bounded pages. etcd has no native directory listing: bound each underlying prefix scan and expose continuation for large branches rather than hiding a full scan.
-- [ ] Keep virtual directories/draft files in frontend workspace state. `CreateDirectory` currently rereads/rebuilds the entire tree just to add an unsaved node.
+- [x] Keep virtual directories/draft files in frontend state; creating drafts no longer calls the legacy whole-tree endpoint.
 - [ ] Represent a key that also has descendants (`/a` and `/a/b`) without losing either entity; distinguish virtual folders from actual keys ending with `/`.
 - [ ] Where tree assembly remains, index child lookups with maps instead of repeatedly scanning sibling slices in `filetree/tree.go`; sort once for deterministic output.
 - [ ] Use key/prefix-derived stable IDs, preserving expansion and selection across refreshes; test deep nesting and large sibling counts.
@@ -361,3 +361,4 @@ Each release should consist of small, reviewable PRs, with regression tests firs
 - **React/library modernization:** pinned React/DOM 19.3.1, Router 7.18.6, MUI 9.6.0, MUI X Tree View 9.18.0, Axios 1.21.1, Monaco 0.58.0/wrapper 4.7.0, ESLint 10.15.0, and current compatible Testing Library/Emotion. Removed obsolete lab/history/web-vitals dependencies; migrated root, grid, navigation, slot props, and tree APIs. Added robust profile parsing and tree/menu tests. Clean `npm ci` reports no peer warnings and zero vulnerabilities; 9 frontend tests and lint pass. Production build passes with self-hosted editor/JSON workers and deferred Monaco loading. Main chunk is 302.72 kB (96.66 kB gzip); large deferred Monaco chunks remain an explicit optimization opportunity, not suppressed warnings. `govulncheck ./...` reports no vulnerabilities. Browser E2E, full performance budgets, and remaining Phase C behavior are not yet complete.
 - **RBAC listing:** replaced start-key-as-prefix interpretation with merged readable byte ranges; supports exact keys, write-only/empty roles, root roles on arbitrary usernames, and non-slash keys. Key reads remain caller-authenticated; permission metadata is refreshed, and reads across ranges share a revision. Unit/race tests and isolated real-etcd 3.7.4 tests pass, including overlapping grants, role revocation, and bad passwords. Added disposable Docker integration runner and CI step. Whole-list scalability is still pending B1/B2.
 - **Safe editing:** conditional create/update transactions reject stale writes and preserve leases; revision/version/lease JSON fields use decimal strings, with a documented client migration. Replaced the editor class with cancellation-safe state, deferred editor loading, draft preservation, loading/error save guards, JSON formatting, and theme synchronization. Unit/race tests, 13 frontend tests, lint, production build, and real-etcd conflict/create/lease tests pass. Added portable POSIX-shell integration runner. Full Docker image build was attempted but failed during base-layer download with daemon RPC EOF; image validation is not marked complete.
+- **Bounded browsing:** added signed, scoped, expiring cursor pagination over merged readable ranges; keys-only limit+1 reads, snapshot consistency, compaction errors, prefix queries, and binary-key metadata. Main UI now loads 100 keys/page, builds a stable-ID page-local tree, labels page filtering honestly, and creates drafts without server scans. Legacy whole-tree reads are deprecated. Unit/race tests, 15 frontend tests, lint/build, and real-etcd pagination/tampering/compaction tests pass. On the disposable single-node 3.7.4 fixture with 100k keys and 20 authenticated first-page samples: p50 **117.14 ms**, p95 **121.71 ms**; this is not a production/multi-user/browser guarantee. Remaining: lazy per-prefix expansion, binary editing, configurable limits, connection reuse, and full load/soak budgets.

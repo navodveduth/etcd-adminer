@@ -90,6 +90,28 @@ to update it. Stale writes return HTTP 409 without changing the value. Updates
 preserve an existing lease. Revision/version/lease fields are JSON strings to
 avoid JavaScript integer precision loss; clients must not coerce them to numbers.
 
+### Bounded key browsing
+
+The UI uses `GET /api/v1/keys?prefix=...&limit=100&cursor=...` (default 100,
+maximum 1,000 keys). Results contain `items`, `revision`, `hasMore`, and an
+optional `nextCursor`; values are fetched only when selecting a key. Continue
+with the same prefix/limit and the returned cursor. Cursors are signed, scoped
+to the backend/user/credentials/query, expire after 10 minutes, and become
+invalid after an adminer restart. Compacted snapshots return HTTP 409; restart
+the listing. Prefixes are limited to 8 KiB and cursor tokens to 64 KiB.
+
+Tree and list views show **one server page**, not the entire cluster. Substring
+filtering applies only to that page; use the prefix field for server-side
+queries. Binary keys are encoded as base64 in API metadata and excluded from
+the text-editing view with an explicit notice. Binary editing remains planned.
+Draft files/directories stay local until a file is saved; no whole-cluster scan
+is needed to create a draft. The legacy unbounded `GET /api/keys` tree endpoint
+is deprecated and retained only for compatibility; new clients must not use it.
+
+For a reproducible disposable-cluster 100k-key API benchmark, run
+`ETCD_TEST_LARGE=1 sh scripts/test-integration.sh -v`. This reports 20 first-page
+samples, not a browser benchmark or multi-node production performance guarantee.
+
 ## Contributions
 
 Contributions are welcome. Please free free to open PRs if you have anything to contribute with.
