@@ -1,13 +1,17 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/srimaln91/etcd-adminer/etcd"
 	"github.com/srimaln91/etcd-adminer/http/request"
 	"github.com/srimaln91/etcd-adminer/http/response"
-	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
+	"go.etcd.io/etcd/api/v3/etcdserverpb"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 const (
@@ -16,83 +20,87 @@ const (
 	leaderStatusFollower = "follower"
 )
 
-func (jh *GenericHandler) ClusterInfo(rw http.ResponseWriter, r *http.Request) {
-	requestMeta, ok := r.Context().Value(META_KEY).(request.RequestMeta)
-	if !ok {
-		rw.WriteHeader(http.StatusInternalServerError)
-		return
+type statusGetter interface {
+	Status(context.Context, string) (*clientv3.StatusResponse, error)
+}
+
+func memberStatus(ctx context.Context, client statusGetter, member *etcdserverpb.Member) response.ClusterNode {
+	node := response.ClusterNode{
+		Name: member.GetName(), ID: member.GetID(), IsLearner: member.GetIsLearner(),
+		PeerUrls: member.GetPeerURLs(), ClientUrls: member.GetClientURLs(), LeaderStatus: leaderStatusUnknown,
 	}
-
-	client, err := etcd.NewClient(requestMeta.Backend.Endpoints(), etcd.WithAuth(requestMeta.User, requestMeta.Pass))
-	if err != nil {
-		if err == rpctypes.ErrAuthFailed {
-			rw.WriteHeader(http.StatusForbidden)
-			return
-		}
-
-		rw.WriteHeader(http.StatusInternalServerError)
-		return
+	if len(node.ClientUrls) == 0 {
+		node.Error = "no client URL advertised"
+		return node
 	}
-
-	defer jh.closeEtcdClient(client)
-
-	members, err := client.Cluster.MemberList(r.Context())
-	if err != nil {
-		if err == rpctypes.ErrAuthFailed {
-			rw.WriteHeader(http.StatusForbidden)
-			return
-		}
-
-		rw.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	clusterResponse := response.ClusterInfo{
-		ClusterID: members.Header.GetClusterId(),
-		MemberID:  members.Header.GetMemberId(),
-		RaftTerm:  members.Header.GetRaftTerm(),
-		Revision:  members.Header.GetRevision(),
-		Nodes:     make([]response.ClusterNode, 0),
-	}
-
-	for _, member := range members.Members {
-
-		leaderStatus := leaderStatusUnknown
-		endpointStatus, err := client.Status(r.Context(), member.GetPeerURLs()[0])
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	for _, endpoint := range node.ClientUrls {
+		status, err := client.Status(ctx, endpoint)
 		if err != nil {
-			jh.logger.Error(r.Context(), err.Error())
-			rw.WriteHeader(http.StatusInternalServerError)
-			return
+			continue
 		}
-
-		if member.GetID() == endpointStatus.Leader {
-			leaderStatus = leaderStatusLeader
-		} else {
-			leaderStatus = leaderStatusFollower
+		node.Available = true
+		node.Version = status.Version
+		node.DBSIze, node.DBSizeInUse = &status.DbSize, &status.DbSizeInUse
+		if status.Leader == member.GetID() {
+			node.LeaderStatus = leaderStatusLeader
+		} else if status.Leader != 0 {
+			node.LeaderStatus = leaderStatusFollower
 		}
-
-		node := response.ClusterNode{
-			Name:         member.GetName(),
-			ID:           member.GetID(),
-			IsLearner:    member.GetIsLearner(),
-			PeerUrls:     member.GetPeerURLs(),
-			ClientUrls:   member.GetClientURLs(),
-			LeaderStatus: leaderStatus,
-			DBSIze:       endpointStatus.DbSize,
-			DBSizeInUse:  endpointStatus.DbSizeInUse,
-		}
-
-		clusterResponse.Nodes = append(clusterResponse.Nodes, node)
+		return node
 	}
+	node.Error = "client endpoints unavailable or access denied"
+	return node
+}
 
-	responseBytes, err := json.Marshal(clusterResponse)
-	if err != nil {
-		rw.WriteHeader(http.StatusInternalServerError)
+// collectMemberStatus preserves member order while bounding concurrent RPCs.
+func collectMemberStatus(ctx context.Context, client statusGetter, members []*etcdserverpb.Member) []response.ClusterNode {
+	nodes := make([]response.ClusterNode, len(members))
+	jobs := make(chan int)
+	var workers sync.WaitGroup
+	for worker := 0; worker < 4 && worker < len(members); worker++ {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for index := range jobs {
+				nodes[index] = memberStatus(ctx, client, members[index])
+			}
+		}()
+	}
+	for index := range members {
+		jobs <- index
+	}
+	close(jobs)
+	workers.Wait()
+	return nodes
+}
+
+func (jh *GenericHandler) ClusterInfo(w http.ResponseWriter, r *http.Request) {
+	meta, ok := r.Context().Value(META_KEY).(request.RequestMeta)
+	if !ok {
+		response.WriteError(w, http.StatusInternalServerError, "internal_error", "request metadata missing")
 		return
 	}
-
-	rw.Header().Add("Content-Type", "application/json")
-	rw.WriteHeader(http.StatusOK)
-	rw.Write(responseBytes)
-
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	client, err := etcd.NewClient(meta.Backend.Endpoints(), etcd.WithAuth(meta.User, meta.Pass))
+	if err != nil {
+		response.WriteRPCError(w, err)
+		return
+	}
+	defer jh.closeEtcdClient(client)
+	members, err := client.MemberList(ctx)
+	if err != nil {
+		response.WriteRPCError(w, err)
+		return
+	}
+	result := response.ClusterInfo{
+		ClusterID: members.Header.GetClusterId(), MemberID: members.Header.GetMemberId(),
+		RaftTerm: members.Header.GetRaftTerm(), Revision: members.Header.GetRevision(),
+		Nodes: collectMemberStatus(ctx, client.Maintenance, members.Members),
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(result)
 }

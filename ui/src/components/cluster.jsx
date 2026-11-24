@@ -107,7 +107,9 @@ export default function ClusterInfo(props) {
                                         clientUrls={node.clientUrls}
                                         isLeader={node.isLeader}
                                         dbSize={node.dbSize}
-                                        dbSizeInUse={node.dbSizeInUse}
+                                         dbSizeInUse={node.dbSizeInUse}
+                                         available={node.available}
+                                         error={node.error}
                                     />
                                 )
                             })}

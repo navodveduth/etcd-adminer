@@ -3,6 +3,7 @@ import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import Alert from '@mui/material/Alert';
 
 export default function Node(props) {
     return (
@@ -10,6 +11,7 @@ export default function Node(props) {
             <Card variant="outlined" sx={{ m: 1 }}>
                 <React.Fragment>
                     <CardContent>
+                        {props.error && <Alert severity="warning">{props.error}</Alert>}
                         <Typography sx={{ mb: 1.5 }} color="text.primary">
                             Name: {props.name}
                         </Typography>
@@ -29,10 +31,10 @@ export default function Node(props) {
                             Leader Status: {props.isLeader}
                         </Typography>
                         <Typography sx={{ mb: 1.5 }} color="text.secondary">
-                            DB Size: {props.dbSize}
+                            DB Size: {props.dbSize ?? 'Unavailable'}
                         </Typography>
                         <Typography sx={{ mb: 1.5 }} color="text.secondary">
-                            DB Size In Use: {props.dbSizeInUse}
+                            DB Size In Use: {props.dbSizeInUse ?? 'Unavailable'}
                         </Typography>
                     </CardContent>
                 </React.Fragment>
