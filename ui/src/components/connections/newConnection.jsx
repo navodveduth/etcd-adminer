@@ -20,6 +20,7 @@ import { CopyValue, PageHeader, Section } from '../shared/page';
 import ConfirmationDialog from '../dialogs/confirmationDialog';
 import { SessionStore, Session } from '../../storage/session';
 import DataService from '../../data/service';
+import { connectionErrorMessage } from './errorMessage';
 
 export default function NewConnection({ forceRefreshNav }) {
   const [params] = useSearchParams();
@@ -90,9 +91,10 @@ export default function NewConnection({ forceRefreshNav }) {
       if (!abort.signal.aborted)
         setMessage({
           severity: 'error',
-          text:
-            error.response?.data?.message ??
+          text: connectionErrorMessage(
+            error,
             'Connection failed. Verify the configured endpoints, backend TLS/CA/client certificate, server logs, and network reachability. Browser profiles cannot change server-side transport settings.',
+          ),
         });
     } finally {
       if (!abort.signal.aborted) setBusy(false);

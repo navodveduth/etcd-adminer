@@ -22,6 +22,7 @@ import { PageHeader, Section, EmptyState } from '../shared/page';
 import ConfirmationDialog from '../dialogs/confirmationDialog';
 import { Session, SessionStore } from '../../storage/session';
 import DataService from '../../data/service';
+import { connectionErrorMessage } from './errorMessage';
 
 export default function Connection({ onSessionChange }) {
   const store = useMemo(() => new SessionStore(), []);
@@ -91,8 +92,10 @@ export default function Connection({ onSessionChange }) {
     } catch (error) {
       if (!abort.signal.aborted)
         setError(
-          error.response?.data?.message ??
+          connectionErrorMessage(
+            error,
             'Could not connect. Check the backend, network and server TLS settings, then try again.',
+          ),
         );
     } finally {
       if (!abort.signal.aborted) setConnecting(false);

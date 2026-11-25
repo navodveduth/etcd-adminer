@@ -17,6 +17,10 @@ func TestSameOriginMutations(t *testing.T) {
 		{"opaque origin", "DELETE", "null", "", 403},
 		{"trusted public TLS origin", "POST", "https://admin.example", "https://admin.example", 204},
 		{"untrusted forwarded origin", "POST", "https://admin.example", "", 403},
+		{"trusted public proxy port", "POST", "http://config-manager.int.dev-mytaxi.com:8080", "http://config-manager.int.dev-mytaxi.com:8080", 204},
+		{"public proxy wrong port", "POST", "http://config-manager.int.dev-mytaxi.com", "http://config-manager.int.dev-mytaxi.com:8080", 403},
+		{"public proxy wrong scheme", "POST", "https://config-manager.int.dev-mytaxi.com:8080", "http://config-manager.int.dev-mytaxi.com:8080", 403},
+		{"public proxy hostile suffix", "POST", "http://config-manager.int.dev-mytaxi.com.attacker.example:8080", "http://config-manager.int.dev-mytaxi.com:8080", 403},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := httptest.NewRequest(tc.method, "http://app.local/api/users", nil)

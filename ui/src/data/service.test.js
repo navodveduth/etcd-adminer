@@ -58,6 +58,24 @@ describe('DataService', () => {
     await expect(service.TestConnection('alice', 'bad', 'test')).resolves.toBe(false);
   });
 
+  it('preserves origin and policy failures instead of reporting incorrect credentials', async () => {
+    const rejectedOrigin = {
+      response: {
+        status: 403,
+        data: { code: 'invalid_origin', message: 'cross-origin mutations are not allowed' },
+      },
+    };
+    api.post.mockRejectedValue(rejectedOrigin);
+    await expect(service.TestConnection('alice', 'secret', 'test')).rejects.toBe(rejectedOrigin);
+    const policyFailure = {
+      response: { status: 403, data: { code: 'forbidden', message: 'permission denied' } },
+    };
+    api.post.mockRejectedValue(policyFailure);
+    await expect(service.TestConnection('alice', 'secret', 'test')).rejects.toBe(policyFailure);
+    api.post.mockRejectedValue({ response: { status: 401, data: { code: 'unauthenticated' } } });
+    await expect(service.TestConnection('alice', 'bad', 'test')).resolves.toBe(false);
+  });
+
   it('passes raw keys through params and role names through JSON', async () => {
     api.get.mockResolvedValue({ data: {} });
     await service.FetchKey('a?&#% /日本語');

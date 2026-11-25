@@ -82,7 +82,15 @@ export default class DataService {
       });
       return true;
     } catch (error) {
-      if ([401, 403].includes(error.response?.status)) return false;
+      const { status, data } = error.response ?? {};
+      // Only credential rejections are a failed login. Policy/proxy errors such as
+      // invalid_origin must reach the UI instead of being labelled as a bad password.
+      if (
+        status === 401 ||
+        (status === 403 &&
+          (!data || ['unauthenticated', 'authentication_failed'].includes(data.code)))
+      )
+        return false;
       throw error;
     }
   };

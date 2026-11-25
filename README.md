@@ -327,6 +327,11 @@ scheme headers. The Vite development proxy handles same-origin development
 requests without weakening the production origin policy. JSON mutations
 require `Content-Type: application/json`; form/plaintext bodies are rejected.
 
+The same `publicOrigin` setting is needed if a proxy changes the Host or public
+port, even without TLS termination. Include any non-default public port. A 403
+with code `invalid_origin` is a policy rejection before etcd authentication, not
+evidence of an incorrect password; the connection UI reports it separately.
+
 ### Upstream TLS / mTLS
 
 All etcd handlers use the selected backend's transport policy, including
