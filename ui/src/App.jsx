@@ -17,6 +17,7 @@ import {
   Typography,
 } from '@mui/material';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
+import CloseIcon from '@mui/icons-material/Close';
 import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
 import { EmptyState } from './components/shared/page';
 import { MemoryRouter, Navigate, Route, Routes } from 'react-router-dom';
@@ -289,7 +290,17 @@ function Shell({ mode, toggleMode }) {
         </DialogActions>
       </Dialog>
       <Dialog open={help} onClose={() => setHelp(false)} aria-labelledby="shortcut-help">
-        <DialogTitle id="shortcut-help">Keyboard shortcuts</DialogTitle>
+        <DialogTitle id="shortcut-help" sx={{ pr: 7 }}>
+          Keyboard shortcuts
+          <IconButton
+            autoFocus
+            aria-label="Close help"
+            onClick={() => setHelp(false)}
+            sx={{ position: 'absolute', right: 12, top: 8 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
         <DialogContent>
           <Typography color="text.secondary" sx={{ mb: 2 }}>
             Shortcuts act on the focused page or selected workspace.
@@ -318,9 +329,6 @@ function Shell({ mode, toggleMode }) {
             <dt>F1 / Escape</dt>
             <dd>Open help / close dialog</dd>
           </Box>
-          <Button autoFocus onClick={() => setHelp(false)}>
-            Close help
-          </Button>
         </DialogContent>
       </Dialog>
     </>

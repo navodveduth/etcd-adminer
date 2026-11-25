@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import App from './App';
 import { vi, test, expect, beforeEach } from 'vitest';
 import { useTheme } from '@mui/material/styles';
@@ -25,6 +25,16 @@ vi.mock('./data/service', () => ({
 beforeEach(() => {
   getConfig.mockReset();
   getConfig.mockResolvedValue({ clusters: [], readOnly: false });
+});
+
+test('closes shortcut help using the header close icon', async () => {
+  const user = userEvent.setup();
+  render(<App />);
+  await user.click(screen.getByRole('button', { name: 'Shortcuts', exact: true }));
+  const close = screen.getByRole('button', { name: 'Close help', exact: true });
+  expect(close.querySelector('svg')).not.toBeNull();
+  await user.click(close);
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 });
 
 test('renders an actionable empty connection screen', async () => {
