@@ -72,6 +72,7 @@ it('shows searchable profile cards with a safe actions menu', async () => {
     </MemoryRouter>,
   );
   expect(screen.getAllByRole('article')).toHaveLength(2);
+  expect(screen.queryByText('Saved profile')).not.toBeInTheDocument();
   expect(screen.queryByRole('table')).not.toBeInTheDocument();
   const card = screen.getByRole('article', { name: 'Development' });
   expect(within(card).getByText('http://dev:2379')).toBeInTheDocument();

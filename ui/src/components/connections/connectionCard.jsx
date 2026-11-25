@@ -65,12 +65,9 @@ export default function ConnectionCard({ connection, isActive, openProfile, dele
             >
               {connection.Name}
             </Typography>
-            <Chip
-              size="small"
-              variant="outlined"
-              color={isActive ? 'primary' : 'default'}
-              label={isActive ? 'Last selected' : 'Saved profile'}
-            />
+            {isActive && (
+              <Chip size="small" variant="outlined" color="primary" label="Last selected" />
+            )}
           </Box>
           <IconButton
             size="small"
