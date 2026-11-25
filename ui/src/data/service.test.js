@@ -14,6 +14,20 @@ const service = new DataService({ GetActiveSession: () => session });
 beforeEach(() => vi.resetAllMocks());
 
 describe('DataService', () => {
+  it('passes create-only key revisions and cancellation to the workspace-scoped request', async () => {
+    api.put.mockResolvedValue({ data: { revision: '42' } });
+    const signal = new AbortController().signal;
+    await expect(service.PutKey('/exact/new', 'value', '0', undefined, signal)).resolves.toBe(true);
+    expect(api.put).toHaveBeenCalledWith(
+      '/api/keys',
+      { key: '/exact/new', value: 'value', expectedRevision: '0' },
+      expect.objectContaining({
+        signal,
+        headers: { 'X-Backend': 'test' },
+        auth: { username: 'alice', password: 'secret' },
+      }),
+    );
+  });
   it('binds long-running workflows to their starting connection', async () => {
     let active = session;
     const bound = new DataService({ GetActiveSession: () => active }).BindActiveSession();

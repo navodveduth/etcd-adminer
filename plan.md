@@ -2,6 +2,10 @@
 
 ### UI redesign implementation checkpoint
 
+- Added a full-path New key/value dialog available in both key-browser views.
+  It uses the existing create-only key API, supports cancellation, preserves input
+  and unrelated editor drafts, and does not require pre-creating virtual folders.
+
 - Added folder duplication via the key-tree context menu. It reuses bounded,
   caller-scoped export/transfer APIs: one source snapshot, create-only destination
   preview, typed confirmation and explicit per-batch progress/unknown outcomes.
@@ -12,7 +16,7 @@
   including responsive navigation, Connections/reauthentication, Cluster/Metrics,
   Keys/editor/dialogs, transfer, leases, watches, users, roles and About.
 - Workspace tabs surface unsaved drafts, live watches, renewal and transfer activity.
-- Validation: 61 frontend tests, ESLint, Go tests and production Chromium journeys
+- Validation: 69 frontend tests, ESLint, Go tests and production Chromium journeys
   at 375/720/768/1280/1440/1920px in both themes passed. Reauthentication retains drafts.
 - Fine-grained state-fixture, metric filtering and manual screen-reader/native-zoom
   acceptance follow-ups are documented explicitly in `ui/UX_PLAN.md`.

@@ -123,11 +123,11 @@ export default class DataService {
       })
     ).data;
 
-  PutKey = async (key, value, expectedRevision, lease) => {
+  PutKey = async (key, value, expectedRevision, lease, signal) => {
     await api.put(
       '/api/keys',
       { key, value, expectedRevision, ...(lease === undefined ? {} : { lease }) },
-      this.requestConfig(),
+      { ...this.requestConfig(), signal },
     );
     return true;
   };

@@ -217,6 +217,18 @@ not restored. Cancellation of a submitted transaction does not prove rollback;
 inspect keys and preview again before retrying. List view supports selection
 of up to 50 exact keys for deletion preview.
 
+**New key** in the key-browser header works in both Folder and List views. Paste
+the full path (for example,
+`/system/automation-services/driver-simulator/common/redis/pool-timeout`) and enter
+its value directly. Parent folders are virtual and need no separate creation.
+The write is create-only (`expectedRevision: "0"`): an existing key is never
+overwritten. Empty values are allowed, and text is stored exactly without format
+conversion. This form supports keys up to 8 KiB and values up to 128 KiB of UTF-8.
+New keys have no lease/TTL. The current editor selection and unsaved draft remain
+unchanged, including when creating outside the displayed prefix/page. Cancellation
+cannot undo a submitted write; inspect the exact key before retrying an unknown
+outcome. Errors preserve the entered key and value.
+
 **Duplicate folder…** is available from a persisted folder's context menu in the
 key browser (right-click or Shift+F10). Choose a different destination path, preview
 all readable source keys, then type `COPY N` to apply. For example, copy

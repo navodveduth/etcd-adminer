@@ -11,7 +11,7 @@ redesign while the remaining pages retain unrelated layouts and interaction patt
 Shared page/state components, blue shell, responsive navigation, workspace activity
 indicators, Connections/reauthentication, Cluster/Metrics, Keys/editor/dialogs,
 transfer task views, leases, watches, users, roles and About have been updated.
-Validation passes 61 frontend tests, lint, Go tests and production Chromium journeys
+Validation passes 69 frontend tests, lint, Go tests and production Chromium journeys
 at 375, 720, 768, 1280, 1440 and 1920px in both themes. The 720px viewport exercises
 the layout equivalent of a 1440px browser at 200% zoom; it is not a native browser
 zoom or screen-reader audit. Fine-grained acceptance follow-ups are listed below.
@@ -44,6 +44,12 @@ caller-readable snapshot pagination, exact byte-prefix replacement, destination
 preview, typed `COPY N`, create-only revision guards, bounded sequential batches,
 and explicit lease/partial-outcome warnings. The source and current editor draft
 are not changed. Limits and usage are documented in the root README.
+
+A header-level **New key** action now accepts a full exact key path and value
+directly in either Folder or List view, without pre-creating folders. It preserves
+the selected editor draft, uses create-only revision checks, surfaces conflicts,
+and retains input on failures/cancellation. New keys are unleased; path/value byte
+limits and unknown submitted outcomes are explicit in the dialog.
 
 ### Remaining acceptance follow-ups
 

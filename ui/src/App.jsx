@@ -279,10 +279,12 @@ function Shell({ mode, toggleMode }) {
             Attached keys may expire after renewal stops. Closing does not revoke a lease or delete
             cluster keys directly.
           </Alert>
-          {(activities[closing?.id]?.['duplicate-folder'] || activities[closing?.id]?.transfer) && (
+          {(activities[closing?.id]?.['duplicate-folder'] ||
+            activities[closing?.id]?.transfer ||
+            activities[closing?.id]?.['create-key']) && (
             <Alert severity="warning" sx={{ mt: 2 }}>
-              A transfer or folder copy is in progress. Submitted batches may already have
-              committed. Closing stops further requests, not committed writes. Inspect the
+              A key write, transfer or folder copy is in progress. Submitted requests may already
+              have committed. Closing stops further requests, not committed writes. Inspect the
               destination before retrying; no rollback is performed.
             </Alert>
           )}

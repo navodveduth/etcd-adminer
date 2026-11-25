@@ -13,6 +13,8 @@ import Typography from '@mui/material/Typography';
 import FSNavigator from './tree';
 import KeysList from './keysList';
 import EditorComponent from './editor';
+import CreateKeyDialog from './createKeyDialog';
+import AddIcon from '@mui/icons-material/Add';
 import { useDataService } from '../../data/context';
 import { buildKeyTree } from '../../data/keyTree';
 import { useReadOnly } from '../../readOnly';
@@ -45,6 +47,8 @@ export default function Keys() {
   const [serverRevisions, setServerRevisions] = useState({});
   const [browserWidth, setBrowserWidth] = useState(36);
   const [pendingAction, setPendingAction] = useState(null);
+  const [addingKey, setAddingKey] = useState(false);
+  const [createdKey, setCreatedKey] = useState('');
   useWorkspaceActivity('draft', dirty ? 'Unsaved draft' : '');
   useWorkspaceActivity('keys-watch', live && prefix ? `Keys: ${liveStatus}` : '');
   const prefixRef = useRef(null);
@@ -243,13 +247,44 @@ export default function Keys() {
         title="Key browser"
         description="Browse a consistent snapshot by prefix. Select an exact key to inspect its value; changes are saved only after revision checks."
         actions={
-          <StatusBadge
-            label={dirty ? 'Unsaved draft' : 'No unsaved changes'}
-            color={dirty ? 'warning' : 'default'}
-          />
+          <>
+            <StatusBadge
+              label={dirty ? 'Unsaved draft' : 'No unsaved changes'}
+              color={dirty ? 'warning' : 'default'}
+            />
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              disabled={readOnly}
+              onClick={() => setAddingKey(true)}
+            >
+              New key
+            </Button>
+          </>
         }
       />
       {readOnly && <ReadOnlyNotice />}
+      {createdKey && (
+        <Alert
+          severity="success"
+          onClose={() => setCreatedKey('')}
+          sx={{ mb: 2, overflowWrap: 'anywhere' }}
+        >
+          Created <code>{createdKey}</code>. Your editor draft is unchanged. If the key is outside
+          this prefix or page, apply its prefix to find it.
+        </Alert>
+      )}
+      {addingKey && (
+        <CreateKeyDialog
+          initialKey={prefix}
+          onClose={() => setAddingKey(false)}
+          onCreated={(key) => {
+            setAddingKey(false);
+            setCreatedKey(key);
+            restart();
+          }}
+        />
+      )}
       <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', gap: 2, mb: 2 }}>
         <Typography component="label" htmlFor={widthID} variant="caption" color="text.secondary">
           Browser width

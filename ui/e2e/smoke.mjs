@@ -175,6 +175,17 @@ try {
           hasMore: false,
         });
       case '/api/keys':
+        if (request.method() === 'PUT') {
+          const body = request.postDataJSON();
+          assert.equal(
+            body.key,
+            '/system/automation-services/driver-simulator/common/redis/pool-timeout',
+          );
+          assert.equal(body.value, '5s');
+          assert.equal(body.expectedRevision, '0');
+          assert.equal(body.lease, undefined);
+          return json({ revision: '42' });
+        }
         return json({ key: '/app/a', value: `${backend}-value`, modRevision: '40', lease: '0' });
       case '/api/v1/leases':
         return json({ ids: ['123'], truncated: false });
@@ -244,6 +255,15 @@ try {
   await page.locator('.monaco-editor').click();
   await page.keyboard.press('ControlOrMeta+a');
   await page.keyboard.insertText('unsaved-development-draft');
+  await page.getByRole('button', { name: 'New key', exact: true }).click();
+  const createDialog = page.getByRole('dialog', { name: 'New key & value', exact: true });
+  await createDialog
+    .getByLabel('Full key path', { exact: true })
+    .fill('/system/automation-services/driver-simulator/common/redis/pool-timeout');
+  await createDialog.getByLabel('Value', { exact: true }).fill('5s');
+  await createDialog.getByRole('button', { name: 'Create key', exact: true }).click();
+  await createDialog.waitFor({ state: 'hidden' });
+  await page.getByText('unsaved-development-draft', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Connections', exact: true }).click();
   await page.getByRole('button', { name: 'Actions for Development', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Reauthenticate', exact: true }).click();
@@ -252,6 +272,7 @@ try {
   await page.getByText('unsaved-development-draft', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Connections', exact: true }).click();
   await openProfile('Production');
+  assert.equal(await page.getByRole('button', { name: 'New key', exact: true }).isDisabled(), true);
   assert.equal(
     await page.getByRole('link', { name: 'Roles', exact: true }).getAttribute('aria-disabled'),
     'true',
@@ -378,6 +399,30 @@ try {
           await page.getByRole('button', { name: 'Copy username', exact: true }).waitFor();
         }
         await noOverflow(`${link} ${width}px ${theme}`);
+        if (link === 'Keys') {
+          await page.getByRole('button', { name: 'New key', exact: true }).click();
+          const dialog = page.getByRole('dialog', { name: 'New key & value', exact: true });
+          await dialog.waitFor();
+          await page.waitForFunction(() => {
+            const container = document
+              .querySelector('[role="dialog"]')
+              ?.closest('.MuiDialog-container');
+            return container && getComputedStyle(container).opacity === '1';
+          });
+          assert.ok(
+            await page.evaluate(
+              () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+            ),
+            `New key dialog overflow at ${width}px ${theme}`,
+          );
+          if (theme === 'dark' && [375, 1440].includes(width))
+            await page.screenshot({
+              path: `/tmp/opencode/etcd-new-key-${width}.png`,
+              fullPage: true,
+            });
+          await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+          await dialog.waitFor({ state: 'hidden' });
+        }
         if (link === 'Cluster' && theme === 'dark' && [375, 1440].includes(width))
           await page.screenshot({
             path: `/tmp/opencode/etcd-cluster-${width}.png`,
