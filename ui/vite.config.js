@@ -26,5 +26,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/setupTests.js'],
     clearMocks: true,
+    // Docker may build Go concurrently; avoid oversubscribing UI test workers.
+    maxWorkers: 2,
+    testTimeout: 15000,
   },
 });
