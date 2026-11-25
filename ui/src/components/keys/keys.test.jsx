@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import Keys from './keys';
@@ -20,7 +20,7 @@ vi.mock('./editor', () => ({
   ),
 }));
 
-it('uses bounded server pages and explicit prefix queries instead of whole-tree reads', async () => {
+it('automatically applies prefix queries and resets pagination without an Apply button', async () => {
   const user = userEvent.setup();
   getPage.mockResolvedValue({
     items: [{ key: '/one', keyEncoding: 'utf8' }],
@@ -42,13 +42,111 @@ it('uses bounded server pages and explicit prefix queries instead of whole-tree 
     ),
   );
   await user.type(screen.getByRole('textbox', { name: 'Key prefix' }), '/app/');
-  await user.click(screen.getByRole('button', { name: 'Apply prefix' }));
+  expect(screen.queryByRole('button', { name: 'Apply prefix' })).not.toBeInTheDocument();
   await waitFor(() =>
     expect(getPage).toHaveBeenCalledWith(
       { prefix: '/app/', cursor: null, limit: 100 },
       expect.any(AbortSignal),
     ),
   );
+  await user.clear(screen.getByRole('textbox', { name: 'Key prefix' }));
+  await waitFor(() =>
+    expect(getPage).toHaveBeenLastCalledWith(
+      { prefix: '', cursor: null, limit: 100 },
+      expect.any(AbortSignal),
+    ),
+  );
+});
+
+it('debounces rapid prefix edits and waits for IME composition to finish', async () => {
+  getPage.mockReset().mockResolvedValue({
+    items: [{ key: '/one', keyEncoding: 'utf8' }],
+    revision: '7',
+    hasMore: false,
+  });
+  const view = render(
+    <MemoryRouter>
+      <Keys />
+    </MemoryRouter>,
+  );
+  await screen.findByText('one');
+  const input = screen.getByRole('textbox', { name: 'Key prefix' });
+  vi.useFakeTimers();
+  try {
+    fireEvent.change(input, { target: { value: '/a' } });
+    fireEvent.change(input, { target: { value: '/app/' } });
+    expect(getPage).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(349);
+    });
+    expect(getPage).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(getPage).toHaveBeenCalledTimes(2);
+    expect(getPage).toHaveBeenLastCalledWith(
+      { prefix: '/app/', cursor: null, limit: 100 },
+      expect.any(AbortSignal),
+    );
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: '/日本語/' } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(getPage).toHaveBeenCalledTimes(2);
+    fireEvent.compositionEnd(input);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350);
+    });
+    expect(getPage).toHaveBeenLastCalledWith(
+      { prefix: '/日本語/', cursor: null, limit: 100 },
+      expect.any(AbortSignal),
+    );
+    fireEvent.change(input, { target: { value: '/fast/' } });
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+    expect(getPage).toHaveBeenLastCalledWith(
+      { prefix: '/fast/', cursor: null, limit: 100 },
+      expect.any(AbortSignal),
+    );
+  } finally {
+    view.unmount();
+    vi.useRealTimers();
+  }
+});
+
+it('aborts stale reads immediately and ignores their late results when the prefix changes', async () => {
+  let finish;
+  getPage
+    .mockReset()
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    )
+    .mockResolvedValue({
+      items: [{ key: '/new/result', keyEncoding: 'utf8' }],
+      revision: '8',
+      hasMore: false,
+    });
+  render(
+    <MemoryRouter>
+      <Keys />
+    </MemoryRouter>,
+  );
+  const signal = getPage.mock.calls[0][1];
+  fireEvent.change(screen.getByRole('textbox', { name: 'Key prefix' }), {
+    target: { value: '/new/' },
+  });
+  expect(signal.aborted).toBe(true);
+  await screen.findByText('new');
+  await act(async () =>
+    finish({ items: [{ key: '/stale', keyEncoding: 'utf8' }], revision: '7', hasMore: false }),
+  );
+  expect(screen.queryByText('stale')).not.toBeInTheDocument();
+  expect(screen.getByText('new')).toBeInTheDocument();
 });
 
 it('creates a full-path key from List view without replacing the current editor draft', async () => {

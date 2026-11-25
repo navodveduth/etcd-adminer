@@ -11,7 +11,7 @@ redesign while the remaining pages retain unrelated layouts and interaction patt
 Shared page/state components, blue shell, responsive navigation, workspace activity
 indicators, Connections/reauthentication, Cluster/Metrics, Keys/editor/dialogs,
 transfer task views, leases, watches, users, roles and About have been updated.
-Validation passes 69 frontend tests, lint, Go tests and production Chromium journeys
+Validation passes 72 frontend tests, lint, Go tests and production Chromium journeys
 at 375, 720, 768, 1280, 1440 and 1920px in both themes. The 720px viewport exercises
 the layout equivalent of a 1440px browser at 200% zoom; it is not a native browser
 zoom or screen-reader audit. Fine-grained acceptance follow-ups are listed below.
@@ -50,6 +50,11 @@ directly in either Folder or List view, without pre-creating folders. It preserv
 the selected editor draft, uses create-only revision checks, surfaces conflicts,
 and retains input on failures/cancellation. New keys are unleased; path/value byte
 limits and unknown submitted outcomes are explicit in the dialog.
+
+The key prefix now filters automatically after a 350 ms typing pause, with IME
+composition support and optional Enter-to-apply. The Apply button is removed;
+stale reads/live streams are cancelled, pagination/selection reset, and editor
+drafts preserved. Substring filtering remains scoped to the current server page.
 
 ### Remaining acceptance follow-ups
 

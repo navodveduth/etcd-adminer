@@ -34,6 +34,8 @@ export default function Keys() {
   const [view, setView] = useState(0);
   const [prefixInput, setPrefixInput] = useState('');
   const [prefix, setPrefix] = useState('');
+  const [prefixComposing, setPrefixComposing] = useState(false);
+  const prefixPending = prefixComposing || prefixInput !== prefix;
   const [cursor, setCursor] = useState(null);
   const [refresh, setRefresh] = useState(0);
   const [page, setPage] = useState({ items: [], hasMore: false, revision: '0' });
@@ -58,12 +60,22 @@ export default function Keys() {
   pageRef.current = page;
 
   useEffect(() => {
+    if (prefixComposing || prefixInput === prefix) return;
+    const timer = setTimeout(() => {
+      setCursor(null);
+      setPrefix(prefixInput);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [prefixInput, prefix, prefixComposing]);
+
+  useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
     setSelected([]);
     setMembershipStale(false);
     setServerRevisions({});
+    if (prefixPending) return () => controller.abort();
     service
       .GetKeyPage({ prefix, cursor, limit: 100 }, controller.signal)
       .then((data) => {
@@ -80,10 +92,10 @@ export default function Keys() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [service, prefix, cursor, refresh]);
+  }, [service, prefix, cursor, refresh, prefixPending]);
 
   useEffect(() => {
-    if (!live || !prefix || loading || error || page.revision === '0') {
+    if (!live || !prefix || loading || prefixPending || error || page.revision === '0') {
       setLiveStatus('Off');
       return;
     }
@@ -155,7 +167,7 @@ export default function Keys() {
     };
     listen().catch(() => {});
     return () => controller.abort();
-  }, [live, prefix, loading, error, page.revision, service, cursor, refresh]);
+  }, [live, prefix, loading, prefixPending, error, page.revision, service, cursor, refresh]);
 
   const restart = useCallback(() => {
     setCursor(null);
@@ -276,7 +288,7 @@ export default function Keys() {
       )}
       {addingKey && (
         <CreateKeyDialog
-          initialKey={prefix}
+          initialKey={prefixInput}
           onClose={() => setAddingKey(false)}
           onCreated={(key) => {
             setAddingKey(false);
@@ -316,14 +328,7 @@ export default function Keys() {
             variant="outlined"
             sx={{ p: 2, display: 'flex', flexDirection: 'column', minWidth: 0 }}
           >
-            <Box
-              component="form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                setPrefix(prefixInput);
-                restart();
-              }}
-            >
+            <Box sx={{ mb: 1 }}>
               <TextField
                 inputRef={prefixRef}
                 fullWidth
@@ -331,24 +336,50 @@ export default function Keys() {
                 label="Key prefix"
                 value={prefixInput}
                 onChange={(event) => setPrefixInput(event.target.value)}
+                onCompositionStart={() => setPrefixComposing(true)}
+                onCompositionEnd={(event) => {
+                  setPrefixInput(event.target.value);
+                  setPrefixComposing(false);
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    event.key === 'Enter' &&
+                    !prefixComposing &&
+                    !event.nativeEvent.isComposing &&
+                    prefixInput !== prefix
+                  ) {
+                    event.preventDefault();
+                    setCursor(null);
+                    setPrefix(prefixInput);
+                  }
+                }}
+                helperText={
+                  prefixPending
+                    ? 'Filtering…'
+                    : 'Filters automatically as you type. Matches the start of each key.'
+                }
               />
-              <Button type="submit" disabled={loading}>
-                Apply prefix
-              </Button>
             </Box>
             <Tabs value={view} onChange={(_event, value) => setView(value)} aria-label="Key view">
               <Tab label="Folder" />
               <Tab label="List" />
             </Tabs>
-            <Typography variant="body2" color="text.secondary" sx={{ my: 2 }}>
-              {page.items.length} keys on this page · Snapshot revision <code>{page.revision}</code>
-              {page.hasMore ? ' · More pages available' : ' · Last page'}
+            <Typography role="status" variant="body2" color="text.secondary" sx={{ my: 2 }}>
+              {loading || prefixPending ? (
+                'Updating results…'
+              ) : (
+                <>
+                  {page.items.length} keys on this page · Snapshot revision{' '}
+                  <code>{page.revision}</code>
+                  {page.hasMore ? ' · More pages available' : ' · Last page'}
+                </>
+              )}
             </Typography>
             <FormControlLabel
               control={
                 <Checkbox
                   checked={live}
-                  disabled={!prefix}
+                  disabled={!prefix || prefixPending || loading}
                   onChange={(event) => setLive(event.target.checked)}
                 />
               }
@@ -356,7 +387,7 @@ export default function Keys() {
             />
             {!prefix && (
               <Typography variant="caption">
-                Apply a nonempty prefix to enable live updates.
+                Enter a nonempty prefix to enable live updates.
               </Typography>
             )}
             {membershipStale && (
@@ -372,7 +403,7 @@ export default function Keys() {
                 the text view.
               </Alert>
             )}
-            {!loading && !error && !page.items.length && !drafts.length && (
+            {!loading && !prefixPending && !error && !page.items.length && !drafts.length && (
               <EmptyState
                 compact
                 title="No keys on this page"
@@ -388,7 +419,7 @@ export default function Keys() {
               {view === 0 ? (
                 <FSNavigator
                   keys={tree}
-                  loading={loading}
+                  loading={loading || prefixPending}
                   onKeyClick={selectKey}
                   fetchKeys={restart}
                   createFile={(key) => createDraft(key, false)}
@@ -399,7 +430,7 @@ export default function Keys() {
                 <KeysList
                   activeKey={activeKey}
                   items={[...textItems, ...drafts.filter((item) => !item.isDirectory)]}
-                  loading={loading}
+                  loading={loading || prefixPending}
                   onKeyClick={selectKey}
                   deleteKey={deleteKey}
                   selected={selected}
@@ -423,12 +454,12 @@ export default function Keys() {
               </Button>
             )}
             <Stack direction="row" spacing={1} useFlexGap sx={{ mt: 2, flexWrap: 'wrap' }}>
-              <Button onClick={restart} disabled={loading}>
+              <Button onClick={restart} disabled={loading || prefixPending}>
                 Restart / refresh
               </Button>
               <Button
                 onClick={() => setCursor(page.nextCursor)}
-                disabled={loading || Boolean(error) || !page.hasMore}
+                disabled={loading || prefixPending || Boolean(error) || !page.hasMore}
               >
                 Next page
               </Button>

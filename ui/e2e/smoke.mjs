@@ -283,7 +283,6 @@ try {
   await page.getByRole('tab', { name: /Development · dev · alice/ }).click();
   await page.getByText('unsaved-development-draft', { exact: true }).waitFor();
   await page.getByRole('textbox', { name: 'Key prefix', exact: true }).fill('/app/');
-  await page.getByRole('button', { name: 'Apply prefix', exact: true }).click();
   await page.getByRole('checkbox', { name: /Live prefix updates/ }).check();
   await page.getByRole('button', { name: '/app/b', exact: true }).waitFor();
   await page.getByRole('checkbox', { name: /Live prefix updates/ }).uncheck();

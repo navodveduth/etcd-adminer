@@ -289,7 +289,11 @@ the listing. Prefixes are limited to 8 KiB and cursor tokens to 64 KiB.
 
 Tree and list views show **one server page**, not the entire cluster. Substring
 filtering applies only to that page; use the prefix field for server-side
-queries. Binary keys are encoded as base64 in API metadata and excluded from
+queries. The prefix is applied automatically after a 350 ms typing pause (Enter
+applies immediately); there is no Apply button. Changing it cancels stale reads,
+resets pagination/selection and pauses the old live stream without replacing
+editor drafts. Clearing it restarts the unfiltered listing. IME composition is
+allowed to finish before querying. Binary keys are encoded as base64 in API metadata and excluded from
 the text-editing view with an explicit notice. Binary editing remains planned.
 Draft files/directories stay local until a file is saved; no whole-cluster scan
 is needed to create a draft. The legacy unbounded `GET /api/keys` tree endpoint
