@@ -146,7 +146,8 @@ closing a workspace explicitly warns about discarded drafts and stopped watches
 and renewal. Workspaces are in-memory and require reopening after reload.
 Feature navigation uses workspace-local memory history, not global deep links.
 
-The key browser can watch a nonempty prefix from the loaded snapshot revision.
+Open **Live updates** in the key-browser panel to watch a nonempty prefix from
+the loaded snapshot revision. The current live state remains visible when collapsed.
 It patches visible puts/deletes without replacing editor drafts. Partial pages,
 compaction or uncertain membership require an explicit refresh; these states
 are visibly marked. CAS checks remain authoritative when saving.
@@ -298,6 +299,11 @@ the text-editing view with an explicit notice. Binary editing remains planned.
 Draft files/directories stay local until a file is saved; no whole-cluster scan
 is needed to create a draft. The legacy unbounded `GET /api/keys` tree endpoint
 is deprecated and retained only for compatibility; new clients must not use it.
+
+The key workspace uses a compact header and top-aligned browser/editor panels.
+Browser width is adjustable in the header on desktop; live-update controls and
+editor **Expiration on save** settings expand on demand. Read-only users still see
+the key's current lease metadata, but no inactive expiration controls.
 
 For a reproducible disposable-cluster 100k-key API benchmark, run
 `ETCD_TEST_LARGE=1 sh scripts/test-integration.sh -v`. This reports 20 first-page

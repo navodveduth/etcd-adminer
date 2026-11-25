@@ -20,7 +20,7 @@ import { buildKeyTree } from '../../data/keyTree';
 import { useReadOnly } from '../../readOnly';
 import { Link } from 'react-router-dom';
 import { patchKeyPage, reconnectDelay } from '../../data/liveKeys';
-import { EmptyState, ErrorState, PageHeader, ReadOnlyNotice, StatusBadge } from '../shared/page';
+import { EmptyState, ErrorState, PageHeader, StatusBadge } from '../shared/page';
 import ConfirmationDialog from '../dialogs/confirmationDialog';
 import { useWorkspaceActivity } from '../../data/activity';
 
@@ -256,14 +256,31 @@ export default function Keys() {
       }}
     >
       <PageHeader
+        compact
         title="Key browser"
-        description="Browse a consistent snapshot by prefix. Select an exact key to inspect its value; changes are saved only after revision checks."
         actions={
           <>
-            <StatusBadge
-              label={dirty ? 'Unsaved draft' : 'No unsaved changes'}
-              color={dirty ? 'warning' : 'default'}
-            />
+            <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', gap: 1, mr: 1 }}>
+              <Typography
+                component="label"
+                htmlFor={widthID}
+                variant="caption"
+                color="text.secondary"
+              >
+                Browser width
+              </Typography>
+              <input
+                id={widthID}
+                type="range"
+                min="25"
+                max="60"
+                value={browserWidth}
+                onChange={(event) => setBrowserWidth(Number(event.target.value))}
+                aria-valuetext={`${browserWidth} percent`}
+                style={{ width: 100 }}
+              />
+            </Box>
+            {dirty && <StatusBadge label="Unsaved draft" color="warning" />}
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -275,7 +292,6 @@ export default function Keys() {
           </>
         }
       />
-      {readOnly && <ReadOnlyNotice />}
       {createdKey && (
         <Alert
           severity="success"
@@ -297,21 +313,6 @@ export default function Keys() {
           }}
         />
       )}
-      <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', gap: 2, mb: 2 }}>
-        <Typography component="label" htmlFor={widthID} variant="caption" color="text.secondary">
-          Browser width
-        </Typography>
-        <input
-          id={widthID}
-          type="range"
-          min="25"
-          max="60"
-          value={browserWidth}
-          onChange={(event) => setBrowserWidth(Number(event.target.value))}
-          aria-valuetext={`${browserWidth} percent`}
-          style={{ width: 140 }}
-        />
-      </Box>
       <Box
         sx={{
           display: 'grid',
@@ -325,9 +326,20 @@ export default function Keys() {
       >
         <Box sx={{ minWidth: 0 }}>
           <Paper
+            component="section"
+            aria-label="Key browser controls"
             variant="outlined"
             sx={{ p: 2, display: 'flex', flexDirection: 'column', minWidth: 0 }}
           >
+            <Tabs
+              value={view}
+              onChange={(_event, value) => setView(value)}
+              aria-label="Key view"
+              sx={{ mb: 1 }}
+            >
+              <Tab label="Folder" />
+              <Tab label="List" />
+            </Tabs>
             <Box sx={{ mb: 1 }}>
               <TextField
                 inputRef={prefixRef}
@@ -360,11 +372,7 @@ export default function Keys() {
                 }
               />
             </Box>
-            <Tabs value={view} onChange={(_event, value) => setView(value)} aria-label="Key view">
-              <Tab label="Folder" />
-              <Tab label="List" />
-            </Tabs>
-            <Typography role="status" variant="body2" color="text.secondary" sx={{ my: 2 }}>
+            <Typography role="status" variant="caption" color="text.secondary" sx={{ my: 1 }}>
               {loading || prefixPending ? (
                 'Updating results…'
               ) : (
@@ -375,21 +383,31 @@ export default function Keys() {
                 </>
               )}
             </Typography>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={live}
-                  disabled={!prefix || prefixPending || loading}
-                  onChange={(event) => setLive(event.target.checked)}
-                />
-              }
-              label={`Live prefix updates: ${liveStatus}`}
-            />
-            {!prefix && (
-              <Typography variant="caption">
-                Enter a nonempty prefix to enable live updates.
+            {readOnly && (
+              <Typography variant="caption" color="info.main" sx={{ mb: 1 }}>
+                View only. Changes are disabled by instance policy or your current permissions.
               </Typography>
             )}
+            <Box component="details" sx={{ mb: 1, fontSize: 12, color: 'text.secondary' }}>
+              <Box component="summary" sx={{ cursor: 'pointer', py: 0.5 }}>
+                Live updates · {liveStatus}
+              </Box>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={live}
+                    disabled={!prefix || prefixPending || loading}
+                    onChange={(event) => setLive(event.target.checked)}
+                  />
+                }
+                label={`Live prefix updates: ${liveStatus}`}
+              />
+              {!prefix && (
+                <Typography variant="caption">
+                  Enter a nonempty prefix to enable live updates.
+                </Typography>
+              )}
+            </Box>
             {membershipStale && (
               <Alert severity="warning">
                 Live page membership may be incomplete or the watch needs resync. Restart / refresh
@@ -467,15 +485,18 @@ export default function Keys() {
           </Paper>
         </Box>
         <Box sx={{ minWidth: 0 }}>
-          {activeKey && (
-            <Button
-              component={Link}
-              to={`/watchers?mode=exact&key=${encodeURIComponent(activeKey)}`}
-            >
-              Watch this key
-            </Button>
-          )}
           <EditorComponent
+            actions={
+              activeKey && (
+                <Button
+                  size="small"
+                  component={Link}
+                  to={`/watchers?mode=exact&key=${encodeURIComponent(activeKey)}`}
+                >
+                  Watch this key
+                </Button>
+              )
+            }
             etcdKey={activeKey}
             isNewKey={isNewKey}
             onSaved={onSaved}

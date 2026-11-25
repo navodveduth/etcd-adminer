@@ -264,6 +264,11 @@ try {
   await createDialog.getByRole('button', { name: 'Create key', exact: true }).click();
   await createDialog.waitFor({ state: 'hidden' });
   await page.getByText('unsaved-development-draft', { exact: true }).waitFor();
+  await page
+    .getByRole('alert')
+    .filter({ hasText: 'Your editor draft is unchanged.' })
+    .getByRole('button', { name: 'Close', exact: true })
+    .click();
   await page.getByRole('button', { name: 'ETCD Adminer — Connections', exact: true }).click();
   await page.getByRole('button', { name: 'Actions for Development', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Reauthenticate', exact: true }).click();
@@ -283,9 +288,17 @@ try {
   await page.getByRole('tab', { name: /Development · dev · alice/ }).click();
   await page.getByText('unsaved-development-draft', { exact: true }).waitFor();
   await page.getByRole('textbox', { name: 'Key prefix', exact: true }).fill('/app/');
+  await page
+    .getByRole('region', { name: 'Key browser controls', exact: true })
+    .getByText('Live updates · Off', { exact: true })
+    .click();
   await page.getByRole('checkbox', { name: /Live prefix updates/ }).check();
   await page.getByRole('button', { name: '/app/b', exact: true }).waitFor();
   await page.getByRole('checkbox', { name: /Live prefix updates/ }).uncheck();
+  await page
+    .getByRole('region', { name: 'Key browser controls', exact: true })
+    .getByText('Live updates · Off', { exact: true })
+    .click();
   await page.getByRole('link', { name: 'Leases / TTL', exact: true }).click();
   const renewed = page.waitForResponse((response) => response.url().endsWith('/leases/123/renew'));
   await page.getByRole('checkbox', { name: /Automatically renew in this workspace/ }).check();
@@ -399,6 +412,27 @@ try {
         }
         await noOverflow(`${link} ${width}px ${theme}`);
         if (link === 'Keys') {
+          if (width >= 1280) {
+            const browserBounds = await page
+              .getByRole('region', { name: 'Key browser controls', exact: true })
+              .boundingBox();
+            const editorBounds = await page
+              .getByRole('region', { name: 'Key value editor', exact: true })
+              .boundingBox();
+            assert.ok(
+              Math.abs(browserBounds.y - editorBounds.y) <= 1,
+              'Browser and editor panels must align at the top',
+            );
+            assert.ok(
+              editorBounds.y < 300,
+              'Compact key workspace should start near the top, not below a large page introduction',
+            );
+            const codeBounds = await page.locator('.monaco-editor:visible').boundingBox();
+            assert.ok(
+              codeBounds.y - editorBounds.y < 200,
+              'Editor metadata should not push the value area far down',
+            );
+          }
           await page.getByRole('button', { name: 'New key', exact: true }).click();
           const dialog = page.getByRole('dialog', { name: 'New key & value', exact: true });
           await dialog.waitFor();

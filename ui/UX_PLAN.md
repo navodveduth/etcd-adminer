@@ -11,7 +11,7 @@ redesign while the remaining pages retain unrelated layouts and interaction patt
 Shared page/state components, blue shell, responsive navigation, workspace activity
 indicators, Connections/reauthentication, Cluster/Metrics, Keys/editor/dialogs,
 transfer task views, leases, watches, users, roles and About have been updated.
-Validation passes 72 frontend tests, lint, Go tests and production Chromium journeys
+Validation passes 73 frontend tests, lint, Go tests and production Chromium journeys
 at 375, 720, 768, 1280, 1440 and 1920px in both themes. The 720px viewport exercises
 the layout equivalent of a 1440px browser at 200% zoom; it is not a native browser
 zoom or screen-reader audit. Fine-grained acceptance follow-ups are listed below.
@@ -55,6 +55,11 @@ The key prefix now filters automatically after a 350 ms typing pause, with IME
 composition support and optional Enter-to-apply. The Apply button is removed;
 stale reads/live streams are cancelled, pagination/selection reset, and editor
 drafts preserved. Substring filtering remains scoped to the current server page.
+
+Keys now uses a compact header with inline width/actions and top-aligned browser
+and editor panels. Live-update and expiration controls expand on demand; current
+live state, lease metadata, read-only policy, conflicts and unsaved state remain
+visible. Browser fixtures enforce aligned panels and a higher value area on desktop.
 
 ### Remaining acceptance follow-ups
 

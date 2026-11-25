@@ -90,3 +90,17 @@ it('disables mutation controls and editing for a read-only instance', async () =
   expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   expect(putKey).not.toHaveBeenCalled();
 });
+
+it('keeps expiration changes available in the compact options section', async () => {
+  const user = userEvent.setup();
+  fetchKey.mockResolvedValue({ key: '/key', value: 'value', modRevision: '42', lease: '123' });
+  putKey.mockResolvedValue(true);
+  render(<EditorComponent etcdKey="/key" />);
+  await screen.findByRole('textbox', { name: 'Value' });
+  await user.click(screen.getByText('Expiration on save · Preserve lease'));
+  await user.click(screen.getByRole('combobox', { name: 'Expiration on save' }));
+  await user.click(screen.getByRole('option', { name: 'Attach a lease ID' }));
+  await user.type(screen.getByLabelText('Lease ID'), '456');
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(putKey).toHaveBeenCalledWith('/key', 'value', '42', '456'));
+});

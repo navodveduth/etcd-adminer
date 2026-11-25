@@ -21,6 +21,7 @@ export default function EditorComponent({
   onSaved,
   onDirtyChange,
   serverRevision,
+  actions,
 }) {
   const instanceReadOnly = useReadOnly();
   const capabilities = useCapabilities();
@@ -166,6 +167,8 @@ export default function EditorComponent({
 
   return (
     <Paper
+      component="section"
+      aria-label="Key value editor"
       onKeyDownCapture={(event) => {
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
           event.preventDefault();
@@ -174,13 +177,21 @@ export default function EditorComponent({
         }
       }}
       variant="outlined"
-      sx={{ p: { xs: 2, sm: 3 }, display: 'flex', flexDirection: 'column', minWidth: 0 }}
+      sx={{ p: 2, display: 'flex', flexDirection: 'column', minWidth: 0 }}
     >
-      <Typography component="h2" variant="h6" sx={{ mb: 1 }}>
-        Value editor
-      </Typography>
+      <Stack
+        direction="row"
+        spacing={1}
+        useFlexGap
+        sx={{ mb: 1, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}
+      >
+        <Typography component="h2" variant="h6">
+          Value editor
+        </Typography>
+        {actions}
+      </Stack>
       {etcdKey && (
-        <Box sx={{ mb: 2, minWidth: 0 }}>
+        <Box sx={{ mb: 1, minWidth: 0 }}>
           <CopyValue value={etcdKey} label="exact key" />
         </Box>
       )}
@@ -188,7 +199,7 @@ export default function EditorComponent({
         direction="row"
         spacing={2}
         useFlexGap
-        sx={{ flexWrap: 'wrap', mb: 2, fontSize: 13, alignItems: 'center' }}
+        sx={{ flexWrap: 'wrap', mb: 1.5, fontSize: 13, alignItems: 'center' }}
       >
         <StatusBadge
           label={dirty ? 'Unsaved changes' : isNewKey ? 'New key draft' : 'Saved value'}
@@ -217,35 +228,49 @@ export default function EditorComponent({
           inspect current data; saving still checks the loaded revision.
         </Alert>
       )}
-      {etcdKey && (
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
-          <TextField
-            select
-            size="small"
-            label="Expiration on save"
-            value={leaseMode}
-            disabled={readOnly || saving || status !== 'ready'}
-            onChange={(event) => {
-              setLeaseMode(event.target.value);
-              onDirtyChange?.(value !== original || event.target.value !== 'preserve');
-            }}
-            sx={{ minWidth: 220 }}
-          >
-            <MenuItem value="preserve">Preserve existing lease</MenuItem>
-            <MenuItem value="detach">Remove expiration</MenuItem>
-            <MenuItem value="attach">Attach a lease ID</MenuItem>
-          </TextField>
-          {leaseMode === 'attach' && (
+      {etcdKey && (!readOnly || leaseMode !== 'preserve') && (
+        <Box
+          component="details"
+          open={leaseMode !== 'preserve' ? true : undefined}
+          sx={{ mb: 1.5, fontSize: 12, color: 'text.secondary' }}
+        >
+          <Box component="summary" sx={{ cursor: 'pointer', py: 0.5 }}>
+            Expiration on save ·{' '}
+            {leaseMode === 'preserve'
+              ? 'Preserve lease'
+              : leaseMode === 'detach'
+                ? 'Remove expiration'
+                : 'Attach lease'}
+          </Box>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 1 }}>
             <TextField
+              select
               size="small"
-              label="Lease ID"
-              value={lease}
-              onChange={(event) => setLease(event.target.value)}
-              disabled={readOnly || saving}
-              helperText="The key will be deleted when this lease expires."
-            />
-          )}
-        </Stack>
+              label="Expiration on save"
+              value={leaseMode}
+              disabled={readOnly || saving || status !== 'ready'}
+              onChange={(event) => {
+                setLeaseMode(event.target.value);
+                onDirtyChange?.(value !== original || event.target.value !== 'preserve');
+              }}
+              sx={{ minWidth: 220 }}
+            >
+              <MenuItem value="preserve">Preserve existing lease</MenuItem>
+              <MenuItem value="detach">Remove expiration</MenuItem>
+              <MenuItem value="attach">Attach a lease ID</MenuItem>
+            </TextField>
+            {leaseMode === 'attach' && (
+              <TextField
+                size="small"
+                label="Lease ID"
+                value={lease}
+                onChange={(event) => setLease(event.target.value)}
+                disabled={readOnly || saving}
+                helperText="The key will be deleted when this lease expires."
+              />
+            )}
+          </Stack>
+        </Box>
       )}
       {status === 'loading' && <LoadingState label="Loading key…" />}
       {status === 'idle' && (

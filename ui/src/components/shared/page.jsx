@@ -16,18 +16,23 @@ import {
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 
-export function PageHeader({ title, description, actions, children }) {
+export function PageHeader({ title, description, actions, children, compact = false }) {
   return (
-    <Box component="header" sx={{ mb: 3 }}>
+    <Box component="header" sx={{ mb: compact ? 1.5 : 3 }}>
       <Stack
-        direction={{ xs: 'column', sm: 'row' }}
-        spacing={2}
-        sx={{ alignItems: { sm: 'flex-start' }, justifyContent: 'space-between' }}
+        direction={compact ? 'row' : { xs: 'column', sm: 'row' }}
+        spacing={compact ? 1.5 : 2}
+        useFlexGap={compact}
+        sx={{
+          alignItems: compact ? 'center' : { sm: 'flex-start' },
+          justifyContent: 'space-between',
+          flexWrap: compact ? 'wrap' : undefined,
+        }}
       >
         <Box sx={{ minWidth: 0 }}>
           <Typography
             component="h1"
-            variant="h4"
+            variant={compact ? 'h6' : 'h4'}
             sx={{ fontWeight: 650, letterSpacing: '-.025em', mb: description ? 0.75 : 0 }}
           >
             {title}

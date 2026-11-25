@@ -19,7 +19,7 @@
   including responsive navigation, Connections/reauthentication, Cluster/Metrics,
   Keys/editor/dialogs, transfer, leases, watches, users, roles and About.
 - Workspace tabs surface unsaved drafts, live watches, renewal and transfer activity.
-- Validation: 72 frontend tests, ESLint, Go tests and production Chromium journeys
+- Validation: 73 frontend tests, ESLint, Go tests and production Chromium journeys
   at 375/720/768/1280/1440/1920px in both themes passed. Reauthentication retains drafts.
 - Fine-grained state-fixture, metric filtering and manual screen-reader/native-zoom
   acceptance follow-ups are documented explicitly in `ui/UX_PLAN.md`.
