@@ -3,15 +3,19 @@ import App from './App';
 import { vi, test, expect, beforeEach } from 'vitest';
 import { useTheme } from '@mui/material/styles';
 import userEvent from '@testing-library/user-event';
+import { SessionStore } from './storage/session';
+
+vi.mock('./workspaces', () => ({ default: () => <div>Opened test workspace</div> }));
 
 // Exercise the shell without coupling this smoke test to API availability.
 vi.mock('./components/connections/newConnection', () => ({
-  default: function ConnectionThemeProbe() {
+  default: function ConnectionThemeProbe({ forceRefreshNav }) {
     const theme = useTheme();
     return (
       <>
         <div>New connection</div>
         <output data-testid="primary-color">{theme.palette.primary.main}</output>
+        <button onClick={() => forceRefreshNav()}>Open test workspace</button>
       </>
     );
   },
@@ -25,6 +29,26 @@ vi.mock('./data/service', () => ({
 beforeEach(() => {
   getConfig.mockReset();
   getConfig.mockResolvedValue({ clusters: [], readOnly: false });
+});
+
+test('opens a workspace when secure-context randomUUID is unavailable', async () => {
+  const randomUUID = vi.spyOn(crypto, 'randomUUID').mockImplementation(() => {
+    throw new Error('randomUUID is unavailable on HTTP origins');
+  });
+  try {
+    const store = new SessionStore();
+    const profile = { Name: 'http-profile', BackEnd: 'dev', UserName: 'alice', Password: 'test' };
+    store.Add(profile);
+    store.SetActiveSession(profile);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('link', { name: 'New connection' }));
+    await user.click(await screen.findByRole('button', { name: 'Open test workspace' }));
+    expect(await screen.findByText('Opened test workspace')).toBeInTheDocument();
+    expect(randomUUID).not.toHaveBeenCalled();
+  } finally {
+    randomUUID.mockRestore();
+  }
 });
 
 test('closes shortcut help using the header close icon', async () => {

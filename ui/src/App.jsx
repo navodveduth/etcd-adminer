@@ -43,6 +43,9 @@ function Shell({ mode, toggleMode }) {
   const [closing, setClosing] = useState(null);
   const [activities, setActivities] = useState({});
   const workspaceIDs = useRef(new Set());
+  // IDs only identify in-memory tabs, not credentials or persistent records.
+  // A counter also works on HTTP origins without secure-context Web Crypto APIs.
+  const nextWorkspaceID = useRef(0);
   workspaceIDs.current = new Set(workspaces.map((workspace) => workspace.id));
   const activityChanged = useCallback((id, kind, label) => {
     if (!workspaceIDs.current.has(id)) return;
@@ -98,7 +101,7 @@ function Shell({ mode, toggleMode }) {
       setNotice('Four workspaces are already open. Close one before opening another.');
       return;
     } else {
-      const id = crypto.randomUUID();
+      const id = `workspace-${++nextWorkspaceID.current}`;
       setWorkspaces([
         ...retained,
         {
