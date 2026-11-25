@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { expect, it, vi } from 'vitest';
@@ -26,8 +26,19 @@ it('reauthenticates saved metadata without storing the password and supports dis
   await user.type(screen.getByLabelText('Password'), 'ephemeral-password');
   await user.click(screen.getByRole('button', { name: 'Authenticate' }));
   await waitFor(() => expect(store.GetActiveSession()?.UserName).toBe('alice'));
-  expect(authenticate).toHaveBeenCalledWith('alice', 'ephemeral-password', 'cluster');
+  expect(authenticate).toHaveBeenCalledWith(
+    'alice',
+    'ephemeral-password',
+    'cluster',
+    expect.any(AbortSignal),
+  );
   expect(localStorage.getItem('sessions')).not.toContain('ephemeral-password');
   await user.click(await screen.findByRole('button', { name: 'Disconnect all' }));
+  await user.click(
+    within(screen.getByRole('dialog', { name: 'Disconnect all connections?' })).getByRole(
+      'button',
+      { name: 'Disconnect all' },
+    ),
+  );
   expect(store.GetActiveSession()).toBeUndefined();
 });

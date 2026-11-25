@@ -6,20 +6,27 @@ import {
   Chip,
   LinearProgress,
   MenuItem,
-  Paper,
   Stack,
   Table,
   TableBody,
   TableCell,
-  TableContainer,
   TableHead,
   TableRow,
   TextField,
   Typography,
 } from '@mui/material';
 import { useDataService, useWorkspaceActive } from '../../data/context';
-
-const bytes = (value) => (value == null ? 'Unavailable' : `${(value / 1048576).toFixed(2)} MiB`);
+import { formatBytes as bytes } from '../../data/presentation';
+import {
+  CopyValue,
+  DataTable,
+  ErrorState,
+  LoadingState,
+  PageHeader,
+  Section,
+  StatCard,
+} from '../shared/page';
+import ClusterTabs from './clusterTabs';
 
 export default function Metrics() {
   const service = useDataService();
@@ -90,19 +97,27 @@ export default function Metrics() {
   const available = sample?.members.filter((member) => member.available) ?? [];
   return (
     <Stack spacing={3}>
-      <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-        <Typography variant="h4" component="h1">
-          Cluster overview
-        </Typography>
+      <PageHeader
+        title="Cluster metrics"
+        description="Maintenance telemetry from configured endpoints. Status availability is not a write-quorum test."
+        actions={
+          <Button
+            variant="outlined"
+            onClick={() => setVersion((value) => value + 1)}
+            disabled={loading}
+          >
+            Refresh now
+          </Button>
+        }
+      >
         <Chip
+          size="small"
+          variant="outlined"
           label={sample ? `${age}s since sample` : 'Waiting for sample'}
           color={error || age > 45 ? 'warning' : 'default'}
         />
-      </Stack>
-      <Typography color="text.secondary">
-        Maintenance telemetry from configured endpoints only. Availability means the Status RPC
-        succeeded; it is not a write-quorum test.
-      </Typography>
+      </PageHeader>
+      <ClusterTabs />
       <Stack direction="row" spacing={2}>
         <TextField
           select
@@ -117,15 +132,19 @@ export default function Metrics() {
           <MenuItem value={30}>Every 30 seconds</MenuItem>
           <MenuItem value={60}>Every minute</MenuItem>
         </TextField>
-        <Button onClick={() => setVersion((value) => value + 1)} disabled={loading}>
-          Refresh now
-        </Button>
       </Stack>
       {loading && <LinearProgress aria-label="Refreshing metrics" />}
-      {error && <Alert severity="error">{error}</Alert>}
+      <ErrorState message={error} onRetry={() => setVersion((value) => value + 1)} />
+      {!sample && loading && <LoadingState label="Loading cluster metrics" />}
       {sample && (
         <>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' },
+              gap: 2,
+            }}
+          >
             {[
               ['Endpoints responding', `${available.length} / ${sample.members.length}`],
               [
@@ -134,12 +153,9 @@ export default function Metrics() {
               ],
               ['Active alarms', sample.alarmError ? 'Unavailable' : sample.alarms.length],
             ].map(([title, value]) => (
-              <Paper key={title} sx={{ p: 3, flex: 1 }}>
-                <Typography color="text.secondary">{title}</Typography>
-                <Typography variant="h5">{value}</Typography>
-              </Paper>
+              <StatCard key={title} label={title} value={value} />
             ))}
-          </Stack>
+          </Box>
           {sample.truncated && (
             <Alert severity="warning">Only the first 16 configured endpoints are sampled.</Alert>
           )}
@@ -152,7 +168,7 @@ export default function Metrics() {
                 : 'Investigate member integrity and etcd logs before taking corrective action.'}
             </Alert>
           ))}
-          <TableContainer component={Paper}>
+          <DataTable aria-label="Scrollable metrics table">
             <Table aria-label="Member metrics" size="small">
               <TableHead>
                 <TableRow>
@@ -172,7 +188,7 @@ export default function Metrics() {
                 {sample.members.map((member) => (
                   <TableRow key={member.endpoint}>
                     <TableCell>
-                      {member.endpoint}
+                      <CopyValue value={member.endpoint} label="metrics endpoint" mono={false} />
                       <Typography variant="caption" display="block">
                         {member.id ?? 'Unknown member'}
                       </Typography>
@@ -211,15 +227,11 @@ export default function Metrics() {
                 ))}
               </TableBody>
             </Table>
-          </TableContainer>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" component="h2">
-              Database size trend
-            </Typography>
-            <Typography variant="body2">
-              Up to 60 samples in this workspace, not persistent history. Gaps indicate unavailable
-              members.
-            </Typography>
+          </DataTable>
+          <Section
+            title="Database size trend"
+            description="Up to 60 samples in this workspace, not persistent history. Gaps indicate unavailable members."
+          >
             {sample.members.map((member) => {
               const values = history
                 .map((item) => item.members.find((node) => node.endpoint === member.endpoint))
@@ -228,6 +240,10 @@ export default function Metrics() {
               return (
                 <Box key={member.endpoint} sx={{ mt: 2 }}>
                   <Typography variant="body2">{member.endpoint}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {values.length} samples · Vertical scale: 0 – {bytes(maximum)} allocated ·
+                    Newest sample at right
+                  </Typography>
                   <svg
                     viewBox="0 0 600 80"
                     width="100%"
@@ -239,7 +255,7 @@ export default function Metrics() {
                       value === null ? null : (
                         <rect
                           key={i}
-                          x={i * 10}
+                          x={600 - values.length * 10 + i * 10}
                           y={80 - (value / maximum) * 75}
                           width="7"
                           height={(value / maximum) * 75}
@@ -253,10 +269,10 @@ export default function Metrics() {
                 </Box>
               );
             })}
-          </Paper>
+          </Section>
           <Typography variant="caption">
-            Sample: {new Date(sample.sampledAt).toLocaleString()} · {sample.source} · Sizes in MiB,
-            Raft indices/terms as decimal strings.
+            Sample: {new Date(sample.sampledAt).toLocaleString()} · {sample.source} · Binary size
+            units, Raft indices/terms as decimal strings.
           </Typography>
         </>
       )}

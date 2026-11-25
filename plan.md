@@ -1,5 +1,13 @@
 # etcd Adminer: stability, performance, and feature plan
 
+### UI redesign implementation checkpoint
+
+- Implemented shared page/state components, blue shell, responsive workspace navigation,
+  Connections/profile verification and Cluster/Metrics layouts from `ui/UX_PLAN.md`.
+- Validation: 44 frontend tests, ESLint and production Chromium smoke passed.
+- Other feature pages and full responsive/accessibility acceptance remain in progress.
+- Testing uses API fixtures, not destructive operations against DEV. No push performed.
+
 ## 1. Scope and review baseline
 
 This plan is based on the code in this checkout, not just the supplied feature checklist. It proposes work; it does not mark that work as implemented.

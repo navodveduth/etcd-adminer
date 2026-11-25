@@ -1,44 +1,58 @@
-import * as React from 'react';
-import Grid from '@mui/material/Grid';
-import Typography from '@mui/material/Typography';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
-import Alert from '@mui/material/Alert';
+import { Alert, Box, Typography } from '@mui/material';
+import { CopyValue } from '../shared/page';
 
-export default function Node(props) {
+export default function Node({ node }) {
   return (
-    <Grid size={{ xs: 12, sm: 6, md: 4, lg: 4 }}>
-      <Card variant="outlined" sx={{ m: 1 }}>
-        <React.Fragment>
-          <CardContent>
-            {props.error && <Alert severity="warning">{props.error}</Alert>}
-            <Typography sx={{ mb: 1.5 }} color="text.primary">
-              Name: {props.name}
-            </Typography>
-            <Typography sx={{ mb: 1.5 }} color="text.secondary">
-              ID: {props.ID}
-            </Typography>
-            <Typography sx={{ mb: 1.5 }} color="text.secondary">
-              Is Learner: {props.isLearner ? 'true' : 'false'}
-            </Typography>
-            <Typography sx={{ mb: 1.5 }} color="text.secondary">
-              Peer URLs: {props.peerUrls}
-            </Typography>
-            <Typography sx={{ mb: 1.5 }} color="text.secondary">
-              Client URLs: {props.clientUrls}
-            </Typography>
-            <Typography sx={{ mb: 1.5 }} color="text.secondary">
-              Leader Status: {props.isLeader}
-            </Typography>
-            <Typography sx={{ mb: 1.5 }} color="text.secondary">
-              DB Size: {props.dbSize ?? 'Unavailable'}
-            </Typography>
-            <Typography sx={{ mb: 1.5 }} color="text.secondary">
-              DB Size In Use: {props.dbSizeInUse ?? 'Unavailable'}
-            </Typography>
-          </CardContent>
-        </React.Fragment>
-      </Card>
-    </Grid>
+    <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
+      {node.error && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          {node.error}
+        </Alert>
+      )}
+      <Box
+        component="dl"
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', sm: '150px minmax(0, 1fr)' },
+          columnGap: 2,
+          rowGap: 1.5,
+          m: 0,
+          '& dt': { color: 'text.secondary', fontSize: 13 },
+          '& dd': { m: 0, minWidth: 0, fontSize: 13 },
+        }}
+      >
+        <dt>Member ID (decimal)</dt>
+        <dd>
+          <CopyValue value={node.ID} label="member ID" />
+        </dd>
+        <dt>Replication mode</dt>
+        <dd>{node.isLearner ? 'Learner (non-voting)' : 'Voting member'}</dd>
+        <dt>Client endpoints</dt>
+        <dd>
+          {node.clientUrls?.length
+            ? node.clientUrls.map((url) => (
+                <CopyValue key={url} value={url} label="client endpoint" />
+              ))
+            : 'Not advertised'}
+        </dd>
+        <dt>Peer endpoints</dt>
+        <dd>
+          {node.peerUrls?.length
+            ? node.peerUrls.map((url) => <CopyValue key={url} value={url} label="peer endpoint" />)
+            : 'Not advertised'}
+        </dd>
+        <dt>Raw database sizes</dt>
+        <dd>
+          <Typography variant="body2">
+            Allocated:{' '}
+            {node.available && node.dbSize != null ? `${node.dbSize} bytes` : 'Unavailable'} · In
+            use:{' '}
+            {node.available && node.dbSizeInUse != null
+              ? `${node.dbSizeInUse} bytes`
+              : 'Unavailable'}
+          </Typography>
+        </dd>
+      </Box>
+    </Box>
   );
 }

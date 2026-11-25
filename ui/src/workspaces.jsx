@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Alert, Box, CircularProgress, Stack } from '@mui/material';
+import { Alert, Box, Button, Chip, Drawer, IconButton, Stack, Typography } from '@mui/material';
+import MenuIcon from '@mui/icons-material/Menu';
+import CloseIcon from '@mui/icons-material/Close';
+import { LoadingState } from './components/shared/page';
 import { lazy, Suspense } from 'react';
 import DataService from './data/service';
 import { SessionStore } from './storage/session';
@@ -32,6 +35,10 @@ function WorkspacePages() {
   const capabilities = useCapabilities();
   const active = useWorkspaceActive();
   const [visited, setVisited] = useState({});
+  const content = useRef(null);
+  useEffect(() => {
+    if (active) content.current?.focus({ preventScroll: true });
+  }, [location.pathname, active]);
   useEffect(() => {
     if (pages[location.pathname])
       setVisited((previous) => ({ ...previous, [location.pathname]: location }));
@@ -42,7 +49,7 @@ function WorkspacePages() {
   };
   if (!pages[location.pathname]) return <Navigate to="/keys" replace />;
   return (
-    <>
+    <Box ref={content} tabIndex={-1} sx={{ outline: 'none', minWidth: 0 }}>
       {Object.entries(entries).map(([path, savedLocation]) => {
         const Page = pages[path];
         const allowed = !adminPages.has(path) || capabilities?.administrator;
@@ -59,7 +66,7 @@ function WorkspacePages() {
                   path={path}
                   element={
                     allowed ? (
-                      <Suspense fallback={<CircularProgress aria-label="Loading page" />}>
+                      <Suspense fallback={<LoadingState label="Loading page" />}>
                         <Page />
                       </Suspense>
                     ) : (
@@ -75,7 +82,55 @@ function WorkspacePages() {
           </Box>
         );
       })}
-    </>
+    </Box>
+  );
+}
+
+function WorkspaceNavigation({ profile, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Stack
+      direction={{ xs: 'column', md: 'row' }}
+      spacing={{ xs: 2, md: 3 }}
+      sx={{ alignItems: { md: 'flex-start' } }}
+    >
+      <Button
+        startIcon={<MenuIcon />}
+        variant="outlined"
+        onClick={() => setOpen(true)}
+        sx={{ display: { md: 'none' }, alignSelf: 'flex-start' }}
+      >
+        Navigate workspace
+      </Button>
+      <Box
+        component="nav"
+        aria-label={`Workspace navigation for ${profile.Name}`}
+        sx={{
+          display: { xs: 'none', md: 'block' },
+          width: 204,
+          flexShrink: 0,
+          position: 'sticky',
+          top: 88,
+        }}
+      >
+        <NavMenu workspace />
+      </Box>
+      <Drawer open={open} onClose={() => setOpen(false)}>
+        <Box component="nav" aria-label="Workspace menu" sx={{ width: 260, p: 2 }}>
+          <Stack
+            direction="row"
+            sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1 }}
+          >
+            <Typography fontWeight={600}>{profile.Name}</Typography>
+            <IconButton aria-label="Close navigation" onClick={() => setOpen(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Stack>
+          <NavMenu workspace onNavigate={() => setOpen(false)} />
+        </Box>
+      </Drawer>
+      <Box sx={{ minWidth: 0, flex: 1, width: '100%' }}>{children}</Box>
+    </Stack>
   );
 }
 
@@ -98,6 +153,7 @@ export default function Workspace({ profile, active = true }) {
   }, [profile.Name, profile.BackEnd, profile.UserName]);
   const [capabilities, setCapabilities] = useState(null);
   const [capabilityError, setCapabilityError] = useState('');
+  const [accessVersion, setAccessVersion] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     let inFlight = false;
@@ -129,34 +185,66 @@ export default function Workspace({ profile, active = true }) {
       clearInterval(timer);
       window.removeEventListener('focus', load);
     };
-  }, [service]);
+  }, [service, accessVersion]);
   return (
     <DataServiceContext.Provider value={service}>
       <CapabilityContext.Provider value={capabilities}>
         <WorkspaceActiveContext.Provider value={active}>
           <ReadOnlyContext.Provider value={instanceReadOnly || !capabilities?.write}>
             <MemoryRouter initialEntries={['/keys']}>
-              <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
-                <Box
-                  component="nav"
-                  aria-label={`Workspace navigation for ${profile.Name}`}
-                  sx={{ minWidth: 210 }}
+              <WorkspaceNavigation profile={profile}>
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  useFlexGap
+                  flexWrap="wrap"
+                  sx={{ mb: 2.5, alignItems: 'center', fontSize: 13 }}
                 >
-                  <NavMenu workspace />
-                </Box>
-                <Box sx={{ minWidth: 0, flex: 1 }}>
-                  {capabilityError && (
-                    <Alert severity="warning" sx={{ mb: 2 }}>
-                      {capabilityError}
-                    </Alert>
+                  <Typography variant="body2" color="text.secondary">
+                    Backend{' '}
+                    <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                      {profile.BackEnd}
+                    </Box>{' '}
+                    · User{' '}
+                    <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                      {profile.UserName}
+                    </Box>
+                  </Typography>
+                  {capabilities?.administrator && (
+                    <Chip size="small" variant="outlined" label="Administrator" />
                   )}
-                  {!capabilities && !capabilityError ? (
-                    <CircularProgress aria-label="Checking access" />
-                  ) : (
-                    <WorkspacePages />
+                  {(instanceReadOnly || (capabilities && !capabilities.write)) && (
+                    <Chip
+                      size="small"
+                      color="info"
+                      variant="outlined"
+                      label={instanceReadOnly ? 'Read-only instance' : 'View only'}
+                    />
                   )}
-                </Box>
-              </Stack>
+                </Stack>
+                {capabilityError && (
+                  <Alert
+                    severity="warning"
+                    sx={{ mb: 2 }}
+                    action={
+                      <Button
+                        color="inherit"
+                        size="small"
+                        onClick={() => setAccessVersion((value) => value + 1)}
+                      >
+                        Refresh access
+                      </Button>
+                    }
+                  >
+                    {capabilityError}
+                  </Alert>
+                )}
+                {!capabilities && !capabilityError ? (
+                  <LoadingState label="Checking access" />
+                ) : (
+                  <WorkspacePages />
+                )}
+              </WorkspaceNavigation>
             </MemoryRouter>
           </ReadOnlyContext.Provider>
         </WorkspaceActiveContext.Provider>

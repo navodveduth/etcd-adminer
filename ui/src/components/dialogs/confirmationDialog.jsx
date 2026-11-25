@@ -1,33 +1,61 @@
-import * as React from 'react';
-import Button from '@mui/material/Button';
-import Dialog from '@mui/material/Dialog';
-import DialogActions from '@mui/material/DialogActions';
-import DialogContent from '@mui/material/DialogContent';
-import DialogContentText from '@mui/material/DialogContentText';
-import DialogTitle from '@mui/material/DialogTitle';
-import useMediaQuery from '@mui/material/useMediaQuery';
-import { useTheme } from '@mui/material/styles';
+import { useId } from 'react';
+import {
+  Alert,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Typography,
+} from '@mui/material';
 
-export default function ConfirmationDialog(props) {
-  const theme = useTheme();
-  const fullScreen = useMediaQuery(theme.breakpoints.down('md'));
-
+export default function ConfirmationDialog({
+  open,
+  title,
+  content,
+  onCancel,
+  onConfirm,
+  confirmLabel = 'Delete',
+  cancelLabel = 'Cancel',
+  busy = false,
+  destructive = true,
+  warning,
+}) {
+  const id = useId();
   return (
-    <div>
-      <Dialog fullScreen={fullScreen} open={props.open} aria-labelledby="responsive-dialog-title">
-        <DialogTitle id="responsive-dialog-title">{props.title}</DialogTitle>
-        <DialogContent>
-          <DialogContentText>{props.content}</DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button autoFocus onClick={props.onCancel}>
-            No
-          </Button>
-          <Button onClick={props.onConfirm} autoFocus>
-            Yes
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </div>
+    <Dialog
+      open={Boolean(open)}
+      onClose={() => {
+        if (!busy) onCancel();
+      }}
+      aria-labelledby={id}
+      maxWidth="sm"
+      fullWidth
+    >
+      <DialogTitle id={id}>{title}</DialogTitle>
+      <DialogContent>
+        <Typography color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
+          {content}
+        </Typography>
+        {warning && (
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            {warning}
+          </Alert>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button autoFocus disabled={busy} onClick={onCancel}>
+          {cancelLabel}
+        </Button>
+        <Button
+          variant="contained"
+          color={destructive ? 'error' : 'primary'}
+          disabled={busy}
+          onClick={onConfirm}
+        >
+          {busy ? 'Working…' : confirmLabel}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }

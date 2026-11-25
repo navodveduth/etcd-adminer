@@ -7,9 +7,13 @@ The supplied screenshots are examples of wider consistency/usability problems,
 not the boundary of this work. Cluster and Connections must not receive a
 redesign while the remaining pages retain unrelated layouts and interaction patterns.
 
-**Status:** only the previous blue primary palette and connection action have
-been restored. All redesign items in this document are **planned**, not implemented.
-This plan supersedes the earlier screenshot-focused plan.
+**Status:** implementation is in progress. Shared page/state components, blue shell,
+grouped responsive navigation, workspace tabs/close confirmation, Connections and
+profile verification, Cluster inventory and Metrics presentation are implemented.
+The foundation passes 44 frontend tests, lint and production Chromium smoke tests.
+Remaining feature pages and comprehensive responsive/accessibility coverage are
+still pending; the detailed requirements below remain acceptance targets, not a
+claim that every item is complete. This supersedes the screenshot-focused plan.
 
 ### Non-negotiable requirements
 

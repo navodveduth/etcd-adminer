@@ -125,7 +125,7 @@ try {
   });
   await page.goto('http://127.0.0.1:4174');
   const openProfile = async (name) => {
-    const card = page.locator('.MuiCard-root').filter({ hasText: name });
+    const card = page.getByRole('row').filter({ hasText: name });
     await card.getByRole('button', { name: 'Open workspace' }).click();
     const password = page.getByLabel('Password', { exact: true });
     await password.fill('temporary-browser-test');
@@ -175,8 +175,8 @@ try {
   await page.getByRole('button', { name: 'Shortcuts', exact: true }).click();
   await page.getByRole('dialog', { name: 'Keyboard shortcuts', exact: true }).waitFor();
   await page.keyboard.press('Escape');
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Close active workspace', exact: true }).click();
+  await page.getByRole('button', { name: 'Close workspace', exact: true }).click();
   assert.equal(await page.getByRole('tab', { name: /Development · dev · alice/ }).count(), 0);
   assert.equal(errors.length, 0, errors.join('\n'));
   assert.ok(

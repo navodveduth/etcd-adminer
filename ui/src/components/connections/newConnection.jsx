@@ -1,6 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Alert, Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Button,
+  IconButton,
+  InputAdornment,
+  MenuItem,
+  Stack,
+  Step,
+  StepLabel,
+  Stepper,
+  TextField,
+  Typography,
+} from '@mui/material';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
+import { CopyValue, PageHeader, Section } from '../shared/page';
+import ConfirmationDialog from '../dialogs/confirmationDialog';
 import { SessionStore, Session } from '../../storage/session';
 import DataService from '../../data/service';
 
@@ -18,6 +35,8 @@ export default function NewConnection({ forceRefreshNav }) {
   const [tested, setTested] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(null);
+  const [visible, setVisible] = useState(false);
+  const [confirmEdit, setConfirmEdit] = useState(false);
   const controller = useRef(null);
   const navigate = useNavigate();
   useEffect(() => {
@@ -79,7 +98,7 @@ export default function NewConnection({ forceRefreshNav }) {
       if (!abort.signal.aborted) setBusy(false);
     }
   };
-  const save = () => {
+  const save = (confirmed = false) => {
     if (!tested || busy || !name.trim()) return;
     if ((!editing || name.trim() !== editing) && store.Get(name.trim())) {
       setMessage({
@@ -88,13 +107,11 @@ export default function NewConnection({ forceRefreshNav }) {
       });
       return;
     }
-    if (
-      editing &&
-      !window.confirm(
-        'Save profile changes? Open workspaces for the old identity will close; their drafts, watches and automatic renewal will be discarded/stopped.',
-      )
-    )
+    if (editing && !confirmed) {
+      setConfirmEdit(true);
       return;
+    }
+    setConfirmEdit(false);
     try {
       const cluster = clusters.find((item) => item.name === backend);
       const profile = new Session(
@@ -117,83 +134,177 @@ export default function NewConnection({ forceRefreshNav }) {
       });
     }
   };
+  const duplicate = Boolean(name.trim() && name.trim() !== editing && store.Get(name.trim()));
+  const selected = clusters.find((item) => item.name === backend);
   return (
-    <Paper sx={{ p: 3, maxWidth: 760, mx: 'auto' }}>
-      <Stack spacing={3}>
-        <Typography variant="h4" component="h1">
-          {editing ? 'Edit connection' : 'New connection'}
-        </Typography>
-        <Alert severity="info">
-          Only profile metadata is saved. Passwords stay in browser-tab memory. Backend endpoints
-          and TLS are configured on the Adminer server.
-        </Alert>
-        {message && (
-          <Alert severity={message.severity} role="status">
-            {message.text}
-          </Alert>
-        )}
-        <TextField
-          label="Profile name"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          disabled={busy}
-          autoFocus
-          required
-        />
-        <TextField
-          select
-          label="Backend"
-          value={clusters.some((item) => item.name === backend) ? backend : ''}
-          onChange={change(setBackend)}
-          disabled={busy}
-          required
+    <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+      <PageHeader
+        title={editing ? 'Edit connection' : 'New connection'}
+        description="Choose a configured backend, verify your credentials, then open an isolated workspace."
+        actions={
+          <Button component={Link} to="/connection">
+            Back to connections
+          </Button>
+        }
+      />
+      <Stepper activeStep={tested ? 2 : busy ? 1 : 0} sx={{ mb: 3 }}>
+        {['Profile details', 'Verify access', 'Open workspace'].map((label) => (
+          <Step key={label}>
+            <StepLabel>{label}</StepLabel>
+          </Step>
+        ))}
+      </Stepper>
+      <Section
+        title="Connection details"
+        description="A profile saves the backend and username, never your password."
+      >
+        <Box
+          component="form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            save();
+          }}
         >
-          {clusters.map((cluster) => (
-            <MenuItem key={cluster.name} value={cluster.name}>
-              {cluster.name} · {cluster.endpoints?.join(', ')}
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          label="Username"
-          value={username}
-          onChange={change(setUsername)}
-          disabled={busy}
-          autoComplete="username"
-          required
-        />
-        <TextField
-          label="Password"
-          type="password"
-          value={password}
-          onChange={change(setPassword)}
-          disabled={busy}
-          autoComplete="current-password"
-        />
-        <Stack direction="row" spacing={2}>
-          <Button variant="outlined" disabled={busy || !backend || !username} onClick={test}>
-            {busy ? 'Testing…' : 'Test & diagnose'}
-          </Button>
-          <Button variant="contained" disabled={!tested || busy || !name.trim()} onClick={save}>
-            Save & open workspace
-          </Button>
-          {busy ? (
-            <Button
-              onClick={() => {
-                controller.current?.abort();
-                setBusy(false);
-                setMessage({ severity: 'info', text: 'Connection test cancelled.' });
-              }}
+          <Stack spacing={2.5}>
+            <TextField
+              label="Profile name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              disabled={busy}
+              autoFocus
+              required
+              error={duplicate}
+              helperText={
+                duplicate
+                  ? 'This profile name already exists. Choose another name.'
+                  : 'A short label to identify this workspace.'
+              }
+            />
+            <TextField
+              select
+              label="Backend"
+              value={selected ? backend : ''}
+              onChange={change(setBackend)}
+              disabled={busy || !clusters.length}
+              required
+              helperText={
+                !clusters.length
+                  ? 'No backend loaded. Check the instance configuration and refresh.'
+                  : 'Endpoints and TLS are configured on the Adminer server.'
+              }
             >
-              Cancel test
-            </Button>
-          ) : (
-            <Button component={Link} to="/connection">
-              Back
-            </Button>
-          )}
-        </Stack>
-      </Stack>
-    </Paper>
+              {clusters.map((cluster) => (
+                <MenuItem key={cluster.name} value={cluster.name}>
+                  {cluster.name}
+                </MenuItem>
+              ))}
+            </TextField>
+            {selected && (
+              <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: 'action.hover', fontSize: 13 }}>
+                {selected.endpoints?.map((endpoint) => (
+                  <CopyValue
+                    key={endpoint}
+                    value={endpoint}
+                    label="backend endpoint"
+                    mono={false}
+                  />
+                ))}
+              </Box>
+            )}
+            <Box
+              sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}
+            >
+              <TextField
+                label="Username"
+                value={username}
+                onChange={change(setUsername)}
+                disabled={busy}
+                autoComplete="username"
+                required
+              />
+              <TextField
+                label="Password"
+                type={visible ? 'text' : 'password'}
+                value={password}
+                onChange={change(setPassword)}
+                disabled={busy}
+                autoComplete="current-password"
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          aria-label={visible ? 'Hide password' : 'Show password'}
+                          disabled={busy}
+                          onClick={() => setVisible((value) => !value)}
+                        >
+                          {visible ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+              />
+            </Box>
+            {message && (
+              <Alert severity={message.severity} role="status" sx={{ overflowWrap: 'anywhere' }}>
+                {message.text}
+              </Alert>
+            )}
+            {!tested && (
+              <Typography variant="body2" color="text.secondary">
+                Test this backend and credentials before saving. Changing either requires a fresh
+                test.
+              </Typography>
+            )}
+            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+              <Button
+                type="button"
+                variant="outlined"
+                disabled={busy || !backend || !username}
+                onClick={test}
+              >
+                {busy ? 'Testing…' : 'Test & diagnose'}
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={!tested || busy || !name.trim() || duplicate}
+              >
+                Save & open workspace
+              </Button>
+              {busy && (
+                <Button
+                  onClick={() => {
+                    controller.current?.abort();
+                    setBusy(false);
+                    setMessage({ severity: 'info', text: 'Connection test cancelled.' });
+                  }}
+                >
+                  Cancel test
+                </Button>
+              )}
+            </Stack>
+          </Stack>
+        </Box>
+      </Section>
+      <Box component="details" sx={{ mt: 2, color: 'text.secondary', fontSize: 14 }}>
+        <summary style={{ cursor: 'pointer' }}>Credential privacy and troubleshooting</summary>
+        <Typography variant="body2" sx={{ mt: 1 }}>
+          Passwords remain only in tab memory. A reload requires sign-in again. For transport
+          failures, verify the configured host/port, CA, TLS server name and client certificate on
+          the Adminer server. Do not paste passwords or authorization headers into diagnostics.
+        </Typography>
+      </Box>
+      <ConfirmationDialog
+        open={confirmEdit}
+        title="Save changes to this profile?"
+        content="Workspaces for the old profile will close, discarding drafts and stopping watches and automatic renewal. The new profile opens only after the verified credentials are saved."
+        confirmLabel="Save changes"
+        destructive={false}
+        onCancel={() => setConfirmEdit(false)}
+        onConfirm={() => save(true)}
+      />
+    </Box>
   );
 }

@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import Metrics from './metrics';
+import { MemoryRouter } from 'react-router-dom';
 vi.mock('../../data/service', () => ({
   default: class {
     BindActiveSession = () => this;
@@ -27,7 +28,11 @@ vi.mock('../../data/service', () => ({
   },
 }));
 it('keeps partial samples visible and labels missing quota and alarms as unavailable', async () => {
-  render(<Metrics />);
+  render(
+    <MemoryRouter>
+      <Metrics />
+    </MemoryRouter>,
+  );
   expect(await screen.findByText('1 / 2')).toBeInTheDocument();
   expect(screen.getByText('endpoint unavailable')).toBeInTheDocument();
   expect(screen.getByText('Alarms unavailable')).toBeInTheDocument();

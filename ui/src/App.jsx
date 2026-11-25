@@ -11,11 +11,14 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  DialogActions,
   IconButton,
   Toolbar,
   Typography,
 } from '@mui/material';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
+import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
+import { EmptyState } from './components/shared/page';
 import { MemoryRouter, Navigate, Route, Routes } from 'react-router-dom';
 import DataService from './data/service';
 import { ReadOnlyContext } from './readOnly';
@@ -34,6 +37,7 @@ function Shell({ mode, toggleMode }) {
   const [active, setActive] = useState('');
   const [notice, setNotice] = useState('');
   const [help, setHelp] = useState(false);
+  const [closing, setClosing] = useState(null);
   useEffect(() => {
     if (page === 'workspace' && active) document.getElementById(`tab-${active}`)?.focus();
   }, [active, page]);
@@ -85,15 +89,14 @@ function Shell({ mode, toggleMode }) {
     setPage('workspace');
   };
   const close = (id) => {
-    if (
-      !window.confirm(
-        'Close this workspace? Unsaved drafts are discarded; its watches and automatic lease renewal stop. Attached keys can expire when renewal stops.',
-      )
-    )
-      return;
+    setClosing(workspaces.find((item) => item.id === id) ?? null);
+  };
+  const confirmClose = () => {
+    const id = closing.id;
     const retained = workspaces.filter((item) => item.id !== id);
     setWorkspaces(retained);
     if (active === id) setActive(retained[0]?.id ?? '');
+    setClosing(null);
   };
   useEffect(() => {
     const shortcuts = (event) => {
@@ -130,15 +133,25 @@ function Shell({ mode, toggleMode }) {
       >
         Skip to main content
       </Box>
-      <AppBar position="static" elevation={0}>
-        <Toolbar sx={{ gap: 2 }}>
-          <Typography variant="h6" component="h1" sx={{ flexGrow: 1 }}>
+      <AppBar position="sticky" elevation={0}>
+        <Toolbar sx={{ gap: { xs: 0.5, sm: 2 }, minHeight: 64 }}>
+          <StorageOutlinedIcon sx={{ mr: 0.5 }} />
+          <Typography
+            variant="h6"
+            component="span"
+            sx={{
+              flexGrow: 1,
+              whiteSpace: 'nowrap',
+              fontSize: { xs: 16, sm: 18 },
+              fontWeight: 600,
+            }}
+          >
             ETCD Adminer
           </Typography>
-          <Button color="inherit" onClick={() => setPage('about')}>
+          <Button color="inherit" size="small" onClick={() => setPage('about')}>
             About
           </Button>
-          <Button color="inherit" onClick={() => setHelp(true)}>
+          <Button color="inherit" size="small" onClick={() => setHelp(true)}>
             Shortcuts
           </Button>
           <IconButton
@@ -150,7 +163,13 @@ function Shell({ mode, toggleMode }) {
           </IconButton>
         </Toolbar>
       </AppBar>
-      <Container component="main" id="main-content" tabIndex={-1} maxWidth={false} sx={{ py: 3 }}>
+      <Container
+        component="main"
+        id="main-content"
+        tabIndex={-1}
+        maxWidth={false}
+        sx={{ py: { xs: 2, sm: 3 }, px: { xs: 2, sm: 3, xl: 4 }, minWidth: 0, outline: 'none' }}
+      >
         <WorkspaceTabs
           workspaces={workspaces}
           active={managing ? '' : active}
@@ -184,7 +203,15 @@ function Shell({ mode, toggleMode }) {
           )}
           {page === 'about' && <About />}
           {page === 'workspace' && !workspaces.length && (
-            <Button onClick={() => setPage('connection')}>Open a connection</Button>
+            <EmptyState
+              title="No open workspaces"
+              description="Open a saved connection to browse keys and manage your cluster."
+              action={
+                <Button variant="contained" onClick={() => setPage('connection')}>
+                  Open a connection
+                </Button>
+              }
+            />
           )}
         </Suspense>
         {workspaces.map((workspace) => (
@@ -199,13 +226,65 @@ function Shell({ mode, toggleMode }) {
           </Box>
         ))}
       </Container>
+      <Dialog
+        open={Boolean(closing)}
+        onClose={() => setClosing(null)}
+        aria-labelledby="close-workspace-title"
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle id="close-workspace-title">
+          Close {closing?.profile.Name} workspace?
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mb: 2 }}>
+            Unsaved drafts will be discarded. Watches and automatic lease renewal in this workspace
+            will stop.
+          </Typography>
+          <Alert severity="warning">
+            Attached keys may expire after renewal stops. Closing does not revoke a lease or delete
+            cluster keys directly.
+          </Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button autoFocus onClick={() => setClosing(null)}>
+            Keep workspace
+          </Button>
+          <Button color="error" onClick={confirmClose}>
+            Close workspace
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Dialog open={help} onClose={() => setHelp(false)} aria-labelledby="shortcut-help">
         <DialogTitle id="shortcut-help">Keyboard shortcuts</DialogTitle>
         <DialogContent>
-          <Typography>
-            Ctrl/Cmd+S: save the focused key editor. Alt+R: refresh keys. Alt+F: focus key prefix.
-            Alt+1–4: switch workspace. F1: this help. Escape: close dialogs.
+          <Typography color="text.secondary" sx={{ mb: 2 }}>
+            Shortcuts act on the focused page or selected workspace.
           </Typography>
+          <Box
+            component="dl"
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: 'auto 1fr',
+              gap: 2,
+              m: 0,
+              '& dt': { fontFamily: 'monospace', fontSize: 13 },
+              '& dd': { m: 0, fontSize: 14 },
+            }}
+          >
+            <dt>{/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'} + S</dt>
+            <dd>Save the focused key editor</dd>
+            <dt>Alt + F</dt>
+            <dd>Focus key prefix search</dd>
+            <dt>Alt + R</dt>
+            <dd>Refresh key listing</dd>
+            <dt>Alt + 1–4</dt>
+            <dd>Switch workspace</dd>
+            <dt>Shift + F10</dt>
+            <dd>Open focused tree item menu</dd>
+            <dt>F1 / Escape</dt>
+            <dd>Open help / close dialog</dd>
+          </Box>
           <Button autoFocus onClick={() => setHelp(false)}>
             Close help
           </Button>
@@ -229,13 +308,42 @@ export default function App() {
   const theme = useMemo(
     () =>
       createTheme({
-        palette: { mode, primary: { main: mode === 'dark' ? '#90caf9' : '#1976d2' } },
-        shape: { borderRadius: 10 },
+        palette: {
+          mode,
+          primary: { main: mode === 'dark' ? '#90caf9' : '#1976d2' },
+          background: {
+            default: mode === 'dark' ? '#101721' : '#f4f7fb',
+            paper: mode === 'dark' ? '#182230' : '#ffffff',
+          },
+        },
+        shape: { borderRadius: 8 },
+        typography: {
+          fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          fontSize: 14,
+          h4: { fontSize: '1.65rem' },
+          h6: { fontSize: '1.05rem' },
+          body1: { fontSize: '.9375rem', lineHeight: 1.6 },
+        },
         components: {
+          MuiPaper: {
+            defaultProps: { elevation: 0 },
+            styleOverrides: { root: { backgroundImage: 'none' } },
+          },
+          MuiTextField: { defaultProps: { size: 'small', variant: 'outlined' } },
           MuiButton: {
             defaultProps: { disableElevation: true },
-            styleOverrides: { root: { textTransform: 'none' } },
+            styleOverrides: { root: { textTransform: 'none', fontWeight: 550, minHeight: 36 } },
           },
+          MuiTableCell: {
+            styleOverrides: {
+              head: { fontWeight: 600 },
+              root: { paddingTop: 14, paddingBottom: 14 },
+            },
+          },
+          MuiDialogActions: {
+            styleOverrides: { root: { padding: '16px 24px', gap: 4, flexWrap: 'wrap' } },
+          },
+          MuiTab: { styleOverrides: { root: { textTransform: 'none', minHeight: 44 } } },
         },
       }),
     [mode],

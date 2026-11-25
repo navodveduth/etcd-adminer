@@ -1,138 +1,61 @@
-import * as React from 'react';
-import Card from '@mui/material/Card';
-import CardHeader from '@mui/material/CardHeader';
-import CardActions from '@mui/material/CardActions';
-import CardContent from '@mui/material/CardContent';
-import Button from '@mui/material/Button';
-import Typography from '@mui/material/Typography';
-import Avatar from '@mui/material/Avatar';
-import IconButton from '@mui/material/IconButton';
-import { red } from '@mui/material/colors';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
-import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
+import {
+  Card,
+  CardContent,
+  CardActions,
+  Typography,
+  Button,
+  Stack,
+  Chip,
+  IconButton,
+} from '@mui/material';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import { Link } from 'react-router-dom';
+import { CopyValue } from '../shared/page';
 
-const ITEM_HEIGHT = 48;
-
-export default function ConnectionCard(props) {
-  const useSession = () => {
-    props.useSession(props.connection);
-  };
-
-  const [anchorEl, setAnchorEl] = React.useState(null);
-  const open = Boolean(anchorEl);
-
-  const handleOptionMenuBtnClick = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleOptionClose = () => {
-    setAnchorEl(null);
-  };
-
-  let options = [
-    {
-      name: 'Connect',
-      onClick: () => {
-        connect(props.connection);
-        setAnchorEl(null);
-      },
-    },
-    {
-      name: 'Delete',
-      onClick: () => {
-        deleteConnection();
-        setAnchorEl(null);
-      },
-    },
-  ];
-
-  const connect = (session) => {
-    props.useSession(session);
-  };
-
-  const deleteConnection = () => {
-    if (
-      window.confirm(
-        `Delete profile ${props.connection.Name}? Its workspaces will close, discarding drafts and stopping watches and renewal. Cluster keys are not deleted.`,
-      )
-    )
-      props.deleteSession(props.connection);
-  };
-
+export default function ConnectionCard({ connection, isActive, openProfile, deleteSession }) {
   return (
-    <Card
-      variant="outlined"
-      sx={{
-        maxWidth: 345,
-        m: 1,
-        border: `${props.isActive ? '3px solid #1976d2' : '1px solid #1976d2'}`,
-      }}
-    >
-      <CardHeader
-        avatar={
-          <Avatar sx={{ bgcolor: red[500] }} aria-label={`User ${props.connection.UserName}`}>
-            {props.connection.UserName.charAt(0).toUpperCase()}
-          </Avatar>
-        }
-        action={
-          <IconButton
-            aria-label={`Options for ${props.connection.Name}`}
-            onClick={handleOptionMenuBtnClick}
-          >
-            <MoreVertIcon />
-          </IconButton>
-        }
-        title={props.connection.Name}
-      />
+    <Card variant="outlined" sx={{ minWidth: 0 }}>
       <CardContent>
-        <Typography sx={{ mb: 1.5 }} color="text.secondary">
-          Cluster: {props.connection.BackEnd}
-        </Typography>
-        <Typography sx={{ mb: 1.5 }} color="text.secondary">
-          Endpoints: {props.connection.Endpoints}
-        </Typography>
-        <Typography sx={{ mb: 1.5 }} color="text.secondary">
-          User: {props.connection.UserName}
-        </Typography>
-        <Typography sx={{ mb: 1.5 }} color="text.secondary">
-          {props.isActive ? 'Most recently selected connection' : 'Saved profile'}
-        </Typography>
+        <Stack spacing={1.5}>
+          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography fontWeight={600} sx={{ overflowWrap: 'anywhere' }}>
+              {connection.Name}
+            </Typography>
+            <Chip
+              size="small"
+              variant="outlined"
+              label={isActive ? 'Last selected' : 'Saved profile'}
+            />
+          </Stack>
+          <Typography variant="body2" color="text.secondary">
+            {connection.BackEnd} · {connection.UserName}
+          </Typography>
+          {(Array.isArray(connection.Endpoints) ? connection.Endpoints : [connection.Endpoints])
+            .filter(Boolean)
+            .map((endpoint) => (
+              <CopyValue
+                key={endpoint}
+                value={endpoint}
+                label={`endpoint for ${connection.Name}`}
+                mono={false}
+              />
+            ))}
+        </Stack>
       </CardContent>
-      <CardActions>
-        <Button variant="contained" color="primary" size="small" onClick={useSession}>
+      <CardActions sx={{ px: 2, pb: 2, flexWrap: 'wrap', gap: 1 }}>
+        <Button variant="contained" onClick={() => openProfile(connection)}>
           Open workspace
         </Button>
-        <Button
-          component={Link}
-          to={`/connection/new?edit=${encodeURIComponent(props.connection.Name)}`}
-          size="small"
-        >
+        <Button component={Link} to={`/connection/new?edit=${encodeURIComponent(connection.Name)}`}>
           Edit / diagnose
         </Button>
+        <IconButton
+          aria-label={`Delete profile ${connection.Name}`}
+          onClick={() => deleteSession(connection)}
+        >
+          <DeleteOutlineIcon />
+        </IconButton>
       </CardActions>
-
-      <Menu
-        id="long-menu"
-        anchorEl={anchorEl}
-        open={open}
-        onClose={handleOptionClose}
-        slotProps={{
-          paper: {
-            style: {
-              maxHeight: ITEM_HEIGHT * 4.5,
-              width: '20ch',
-            },
-          },
-        }}
-      >
-        {options.map((option) => (
-          <MenuItem key={option.name} onClick={option.onClick}>
-            {option.name}
-          </MenuItem>
-        ))}
-      </Menu>
     </Card>
   );
 }

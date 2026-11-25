@@ -1,63 +1,98 @@
-import List from '@mui/material/List';
-import ListItemButton from '@mui/material/ListItemButton';
-import ListItemIcon from '@mui/material/ListItemIcon';
-import ListItemText from '@mui/material/ListItemText';
-import InfoIcon from '@mui/icons-material/Info';
-import DashboardIcon from '@mui/icons-material/Dashboard';
-import PeopleIcon from '@mui/icons-material/People';
-import BarChartIcon from '@mui/icons-material/BarChart';
-import LayersIcon from '@mui/icons-material/Layers';
-import StorageIcon from '@mui/icons-material/Storage';
-import AssignmentIcon from '@mui/icons-material/Assignment';
-import TimerIcon from '@mui/icons-material/Timer';
+import { Box, List, ListItemButton, ListItemIcon, ListItemText, Typography } from '@mui/material';
+import PeopleOutlineIcon from '@mui/icons-material/PeopleOutlineOutlined';
+import QueryStatsIcon from '@mui/icons-material/QueryStats';
+import LayersOutlinedIcon from '@mui/icons-material/LayersOutlined';
+import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
+import DataObjectIcon from '@mui/icons-material/DataObject';
+import TimerOutlinedIcon from '@mui/icons-material/TimerOutlined';
+import SwapVertIcon from '@mui/icons-material/SwapVert';
+import SensorsIcon from '@mui/icons-material/Sensors';
 import { NavLink } from 'react-router-dom';
-import { SessionStore } from '../../storage/session';
 import { useCapabilities } from '../../data/context';
 
-const destinations = [
-  { path: 'connection', label: 'Connection', icon: DashboardIcon },
-  { path: 'cluster', label: 'Cluster', icon: StorageIcon, connection: true },
-  { path: 'metrics', label: 'Overview', icon: BarChartIcon, connection: true },
-  { path: 'keys', label: 'Keys', icon: AssignmentIcon, connection: true },
-  { path: 'transfer', label: 'Import / export', icon: AssignmentIcon, connection: true },
-  { path: 'leases', label: 'Leases / TTL', icon: TimerIcon, connection: true },
-  { path: 'watchers', label: 'Live changes', icon: BarChartIcon, connection: true },
-  { path: 'users', label: 'Users', icon: PeopleIcon, connection: true },
-  { path: 'roles', label: 'Roles', icon: LayersIcon, connection: true },
-  { path: 'about', label: 'About', icon: InfoIcon },
+const groups = [
+  { label: 'Browse', items: [{ path: 'keys', label: 'Keys', icon: DataObjectIcon }] },
+  {
+    label: 'Cluster',
+    items: [
+      { path: 'cluster', label: 'Cluster', icon: StorageOutlinedIcon, admin: true },
+      { path: 'metrics', label: 'Metrics', icon: QueryStatsIcon, admin: true },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { path: 'transfer', label: 'Import / export', icon: SwapVertIcon },
+      { path: 'leases', label: 'Leases / TTL', icon: TimerOutlinedIcon, admin: true },
+      { path: 'watchers', label: 'Live changes', icon: SensorsIcon },
+    ],
+  },
+  {
+    label: 'Access',
+    items: [
+      { path: 'users', label: 'Users', icon: PeopleOutlineIcon, admin: true },
+      { path: 'roles', label: 'Roles', icon: LayersOutlinedIcon, admin: true },
+    ],
+  },
 ];
 
-export default function NavMenu({ workspace = false }) {
+export default function NavMenu({ workspace = false, onNavigate }) {
   const capabilities = useCapabilities();
-  const hasConnection = workspace || Boolean(new SessionStore().GetActiveSession());
-  const administratorPages = new Set(['metrics', 'cluster', 'leases', 'users', 'roles']);
   return (
-    <List>
-      {destinations
-        .filter(({ path }) => !workspace || !['connection', 'about'].includes(path))
-        .map(({ path, label, icon: Icon, connection, disabled }) => (
-          <ListItemButton
-            key={path}
-            component={NavLink}
-            to={`/${path}`}
-            title={
-              workspace && administratorPages.has(path) && !capabilities?.administrator
-                ? 'Requires the etcd root role'
-                : label
-            }
-            disabled={
-              disabled ||
-              (connection && !hasConnection) ||
-              (workspace && administratorPages.has(path) && !capabilities?.administrator)
-            }
-            sx={{ borderRadius: 2, mb: 0.5, '&.active': { bgcolor: 'action.selected' } }}
+    <Box sx={{ py: 1 }}>
+      {groups.map((group) => (
+        <Box key={group.label} sx={{ mb: 1.5 }}>
+          <Typography
+            variant="overline"
+            color="text.secondary"
+            sx={{ px: 1.5, fontSize: 10.5, letterSpacing: '.09em', fontWeight: 650 }}
           >
-            <ListItemIcon>
-              <Icon />
-            </ListItemIcon>
-            <ListItemText primary={label} />
-          </ListItemButton>
-        ))}
-    </List>
+            {group.label}
+          </Typography>
+          <List disablePadding>
+            {group.items.map(({ path, label, icon: Icon, admin }) => (
+              <ListItemButton
+                key={path}
+                component={NavLink}
+                to={`/${path}`}
+                onClick={onNavigate}
+                title={
+                  workspace && admin && !capabilities?.administrator
+                    ? 'Requires the etcd root role'
+                    : label
+                }
+                disabled={workspace && admin && !capabilities?.administrator}
+                sx={{
+                  borderRadius: 1.5,
+                  py: 1,
+                  mb: 0.25,
+                  '&.active': {
+                    color: 'primary.main',
+                    bgcolor: 'action.selected',
+                    '& .MuiListItemIcon-root': { color: 'primary.main' },
+                    '& .MuiListItemText-primary': { fontWeight: 600 },
+                  },
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 34 }}>
+                  <Icon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary={label} slotProps={{ primary: { variant: 'body2' } }} />
+              </ListItemButton>
+            ))}
+          </List>
+        </Box>
+      ))}
+      {workspace && !capabilities?.administrator && (
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          component="p"
+          sx={{ px: 1.5, maxWidth: 210 }}
+        >
+          Administrator pages require the etcd root role.
+        </Typography>
+      )}
+    </Box>
   );
 }

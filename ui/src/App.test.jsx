@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import App from './App';
 import { vi, test, expect, beforeEach } from 'vitest';
 import { useTheme } from '@mui/material/styles';
+import userEvent from '@testing-library/user-event';
 
 // Exercise the shell without coupling this smoke test to API availability.
 vi.mock('./components/connections/newConnection', () => ({
@@ -26,10 +27,11 @@ beforeEach(() => {
   getConfig.mockResolvedValue({ clusters: [], readOnly: false });
 });
 
-test('renders the application and redirects an empty profile store', async () => {
+test('renders an actionable empty connection screen', async () => {
   render(<App />);
-  expect(screen.getByRole('heading', { name: 'ETCD Adminer' })).toBeInTheDocument();
-  expect(await screen.findByText('New connection')).toBeInTheDocument();
+  expect(screen.getByText('ETCD Adminer')).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: 'No saved connections' })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'New connection' })).toBeInTheDocument();
 });
 
 test('keeps mutation controls disabled when instance settings cannot be loaded', async () => {
@@ -46,5 +48,6 @@ test.each([
 ])('preserves the previous blue palette in %s mode', async (mode, primary) => {
   localStorage.setItem('themeMode', mode);
   render(<App />);
+  await userEvent.click(screen.getByRole('link', { name: 'New connection' }));
   expect(await screen.findByTestId('primary-color')).toHaveTextContent(primary);
 });
