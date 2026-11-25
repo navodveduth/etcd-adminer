@@ -38,6 +38,7 @@ try {
   const errors = [];
   const requests = [];
   let clusterUnavailable = false;
+  let denseKeys = false;
   page.on('pageerror', (error) => errors.push(error.message));
   await page.addInitScript(() =>
     localStorage.setItem(
@@ -161,7 +162,13 @@ try {
         });
       case '/api/v1/keys':
         return json({
-          items: [{ key: '/app/a', keyEncoding: 'utf8', modRevision: '40' }],
+          items: denseKeys
+            ? Array.from({ length: 100 }, (_, index) => ({
+                key: `/system/automation-services/driver-simulator/v1/t0002/util/driver-waiting-${index}-max-seconds`,
+                keyEncoding: 'utf8',
+                modRevision: '40',
+              }))
+            : [{ key: '/app/a', keyEncoding: 'utf8', modRevision: '40' }],
           revision: '40',
           hasMore: false,
         });
@@ -351,6 +358,59 @@ try {
       await page.getByRole('tab', { name: /Development · dev · alice/ }).click();
     }
   }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await navigate('Keys');
+  denseKeys = true;
+  await page.getByRole('button', { name: 'Restart / refresh', exact: true }).click();
+  await page
+    .getByRole('button', {
+      name: '/system/automation-services/driver-simulator/v1/t0002/util/driver-waiting-0-max-seconds',
+      exact: true,
+    })
+    .waitFor();
+  const keyList = page.locator('[aria-label="Scrollable key list"]:visible');
+  const keyHeader = page
+    .getByRole('table', { name: 'Keys on this page', exact: true })
+    .getByRole('columnheader', { name: 'Key', exact: true });
+  const filterBefore = await page
+    .getByRole('textbox', { name: 'Filter this page', exact: true })
+    .boundingBox();
+  const headerBefore = await keyHeader.boundingBox();
+  await keyList.evaluate((element) => {
+    element.scrollTop = 240;
+  });
+  assert.equal(await keyList.evaluate((element) => element.scrollTop), 240);
+  const headerAfter = await keyHeader.boundingBox();
+  const filterAfter = await page
+    .getByRole('textbox', { name: 'Filter this page', exact: true })
+    .boundingBox();
+  assert.ok(
+    Math.abs(headerBefore.y - headerAfter.y) <= 1,
+    'Key header must stay pinned while rows scroll',
+  );
+  assert.equal(filterBefore.y, filterAfter.y, 'Key filter must stay outside the scroll area');
+  const background = await keyHeader.evaluate(
+    (element) => getComputedStyle(element).backgroundColor,
+  );
+  assert.match(background, /^rgb\(/, `Sticky header must be opaque, got ${background}`);
+  const nestedScrollers = await keyList.evaluate((element) => {
+    let count = 0;
+    for (
+      let parent = element.parentElement;
+      parent && parent.getAttribute('role') !== 'region';
+      parent = parent.parentElement
+    ) {
+      if (
+        ['auto', 'scroll'].includes(getComputedStyle(parent).overflowY) &&
+        parent.scrollHeight > parent.clientHeight
+      )
+        count++;
+    }
+    return count;
+  });
+  assert.equal(nestedScrollers, 0, 'Key list must not have nested scroll areas');
+  await noOverflow('Scrolled long-key list');
+  await page.screenshot({ path: '/tmp/opencode/etcd-key-list-scrolled.png', fullPage: true });
   await navigate('Cluster');
   await page.waitForFunction(() =>
     [...document.querySelectorAll('button')].some(

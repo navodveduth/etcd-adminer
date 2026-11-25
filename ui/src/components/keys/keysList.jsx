@@ -37,18 +37,27 @@ export default function KeysList({
         label="Filter this page"
         value={filter}
         onChange={(event) => setFilter(event.target.value)}
+        fullWidth
         sx={{ my: 1 }}
       />
       {loading ? (
         <CircularProgress aria-label="Loading keys" />
       ) : (
-        <DataTable aria-label="Scrollable key list" sx={{ maxHeight: '60vh' }}>
-          <Table size="small" stickyHeader aria-label="Keys on this page">
+        <DataTable
+          aria-label="Scrollable key list"
+          sx={{ maxHeight: { xs: '45vh', lg: '60vh' }, overflowY: 'auto' }}
+        >
+          <Table
+            size="small"
+            stickyHeader
+            aria-label="Keys on this page"
+            sx={{ tableLayout: 'fixed' }}
+          >
             <TableHead>
               <TableRow>
-                {onSelect && <TableCell>Select</TableCell>}
+                {onSelect && <TableCell sx={{ width: 72 }}>Select</TableCell>}
                 <TableCell>Key</TableCell>
-                <TableCell>Actions</TableCell>
+                <TableCell sx={{ width: 80 }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -79,6 +88,9 @@ export default function KeysList({
                         textAlign: 'left',
                         justifyContent: 'flex-start',
                         overflowWrap: 'anywhere',
+                        whiteSpace: 'normal',
+                        minWidth: 0,
+                        maxWidth: '100%',
                       }}
                       onClick={() => onKeyClick(item.key)}
                       aria-current={activeKey === item.key ? 'true' : undefined}

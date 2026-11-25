@@ -344,7 +344,12 @@ export default function Keys() {
                 description="Try a different prefix, or create a key from the folder view when you have write access."
               />
             )}
-            <Box sx={{ maxHeight: { xs: '45vh', lg: '60vh' }, overflow: 'auto', minWidth: 0 }}>
+            <Box
+              sx={{
+                ...(view === 0 && { maxHeight: { xs: '45vh', lg: '60vh' }, overflow: 'auto' }),
+                minWidth: 0,
+              }}
+            >
               {view === 0 ? (
                 <FSNavigator
                   keys={tree}

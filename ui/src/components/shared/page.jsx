@@ -147,6 +147,11 @@ export function DataTable({ children, sx, ...props }) {
         minWidth: 0,
         overflowX: 'auto',
         '& th': { bgcolor: 'action.hover', fontWeight: 600, whiteSpace: 'nowrap' },
+        '& .MuiTableCell-stickyHeader': {
+          bgcolor: 'background.paper',
+          backgroundImage: 'none',
+          zIndex: 2,
+        },
         '& td': { verticalAlign: 'top', overflowWrap: 'anywhere' },
         ...sx,
       }}
