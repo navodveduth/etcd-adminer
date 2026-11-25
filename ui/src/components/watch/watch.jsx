@@ -6,17 +6,17 @@ import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import MenuItem from '@mui/material/MenuItem';
-import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
-import TableContainer from '@mui/material/TableContainer';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useDataService } from '../../data/context';
+import { useWorkspaceActivity } from '../../data/activity';
+import { CopyValue, DataTable, ErrorState, PageHeader, Section } from '../shared/page';
 
 function waitToReconnect(milliseconds, signal) {
   return new Promise((resolve, reject) => {
@@ -48,6 +48,10 @@ export default function Watch() {
   const [lastRevision, setLastRevision] = useState('0');
   const [events, setEvents] = useState([]);
   const [error, setError] = useState('');
+  useWorkspaceActivity(
+    'watch',
+    run ? `Watch: ${status}` : status === 'Needs attention' ? 'Watch needs attention' : '',
+  );
   useEffect(() => {
     if (run || !params.has('key')) return;
     setKey(params.get('key'));
@@ -152,10 +156,10 @@ export default function Watch() {
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" alignItems="center" spacing={2}>
-        <Typography variant="h4" component="h1">
-          Live changes
-        </Typography>
+      <PageHeader
+        title="Live changes"
+        description="Watch new changes to an exact key or prefix. This is not an initial snapshot or a permanent audit log; only the latest 500 events remain in this tab."
+      >
         <Chip
           label={status}
           color={
@@ -163,13 +167,12 @@ export default function Watch() {
           }
           role="status"
         />
-      </Stack>
-      <Typography color="text.secondary">
-        Watch new changes to a key or prefix. This is not an initial snapshot or a permanent audit
-        log. Only the latest 500 events are kept in this tab.
-      </Typography>
-      {error && <Alert severity="error">{error}</Alert>}
-      <Paper sx={{ p: 3 }}>
+      </PageHeader>
+      <ErrorState message={error} />
+      <Section
+        title="Watch scope"
+        description="An exact watch includes only one key. A prefix watch includes every matching byte prefix, not just virtual folder children."
+      >
         <Stack spacing={2}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField
@@ -215,7 +218,7 @@ export default function Watch() {
               sensitive watch open unattended.
             </Alert>
           )}
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
             <Button
               variant="contained"
               onClick={start}
@@ -245,8 +248,11 @@ export default function Watch() {
             Switching feature pages keeps it running.
           </Typography>
         </Stack>
-      </Paper>
-      <TableContainer component={Paper} sx={{ maxHeight: '55vh' }}>
+      </Section>
+      <Typography component="h2" variant="h6">
+        Events · {events.length} / 500 retained · newest first
+      </Typography>
+      <DataTable aria-label="Scrollable live events" sx={{ maxHeight: '55vh' }}>
         <Table stickyHeader size="small" aria-label="Live change events">
           <TableHead>
             <TableRow>
@@ -269,7 +275,7 @@ export default function Watch() {
                   />
                 </TableCell>
                 <TableCell sx={{ wordBreak: 'break-all' }}>
-                  <code>{event.key}</code>
+                  <CopyValue value={event.key} label="event key" />
                   {event.keyEncoding === 'base64' ? ' (base64)' : ''}
                 </TableCell>
                 <TableCell>{event.revision}</TableCell>
@@ -290,7 +296,7 @@ export default function Watch() {
             )}
           </TableBody>
         </Table>
-      </TableContainer>
+      </DataTable>
     </Stack>
   );
 }

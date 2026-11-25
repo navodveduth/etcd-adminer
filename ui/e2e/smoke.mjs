@@ -37,6 +37,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
   const errors = [];
   const requests = [];
+  let clusterUnavailable = false;
   page.on('pageerror', (error) => errors.push(error.message));
   await page.addInitScript(() =>
     localStorage.setItem(
@@ -91,6 +92,73 @@ try {
         return json({});
       case '/api/v1/capabilities':
         return json({ administrator: backend === 'dev', read: true, write: backend === 'dev' });
+      case '/api/clusterinfo':
+        if (clusterUnavailable) return json({ message: 'Fixture cluster unavailable' }, 503);
+        return json({
+          clusterID: '9007199254740993',
+          memberID: '99',
+          raftTerm: '8',
+          nodes: [
+            {
+              ID: '99',
+              name: 'member-a',
+              available: true,
+              isLeader: 'leader',
+              version: '3.6.7',
+              dbSize: 1048576,
+              dbSizeInUse: 524288,
+              clientUrls: ['https://member-a.long-cluster-name.example.test:2379'],
+              peerUrls: ['https://member-a:2380'],
+            },
+            {
+              ID: '100',
+              name: 'member-b',
+              available: false,
+              error: 'Endpoint unavailable',
+              clientUrls: ['https://member-b:2379'],
+            },
+          ],
+        });
+      case '/api/v1/cluster/metrics':
+        return json({
+          sampledAt: new Date().toISOString(),
+          source: 'maintenance',
+          alarms: [],
+          members: [
+            {
+              endpoint: 'https://member-a.long-cluster-name.example.test:2379',
+              available: true,
+              id: '99',
+              leader: '99',
+              dbSize: 1048576,
+              dbInUse: 524288,
+              term: '8',
+              applyLag: '0',
+            },
+          ],
+        });
+      case '/api/users':
+        return json(['alice', 'root']);
+      case '/api/role':
+        return json(['reader', 'root']);
+      case '/api/v1/users/detail':
+        return json({ name: url.searchParams.get('name'), roles: ['reader'] });
+      case '/api/v1/roles':
+        return json({ roles: ['reader', 'root'] });
+      case '/api/v1/roles/detail':
+        return json({
+          name: url.searchParams.get('name'),
+          permissions: [
+            {
+              access: 'read',
+              scope: 'prefix',
+              key: '/app/',
+              keyBase64: 'L2FwcC8=',
+              rangeEnd: '/app0',
+              rangeEndBase64: 'L2FwcDA=',
+            },
+          ],
+        });
       case '/api/v1/keys':
         return json({
           items: [{ key: '/app/a', keyEncoding: 'utf8', modRevision: '40' }],
@@ -140,6 +208,15 @@ try {
   await page.keyboard.press('ControlOrMeta+a');
   await page.keyboard.insertText('unsaved-development-draft');
   await page.getByRole('button', { name: 'Connections', exact: true }).click();
+  await page
+    .getByRole('row')
+    .filter({ hasText: 'Development' })
+    .getByRole('button', { name: 'Reauthenticate', exact: true })
+    .click();
+  await page.getByLabel('Password', { exact: true }).fill('refreshed-browser-test');
+  await page.getByRole('button', { name: 'Authenticate', exact: true }).click();
+  await page.getByText('unsaved-development-draft', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Connections', exact: true }).click();
   await openProfile('Production');
   assert.equal(
     await page.getByRole('link', { name: 'Roles', exact: true }).getAttribute('aria-disabled'),
@@ -162,6 +239,7 @@ try {
   await page.getByRole('link', { name: 'Keys', exact: true }).click();
   await page.getByText('unsaved-development-draft', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Discard', exact: true }).click();
+  await page.getByRole('button', { name: 'Discard draft', exact: true }).click();
   await page.getByRole('checkbox', { name: 'Select /app/a', exact: true }).check();
   await page.getByRole('link', { name: /Preview deleting 1 selected keys/ }).click();
   await page.getByRole('button', { name: 'Validate & preview', exact: true }).click();
@@ -172,6 +250,135 @@ try {
     .fill('DELETE 1');
   await apply.click();
   await page.getByText(/All 1 operations committed atomically/).waitFor();
+  const navigate = async (name) => {
+    if (await page.getByRole('button', { name: 'Navigate workspace', exact: true }).isVisible()) {
+      await page.getByRole('button', { name: 'Navigate workspace', exact: true }).click();
+      await page
+        .getByRole('navigation', { name: 'Workspace menu', exact: true })
+        .getByRole('link', { name, exact: true })
+        .click();
+      await page
+        .getByRole('navigation', { name: 'Workspace menu', exact: true })
+        .waitFor({ state: 'hidden' });
+    } else await page.getByRole('link', { name, exact: true }).click();
+  };
+  const noOverflow = async (label) => {
+    const overflow = await page.evaluate(() => ({
+      width: document.documentElement.scrollWidth,
+      viewport: window.innerWidth,
+      body: document.body.style.cssText,
+      elements: [...document.querySelectorAll('body *')]
+        .filter((element) => {
+          const bounds = element.getBoundingClientRect();
+          return bounds.width && bounds.right > window.innerWidth + 1;
+        })
+        .slice(0, 30)
+        .map((element) => ({
+          tag: element.tagName,
+          class: element.className,
+          text: element.textContent.slice(0, 40),
+          position: getComputedStyle(element).position,
+          right: element.getBoundingClientRect().right,
+        })),
+    }));
+    if (overflow.width > overflow.viewport + 1)
+      await page.screenshot({ path: '/tmp/opencode/etcd-layout-overflow.png', fullPage: true });
+    assert.ok(
+      overflow.width <= overflow.viewport + 1,
+      `${label}: page overflow ${JSON.stringify(overflow)}`,
+    );
+    assert.equal(
+      await page.getByRole('heading', { level: 1 }).count(),
+      1,
+      `${label}: single page heading`,
+    );
+  };
+  // 720px also checks the layout viewport equivalent of a 1440px browser at 200% zoom.
+  for (const width of [375, 720, 768, 1280, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const theme of ['light', 'dark']) {
+      const themeButton = page.getByRole('button', {
+        name: `Switch to ${theme} theme`,
+        exact: true,
+      });
+      if (await themeButton.count()) await themeButton.click();
+      for (const [link, title] of [
+        ['Cluster', 'Cluster'],
+        ['Metrics', 'Cluster metrics'],
+        ['Keys', 'Key browser'],
+        ['Import / export', 'Import, export & bulk delete'],
+        ['Leases / TTL', 'Leases & expiration'],
+        ['Live changes', 'Live changes'],
+        ['Users', 'Users'],
+        ['Roles', 'Roles & permissions'],
+      ]) {
+        await navigate(link);
+        await page.getByRole('heading', { name: title, exact: true, level: 1 }).waitFor();
+        if (link === 'Cluster') await page.getByText('1 / 2', { exact: true }).waitFor();
+        if (link === 'Users') {
+          const back = page.getByRole('button', { name: 'Back to user directory', exact: true });
+          if (await back.isVisible()) await back.click();
+          await page.getByRole('button', { name: 'View / edit', exact: true }).first().click();
+          await page.getByRole('button', { name: 'Copy username', exact: true }).waitFor();
+        }
+        await noOverflow(`${link} ${width}px ${theme}`);
+        if (link === 'Cluster' && theme === 'dark' && [375, 1440].includes(width))
+          await page.screenshot({
+            path: `/tmp/opencode/etcd-cluster-${width}.png`,
+            fullPage: true,
+          });
+        if (width === 1440 && theme === 'dark')
+          await page.screenshot({
+            path: `/tmp/opencode/etcd-${link.replaceAll(/[^a-z]/gi, '-').toLowerCase()}.png`,
+            fullPage: true,
+          });
+      }
+      await navigate('Users');
+      await page.getByRole('link', { name: 'Create user', exact: true }).click();
+      await page.getByRole('heading', { name: 'New user', exact: true }).waitFor();
+      await noOverflow(`Create user ${width}px ${theme}`);
+      await page.getByRole('button', { name: 'Connections', exact: true }).click();
+      await page.getByRole('heading', { name: 'Connections', exact: true }).waitFor();
+      await noOverflow(`Connections ${width}px ${theme}`);
+      await page.getByRole('link', { name: 'New connection', exact: true }).click();
+      await page.getByRole('heading', { name: 'New connection', exact: true }).waitFor();
+      await noOverflow(`New connection ${width}px ${theme}`);
+      await page.getByRole('button', { name: 'About', exact: true }).click();
+      await page.getByRole('heading', { name: 'About ETCD Adminer', exact: true }).waitFor();
+      await noOverflow(`About ${width}px ${theme}`);
+      await page.getByRole('tab', { name: /Development · dev · alice/ }).click();
+    }
+  }
+  await navigate('Cluster');
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('button')].some(
+      (button) => button.textContent === 'Refresh members' && !button.disabled,
+    ),
+  );
+  clusterUnavailable = true;
+  await page.getByRole('button', { name: 'Refresh members', exact: true }).click();
+  await page.getByText(/Last successful inventory is shown below and may be stale/).waitFor();
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('button')].some(
+      (button) => button.textContent === 'Refresh members' && !button.disabled,
+    ),
+  );
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'Try again', exact: true }).focus();
+  clusterUnavailable = false;
+  await page.keyboard.press('Enter');
+  await page
+    .getByText(/Last successful inventory is shown below and may be stale/)
+    .waitFor({ state: 'hidden' });
+  const developmentTab = page.getByRole('tab', { name: /Development · dev · alice/ });
+  await developmentTab.focus();
+  await page.keyboard.press('End');
+  assert.equal(
+    await page.getByRole('tab', { name: /Production · prod · bob/ }).getAttribute('aria-selected'),
+    'true',
+  );
+  await page.keyboard.press('Home');
+  assert.equal(await developmentTab.getAttribute('aria-selected'), 'true');
   await page.getByRole('button', { name: 'Shortcuts', exact: true }).click();
   await page.getByRole('dialog', { name: 'Keyboard shortcuts', exact: true }).waitFor();
   await page.keyboard.press('Escape');
@@ -183,7 +390,7 @@ try {
     requests.some((request) => request.path.endsWith('/renew') && request.backend === 'dev'),
   );
   console.log(
-    'Browser smoke passed: workspace identity/drafts, RBAC controls, live keys, renewal, bulk confirmation, shortcuts, close cleanup.',
+    'Browser smoke passed: workspace isolation/drafts, RBAC, live keys, renewal, typed batch confirmation, all pages at 375/720/768/1280/1440/1920px in both themes, stale/retry, shortcuts and close cleanup.',
   );
 } finally {
   await browser?.close();

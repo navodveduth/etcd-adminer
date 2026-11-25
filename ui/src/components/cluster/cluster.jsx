@@ -226,7 +226,7 @@ export default function ClusterInfo() {
                                 {formatBytes(node.dbSize)}
                                 <Typography
                                   variant="caption"
-                                  display="block"
+                                  sx={{ display: 'block' }}
                                   color="text.secondary"
                                 >
                                   {formatBytes(node.dbSizeInUse)} in use

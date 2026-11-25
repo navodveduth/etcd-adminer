@@ -113,7 +113,7 @@ export default function Metrics() {
         <Chip
           size="small"
           variant="outlined"
-          label={sample ? `${age}s since sample` : 'Waiting for sample'}
+          label={sample ? `${error ? 'Stale · ' : ''}${age}s since sample` : 'Waiting for sample'}
           color={error || age > 45 ? 'warning' : 'default'}
         />
       </PageHeader>
@@ -134,7 +134,13 @@ export default function Metrics() {
         </TextField>
       </Stack>
       {loading && <LinearProgress aria-label="Refreshing metrics" />}
-      <ErrorState message={error} onRetry={() => setVersion((value) => value + 1)} />
+      <ErrorState
+        message={
+          error &&
+          `${error}${sample ? ' Last successful data is shown below and may be stale.' : ''}`
+        }
+        onRetry={() => setVersion((value) => value + 1)}
+      />
       {!sample && loading && <LoadingState label="Loading cluster metrics" />}
       {sample && (
         <>
@@ -189,7 +195,7 @@ export default function Metrics() {
                   <TableRow key={member.endpoint}>
                     <TableCell>
                       <CopyValue value={member.endpoint} label="metrics endpoint" mono={false} />
-                      <Typography variant="caption" display="block">
+                      <Typography variant="caption" sx={{ display: 'block' }}>
                         {member.id ?? 'Unknown member'}
                       </Typography>
                     </TableCell>
@@ -228,6 +234,11 @@ export default function Metrics() {
               </TableBody>
             </Table>
           </DataTable>
+          <Typography variant="body2" color="text.secondary">
+            Database is allocated size; in use is the live portion. Quota is unavailable when the
+            backend does not report a supported limit, never assumed to be zero. Quota percentages
+            above 100% require investigation.
+          </Typography>
           <Section
             title="Database size trend"
             description="Up to 60 samples in this workspace, not persistent history. Gaps indicate unavailable members."

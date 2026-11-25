@@ -9,6 +9,9 @@ import TextField from '@mui/material/TextField';
 import { useTheme } from '@mui/material/styles';
 import { useDataService, useCapabilities } from '../../data/context';
 import { useReadOnly } from '../../readOnly';
+import { Box, Typography } from '@mui/material';
+import { CopyValue, EmptyState, LoadingState, StatusBadge } from '../shared/page';
+import ConfirmationDialog from '../dialogs/confirmationDialog';
 
 const MonacoEditor = lazy(() => import('./monacoEditor'));
 
@@ -37,6 +40,8 @@ export default function EditorComponent({
   const [lease, setLease] = useState('');
   const original = record?.value ?? '';
   const dirty = value !== original || leaseMode !== 'preserve';
+  const [discardAction, setDiscardAction] = useState('');
+  const [copyNotice, setCopyNotice] = useState('');
 
   useEffect(() => {
     if (!capabilities || !etcdKey) return;
@@ -109,7 +114,10 @@ export default function EditorComponent({
   };
 
   const reloadKey = () => {
-    if (dirty && !window.confirm('Discard unsaved changes and reload this key?')) return;
+    if (dirty) {
+      setDiscardAction('reload');
+      return;
+    }
     setReload((version) => version + 1);
   };
 
@@ -165,12 +173,27 @@ export default function EditorComponent({
           save();
         }
       }}
-      sx={{ p: 2, display: 'flex', flexDirection: 'column', minHeight: 500 }}
+      variant="outlined"
+      sx={{ p: { xs: 2, sm: 3 }, display: 'flex', flexDirection: 'column', minWidth: 0 }}
     >
-      <Stack direction="row" spacing={2} sx={{ mb: 2, flexWrap: 'wrap' }}>
-        <span>
-          <b>Key:</b> {etcdKey ?? 'None selected'}
-        </span>
+      <Typography component="h2" variant="h6" sx={{ mb: 1 }}>
+        Value editor
+      </Typography>
+      {etcdKey && (
+        <Box sx={{ mb: 2, minWidth: 0 }}>
+          <CopyValue value={etcdKey} label="exact key" />
+        </Box>
+      )}
+      <Stack
+        direction="row"
+        spacing={2}
+        useFlexGap
+        sx={{ flexWrap: 'wrap', mb: 2, fontSize: 13, alignItems: 'center' }}
+      >
+        <StatusBadge
+          label={dirty ? 'Unsaved changes' : isNewKey ? 'New key draft' : 'Saved value'}
+          color={dirty ? 'warning' : 'default'}
+        />
         <span>
           <b>Revision:</b> {record?.modRevision ?? 'New'}
         </span>
@@ -224,10 +247,15 @@ export default function EditorComponent({
           )}
         </Stack>
       )}
-      {status === 'loading' && <p role="status">Loading key…</p>}
-      {status === 'idle' && <p>Select a key to edit its value.</p>}
+      {status === 'loading' && <LoadingState label="Loading key…" />}
+      {status === 'idle' && (
+        <EmptyState
+          title="Select a key"
+          description="Choose a key from the folder or list view to inspect its value, revision and expiration. Unsaved drafts stay in this workspace."
+        />
+      )}
       {status === 'ready' && (
-        <Suspense fallback={<p role="status">Loading editor…</p>}>
+        <Suspense fallback={<LoadingState label="Loading editor…" />}>
           <MonacoEditor
             height="60vh"
             language={language}
@@ -238,7 +266,7 @@ export default function EditorComponent({
           />
         </Suspense>
       )}
-      <Stack direction="row" spacing={1} sx={{ mt: 2, flexWrap: 'wrap' }}>
+      <Stack direction="row" spacing={1} useFlexGap sx={{ mt: 2, flexWrap: 'wrap' }}>
         <Select
           size="small"
           value={language}
@@ -267,10 +295,7 @@ export default function EditorComponent({
         </Button>
         <Button
           onClick={() => {
-            setValue(original);
-            setLeaseMode('preserve');
-            setLease('');
-            onDirtyChange?.(false);
+            setDiscardAction('discard');
           }}
           disabled={!dirty || saving}
         >
@@ -279,7 +304,40 @@ export default function EditorComponent({
         <Button onClick={reloadKey} disabled={!etcdKey || saving || isNewKey}>
           Reload
         </Button>
+        <Button
+          disabled={status !== 'ready'}
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(value);
+              setCopyNotice('Draft copied. It may contain secrets; keep it private.');
+            } catch {
+              setCopyNotice('Clipboard unavailable. Select the editor text and copy it manually.');
+            }
+          }}
+        >
+          Copy draft
+        </Button>
       </Stack>
+      {copyNotice && (
+        <Typography role="status" variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+          {copyNotice}
+        </Typography>
+      )}
+      <ConfirmationDialog
+        open={Boolean(discardAction)}
+        title="Discard this draft?"
+        content="Unsaved value and expiration changes will be lost. Copy any text you want to keep before continuing."
+        confirmLabel={discardAction === 'reload' ? 'Discard & reload' : 'Discard draft'}
+        onCancel={() => setDiscardAction('')}
+        onConfirm={() => {
+          setValue(original);
+          setLeaseMode('preserve');
+          setLease('');
+          onDirtyChange?.(false);
+          if (discardAction === 'reload') setReload((version) => version + 1);
+          setDiscardAction('');
+        }}
+      />
     </Paper>
   );
 }

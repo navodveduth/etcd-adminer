@@ -7,13 +7,51 @@ The supplied screenshots are examples of wider consistency/usability problems,
 not the boundary of this work. Cluster and Connections must not receive a
 redesign while the remaining pages retain unrelated layouts and interaction patterns.
 
-**Status:** implementation is in progress. Shared page/state components, blue shell,
-grouped responsive navigation, workspace tabs/close confirmation, Connections and
-profile verification, Cluster inventory and Metrics presentation are implemented.
-The foundation passes 44 frontend tests, lint and production Chromium smoke tests.
-Remaining feature pages and comprehensive responsive/accessibility coverage are
-still pending; the detailed requirements below remain acceptance targets, not a
-claim that every item is complete. This supersedes the screenshot-focused plan.
+**Status:** the application-wide redesign is implemented across the existing pages.
+Shared page/state components, blue shell, responsive navigation, workspace activity
+indicators, Connections/reauthentication, Cluster/Metrics, Keys/editor/dialogs,
+transfer task views, leases, watches, users, roles and About have been updated.
+Validation passes 48 frontend tests, lint, Go tests and production Chromium journeys
+at 375, 720, 768, 1280, 1440 and 1920px in both themes. The 720px viewport exercises
+the layout equivalent of a 1440px browser at 200% zoom; it is not a native browser
+zoom or screen-reader audit. Fine-grained acceptance follow-ups are listed below.
+This supersedes the screenshot-focused plan.
+
+### Implementation checkpoint
+
+- Shared headers, sections, loading/error/empty states, scrollable tables, exact-value
+  copy controls, blue selection, and consistent non-destructive dialog autofocus.
+- Searchable responsive connections, profile diagnostics and password visibility,
+  explicit delete/disconnect/close confirmations, and per-profile reauthentication
+  that preserves existing workspace drafts and unrelated connections.
+- Readable member inventory and details, exact decimal IDs, binary size units,
+  Cluster/Metrics navigation, partial/stale/retry states and accessible trend summaries.
+- Adjustable desktop key-browser width and stacked mobile layout; page revision/count,
+  selection, draft and live indicators; confirmed discard/reload and copy-draft recovery.
+  New key/folder dialogs preview exact paths and explain virtual-folder semantics.
+- Separate Import/Export/Bulk delete task tabs with preview steps and retained typed
+  confirmation; searchable leases with duration presets, sampled TTL and renewal
+  ownership; readable watch scope/event sections and retained-event counts.
+- Searchable users with desktop master/detail and mobile back navigation; consistent
+  create-user/password validation; separate role-navigation/removal controls; searchable
+  role inventory with explicit scope preview and preserved root/byte-boundary safeguards.
+- Browser fixtures check workspace identity, draft retention, reauthentication, RBAC,
+  live updates, renewal, typed batch confirmation, every page's heading/overflow,
+  stale/retry behavior, workspace keyboard navigation and close cleanup.
+
+### Remaining acceptance follow-ups
+
+- Run a manual screen-reader/native-zoom audit and broader automated accessibility
+  analysis; the keyboard/semantic/browser checks do not establish full WCAG compliance.
+- Extend deterministic fixtures to every dialog's loading, denied, empty, partial and
+  unknown-outcome combination, including long/binary values and filtered inventories.
+- Add metric member filtering and richer chart axes. The existing trends show all
+  sampled endpoints with explicit scale, units and retention rather than a selector.
+- User-directory role summaries/protectedUsers badges require inventory metadata not
+  currently returned by the names-only users endpoint. Root is marked protected;
+  detailed role assignments appear after selection and policy guards remain server-side.
+- Application build/version metadata is not exposed by the server; About states this
+  instead of inventing a version. Cluster server versions remain available separately.
 
 ### Non-negotiable requirements
 

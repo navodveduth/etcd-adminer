@@ -1,18 +1,18 @@
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
-import TableContainer from '@mui/material/TableContainer';
+import { DataTable } from '../shared/page';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
-import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
 import { useReadOnly } from '../../readOnly';
+import Chip from '@mui/material/Chip';
 
 export default function UserTable(props) {
   const readOnly = useReadOnly();
   return (
-    <TableContainer component={Paper}>
-      <Table sx={{ minWidth: 650 }} aria-label="simple table">
+    <DataTable aria-label="Scrollable users">
+      <Table aria-label="User directory">
         <TableHead>
           <TableRow>
             <TableCell>Name</TableCell>
@@ -21,29 +21,39 @@ export default function UserTable(props) {
         </TableHead>
         <TableBody>
           {props.users.map((row) => (
-            <TableRow key={row} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+            <TableRow
+              key={row}
+              selected={props.selectedUser === row}
+              sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+            >
               <TableCell component="th" scope="row">
                 {row}
+                {row === 'root' && (
+                  <Chip
+                    label="Protected root"
+                    size="small"
+                    variant="outlined"
+                    sx={{ display: 'flex', mt: 1, width: 'fit-content' }}
+                  />
+                )}
               </TableCell>
               <TableCell align="right">
                 <Button
                   sx={{ m: 1 }}
-                  variant="contained"
-                  color="success"
+                  variant="outlined"
                   onClick={() => {
                     props.selectUser(row);
                   }}
                 >
-                  View/Edit
+                  View / edit
                 </Button>
                 <Button
                   sx={{ m: 1 }}
-                  variant="contained"
+                  variant="text"
                   color="error"
                   disabled={readOnly || row === 'root'}
                   onClick={() => {
-                    props.setSelectedUser(row);
-                    props.setdeleteConfirmationDialogOpen(true);
+                    props.onDelete(row);
                   }}
                 >
                   Delete
@@ -53,6 +63,6 @@ export default function UserTable(props) {
           ))}
         </TableBody>
       </Table>
-    </TableContainer>
+    </DataTable>
   );
 }

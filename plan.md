@@ -2,10 +2,14 @@
 
 ### UI redesign implementation checkpoint
 
-- Implemented shared page/state components, blue shell, responsive workspace navigation,
-  Connections/profile verification and Cluster/Metrics layouts from `ui/UX_PLAN.md`.
-- Validation: 44 frontend tests, ESLint and production Chromium smoke passed.
-- Other feature pages and full responsive/accessibility acceptance remain in progress.
+- Implemented shared layouts and the blue redesign across every existing feature page,
+  including responsive navigation, Connections/reauthentication, Cluster/Metrics,
+  Keys/editor/dialogs, transfer, leases, watches, users, roles and About.
+- Workspace tabs surface unsaved drafts, live watches, renewal and transfer activity.
+- Validation: 48 frontend tests, ESLint, Go tests and production Chromium journeys
+  at 375/720/768/1280/1440/1920px in both themes passed. Reauthentication retains drafts.
+- Fine-grained state-fixture, metric filtering and manual screen-reader/native-zoom
+  acceptance follow-ups are documented explicitly in `ui/UX_PLAN.md`.
 - Testing uses API fixtures, not destructive operations against DEV. No push performed.
 
 ## 1. Scope and review baseline

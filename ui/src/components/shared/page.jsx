@@ -39,7 +39,7 @@ export function PageHeader({ title, description, actions, children }) {
           )}
         </Box>
         {actions && (
-          <Stack direction="row" useFlexGap flexWrap="wrap" spacing={1} sx={{ flexShrink: 0 }}>
+          <Stack direction="row" useFlexGap spacing={1} sx={{ flexShrink: 0, flexWrap: 'wrap' }}>
             {actions}
           </Stack>
         )}
@@ -71,7 +71,7 @@ export function Section({ title, description, actions, children, sx, ...props })
             )}
           </Box>
           {actions && (
-            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+            <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
               {actions}
             </Stack>
           )}
@@ -163,7 +163,7 @@ export function CopyValue({ value, label = 'value', mono = true, shorten = false
     <Stack
       direction="row"
       spacing={0.5}
-      sx={{ minWidth: 0, alignItems: 'center', maxWidth: '100%' }}
+      sx={{ minWidth: 0, alignItems: 'center', maxWidth: '100%', position: 'relative' }}
     >
       <Tooltip title={shorten ? text : ''}>
         <Box
@@ -206,6 +206,8 @@ export function CopyValue({ value, label = 'value', mono = true, shorten = false
         role="status"
         sx={{
           position: 'absolute',
+          left: 0,
+          top: 0,
           width: 1,
           height: 1,
           overflow: 'hidden',

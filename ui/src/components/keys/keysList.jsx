@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
-import TableContainer from '@mui/material/TableContainer';
+import Button from '@mui/material/Button';
+import { DataTable } from '../shared/page';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import IconButton from '@mui/material/IconButton';
@@ -20,6 +21,7 @@ export default function KeysList({
   deleteKey,
   selected = [],
   onSelect,
+  activeKey,
 }) {
   const readOnly = useReadOnly();
   const [filter, setFilter] = useState('');
@@ -40,7 +42,7 @@ export default function KeysList({
       {loading ? (
         <CircularProgress aria-label="Loading keys" />
       ) : (
-        <TableContainer sx={{ maxHeight: '60vh' }}>
+        <DataTable aria-label="Scrollable key list" sx={{ maxHeight: '60vh' }}>
           <Table size="small" stickyHeader aria-label="Keys on this page">
             <TableHead>
               <TableRow>
@@ -51,7 +53,10 @@ export default function KeysList({
             </TableHead>
             <TableBody>
               {filtered.map((item) => (
-                <TableRow key={`${item.isVirtual ? 'draft:' : 'key:'}${item.key}`}>
+                <TableRow
+                  selected={activeKey === item.key}
+                  key={`${item.isVirtual ? 'draft:' : 'key:'}${item.key}`}
+                >
                   {onSelect && (
                     <TableCell>
                       <Checkbox
@@ -67,10 +72,20 @@ export default function KeysList({
                     </TableCell>
                   )}
                   <TableCell>
-                    <button type="button" onClick={() => onKeyClick(item.key)}>
+                    <Button
+                      color="inherit"
+                      sx={{
+                        fontFamily: 'monospace',
+                        textAlign: 'left',
+                        justifyContent: 'flex-start',
+                        overflowWrap: 'anywhere',
+                      }}
+                      onClick={() => onKeyClick(item.key)}
+                      aria-current={activeKey === item.key ? 'true' : undefined}
+                    >
                       {item.key}
                       {item.isVirtual ? ' (unsaved)' : ''}
-                    </button>
+                    </Button>
                   </TableCell>
                   <TableCell>
                     <IconButton
@@ -85,12 +100,12 @@ export default function KeysList({
               ))}
               {!filtered.length && (
                 <TableRow>
-                  <TableCell colSpan={2}>No keys on this page match.</TableCell>
+                  <TableCell colSpan={onSelect ? 3 : 2}>No keys on this page match.</TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
-        </TableContainer>
+        </DataTable>
       )}
       <ConfirmationDialog
         open={Boolean(deleting)}

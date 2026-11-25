@@ -1,10 +1,17 @@
 import { useRef } from 'react';
-import { Box, Button, IconButton, Paper, Tooltip } from '@mui/material';
+import { Box, Button, Chip, IconButton, Paper, Tooltip } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
 import { workspaceLabel } from '../../data/presentation';
 
-export default function WorkspaceTabs({ workspaces, active, onChange, onClose, onConnections }) {
+export default function WorkspaceTabs({
+  workspaces,
+  active,
+  onChange,
+  onClose,
+  onConnections,
+  activities = {},
+}) {
   const tabs = useRef(new Map());
   return (
     <Paper
@@ -58,7 +65,12 @@ export default function WorkspaceTabs({ workspaces, active, onChange, onClose, o
           >
             <Tooltip
               describeChild
-              title={`Backend: ${workspace.profile.BackEnd} · User: ${workspace.profile.UserName}`}
+              title={`Backend: ${workspace.profile.BackEnd} · User: ${workspace.profile.UserName}${Object.values(
+                activities[workspace.id] ?? {},
+              )
+                .filter(Boolean)
+                .map((label) => ` · ${label}`)
+                .join('')}`}
             >
               <Button
                 id={`tab-${workspace.id}`}
@@ -76,14 +88,32 @@ export default function WorkspaceTabs({ workspaces, active, onChange, onClose, o
                   px: 2,
                   py: 1.5,
                   whiteSpace: 'nowrap',
-                  maxWidth: 300,
+                  maxWidth: 500,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  display: 'block',
+                  display: 'flex',
+                  alignItems: 'center',
                   textTransform: 'none',
                 }}
               >
-                {workspaceLabel(workspace.profile)}
+                <Box
+                  component="span"
+                  sx={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                >
+                  {workspaceLabel(workspace.profile)}
+                </Box>
+                {Object.values(activities[workspace.id] ?? {})
+                  .filter(Boolean)
+                  .map((label) => (
+                    <Chip
+                      component="span"
+                      key={label}
+                      label={label}
+                      size="small"
+                      variant="outlined"
+                      sx={{ ml: 1, fontSize: 11, flexShrink: 0 }}
+                    />
+                  ))}
               </Button>
             </Tooltip>
             <Tooltip title={`Close ${workspace.profile.Name} workspace`}>

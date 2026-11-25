@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import {
   Alert,
@@ -25,6 +25,7 @@ import { ReadOnlyContext } from './readOnly';
 import { SessionStore } from './storage/session';
 import Workspace from './workspaces';
 import WorkspaceTabs from './components/layout/workspaceTabs';
+import { WorkspaceActivity } from './data/activity';
 import Connection from './components/connections/connection';
 
 const NewConnection = lazy(() => import('./components/connections/newConnection'));
@@ -38,6 +39,25 @@ function Shell({ mode, toggleMode }) {
   const [notice, setNotice] = useState('');
   const [help, setHelp] = useState(false);
   const [closing, setClosing] = useState(null);
+  const [activities, setActivities] = useState({});
+  const workspaceIDs = useRef(new Set());
+  workspaceIDs.current = new Set(workspaces.map((workspace) => workspace.id));
+  const activityChanged = useCallback((id, kind, label) => {
+    if (!workspaceIDs.current.has(id)) return;
+    setActivities((current) =>
+      current[id]?.[kind] === label
+        ? current
+        : { ...current, [id]: { ...current[id], [kind]: label } },
+    );
+  }, []);
+  useEffect(() => {
+    setActivities((current) => {
+      const retained = Object.fromEntries(
+        Object.entries(current).filter(([id]) => workspaceIDs.current.has(id)),
+      );
+      return Object.keys(retained).length === Object.keys(current).length ? current : retained;
+    });
+  }, [workspaces]);
   useEffect(() => {
     if (page === 'workspace' && active) document.getElementById(`tab-${active}`)?.focus();
   }, [active, page]);
@@ -134,8 +154,15 @@ function Shell({ mode, toggleMode }) {
         Skip to main content
       </Box>
       <AppBar position="sticky" elevation={0}>
-        <Toolbar sx={{ gap: { xs: 0.5, sm: 2 }, minHeight: 64 }}>
-          <StorageOutlinedIcon sx={{ mr: 0.5 }} />
+        <Toolbar
+          sx={{
+            gap: { xs: 0.5, sm: 2 },
+            minHeight: 64,
+            px: { xs: 1.5, sm: 3 },
+            '& > .MuiButton-root': { minWidth: 0, px: { xs: 0.75, sm: 1 } },
+          }}
+        >
+          <StorageOutlinedIcon sx={{ mr: 0.5, display: { xs: 'none', sm: 'block' } }} />
           <Typography
             variant="h6"
             component="span"
@@ -172,6 +199,7 @@ function Shell({ mode, toggleMode }) {
       >
         <WorkspaceTabs
           workspaces={workspaces}
+          activities={activities}
           active={managing ? '' : active}
           onChange={(id) => {
             setActive(id);
@@ -222,7 +250,12 @@ function Shell({ mode, toggleMode }) {
             aria-labelledby={`tab-${workspace.id}`}
             hidden={managing || active !== workspace.id}
           >
-            <Workspace profile={workspace.profile} active={!managing && active === workspace.id} />
+            <WorkspaceActivity id={workspace.id} onChange={activityChanged}>
+              <Workspace
+                profile={workspace.profile}
+                active={!managing && active === workspace.id}
+              />
+            </WorkspaceActivity>
           </Box>
         ))}
       </Container>
@@ -343,7 +376,20 @@ export default function App() {
           MuiDialogActions: {
             styleOverrides: { root: { padding: '16px 24px', gap: 4, flexWrap: 'wrap' } },
           },
-          MuiTab: { styleOverrides: { root: { textTransform: 'none', minHeight: 44 } } },
+          MuiTabs: { styleOverrides: { indicator: { display: 'none' } } },
+          MuiTab: {
+            styleOverrides: {
+              root: {
+                textTransform: 'none',
+                minHeight: 44,
+                borderBottom: '2px solid transparent',
+                '&.Mui-selected': {
+                  borderBottomColor: mode === 'dark' ? '#90caf9' : '#1976d2',
+                  fontWeight: 600,
+                },
+              },
+            },
+          },
         },
       }),
     [mode],

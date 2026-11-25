@@ -6,8 +6,7 @@ import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
-import MenuItem from '@mui/material/MenuItem';
-import Paper from '@mui/material/Paper';
+import Autocomplete from '@mui/material/Autocomplete';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
@@ -15,6 +14,17 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import { useDataService } from '../../data/context';
 import { useReadOnly } from '../../readOnly';
+import { useWorkspaceActivity } from '../../data/activity';
+import {
+  CopyValue,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  PageHeader,
+  ReadOnlyNotice,
+  Section,
+  StatCard,
+} from '../shared/page';
 
 export default function Leases() {
   const service = useDataService();
@@ -32,6 +42,9 @@ export default function Leases() {
   const [confirmation, setConfirmation] = useState('');
   const [autoRenew, setAutoRenew] = useState(false);
   const [renewalStatus, setRenewalStatus] = useState('');
+  const [sampleTime, setSampleTime] = useState(null);
+  const [truncated, setTruncated] = useState(false);
+  useWorkspaceActivity('renewal', autoRenew ? 'Lease renewal on' : '');
   const validTTL = /^\d+$/.test(ttl) && Number(ttl) >= 1 && Number(ttl) <= 604800;
 
   useEffect(() => {
@@ -83,8 +96,7 @@ export default function Leases() {
         if (controller.signal.aborted) return;
         setIDs(data.ids);
         setSelected((current) => (data.ids.includes(current) ? current : (data.ids[0] ?? '')));
-        if (data.truncated)
-          setNotice('Showing the first 1,000 lease IDs. Use etcd tooling for a larger inventory.');
+        setTruncated(Boolean(data.truncated));
       })
       .catch((error) => {
         if (!controller.signal.aborted)
@@ -108,7 +120,10 @@ export default function Leases() {
       service
         .GetLease(selected, controller.signal)
         .then((data) => {
-          if (!controller.signal.aborted) setDetail(data);
+          if (!controller.signal.aborted) {
+            setDetail(data);
+            setSampleTime(new Date());
+          }
         })
         .catch((error) => {
           if (!controller.signal.aborted)
@@ -142,23 +157,33 @@ export default function Leases() {
 
   return (
     <Stack spacing={2}>
-      <Typography variant="h4" component="h1">
-        Leases & expiration
-      </Typography>
-      <Typography color="text.secondary">
-        A lease deletes its attached keys when it expires or is revoked. Cluster-wide lease
-        administration requires the etcd root role.
-      </Typography>
-      {error && <Alert severity="error">{error}</Alert>}
+      <PageHeader
+        title="Leases & expiration"
+        description="A lease deletes its attached keys when it expires or is revoked. Cluster-wide lease administration requires the etcd root role."
+      />
+      {readOnly && <ReadOnlyNotice />}
+      <ErrorState
+        message={error}
+        onRetry={() => {
+          setError('');
+          setVersion((value) => value + 1);
+        }}
+      />
       {notice && (
         <Alert severity="success" role="status">
           {notice}
         </Alert>
       )}
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="h6" component="h2" gutterBottom>
-          Create an expiration lease
-        </Typography>
+      {truncated && (
+        <Alert severity="warning">
+          Showing the first 1,000 lease IDs. Search covers only this loaded inventory. Use etcd
+          tooling for a larger inventory.
+        </Alert>
+      )}
+      <Section
+        title="Create an expiration lease"
+        description="The TTL starts immediately, even before any keys are attached."
+      >
         <Box
           component="form"
           onSubmit={(event) => {
@@ -170,7 +195,29 @@ export default function Leases() {
               }, 'Lease created. Attach its ID to a key before it expires.');
           }}
         >
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="start">
+          <Stack
+            direction="row"
+            spacing={1}
+            useFlexGap
+            sx={{ flexWrap: 'wrap', mb: 2 }}
+            aria-label="TTL presets"
+          >
+            {[
+              ['1 minute', '60'],
+              ['1 hour', '3600'],
+              ['1 day', '86400'],
+            ].map(([label, seconds]) => (
+              <Button
+                key={seconds}
+                variant={ttl === seconds ? 'outlined' : 'text'}
+                disabled={busy || readOnly}
+                onClick={() => setTTL(seconds)}
+              >
+                {label}
+              </Button>
+            ))}
+          </Stack>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: 'start' }}>
             <TextField
               label="TTL in seconds"
               value={ttl}
@@ -185,26 +232,29 @@ export default function Leases() {
             </Button>
           </Stack>
         </Box>
-      </Paper>
-      <Paper sx={{ p: 3 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="start">
-          <TextField
-            select
-            label="Lease ID"
-            value={ids.includes(selected) ? selected : ''}
-            onChange={(event) => {
+      </Section>
+      <Section
+        title="Inspect & renew"
+        description="TTL is sampled, not a live countdown. Refresh before relying on the remaining time."
+      >
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: 'start' }}>
+          <Autocomplete
+            options={ids}
+            value={ids.includes(selected) ? selected : null}
+            onChange={(_event, value) => {
               setError('');
-              setSelected(event.target.value);
+              setSelected(value ?? '');
             }}
             disabled={loading || busy || !ids.length}
-            sx={{ minWidth: 260 }}
-          >
-            {ids.map((id) => (
-              <MenuItem key={id} value={id}>
-                {id}
-              </MenuItem>
-            ))}
-          </TextField>
+            sx={{ width: { xs: '100%', sm: 300 }, minWidth: 0 }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Lease ID"
+                helperText="Search the loaded lease inventory."
+              />
+            )}
+          />
           <Button
             disabled={loading || busy}
             onClick={() => {
@@ -215,33 +265,53 @@ export default function Leases() {
             Refresh leases
           </Button>
         </Stack>
-        {loading && (
-          <Typography role="status" sx={{ mt: 2 }}>
-            Loading leases…
-          </Typography>
-        )}
+        {loading && <LoadingState label="Loading leases…" />}
         {!loading && !ids.length && !error && (
-          <Typography sx={{ mt: 2 }}>
-            No active leases. Create one above, then attach its ID in the key editor.
-          </Typography>
+          <EmptyState
+            compact
+            title="No active leases"
+            description="Create one above, then attach its ID in the key editor before it expires."
+          />
         )}
         {detail && (
           <Stack spacing={2} sx={{ mt: 3 }}>
-            <Typography>
-              <b>Lease ID:</b>{' '}
-              <Box component="code" sx={{ userSelect: 'all' }}>
-                {detail.id}
-              </Box>
+            <CopyValue value={detail.id} label="lease ID" />
+            <Typography variant="caption" color="text.secondary">
+              Sampled {sampleTime?.toLocaleTimeString() ?? 'Unavailable'}. Refresh to verify current
+              TTL.
             </Typography>
-            <Typography>
-              Remaining TTL at last check: <b>{detail.ttl} seconds</b> (granted: {detail.grantedTTL}{' '}
-              seconds)
-            </Typography>
+            {detail.ttl <= 0 && (
+              <Alert severity="warning">
+                This lease was expired or unavailable at the last check. Attached keys may already
+                have been deleted.
+              </Alert>
+            )}
+            <Box
+              sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}
+            >
+              <StatCard
+                label="Remaining TTL at last check"
+                value={`${detail.ttl} seconds`}
+                detail={`Granted: ${detail.grantedTTL} seconds`}
+              />
+              <StatCard
+                label="Attached keys"
+                value={detail.keyCount}
+                detail={
+                  detail.keyCount > detail.keys.length
+                    ? 'First 100 shown below'
+                    : 'All attached keys shown below'
+                }
+              />
+            </Box>
             <Typography>
               Attached keys: <b>{detail.keyCount}</b>
               {detail.keyCount > detail.keys.length ? ' (first 100 shown)' : ''}
             </Typography>
-            <Box component="ul" sx={{ maxHeight: 240, overflow: 'auto' }}>
+            <Box
+              component="ul"
+              sx={{ maxHeight: 240, overflow: 'auto', pl: 2, overflowWrap: 'anywhere' }}
+            >
               {detail.keys.map((item) => (
                 <li key={`${item.keyEncoding}:${item.key}`}>
                   <code>{item.key}</code>
@@ -269,7 +339,7 @@ export default function Leases() {
                 {renewalStatus}
               </Alert>
             )}
-            <Stack direction="row" spacing={2}>
+            <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: 'wrap' }}>
               <Button
                 disabled={readOnly || busy}
                 onClick={() => mutate(() => service.RenewLease(detail.id), 'Lease renewed once.')}
@@ -289,13 +359,15 @@ export default function Leases() {
             </Stack>
           </Stack>
         )}
-      </Paper>
+      </Section>
       <Dialog
         open={revoking && Boolean(detail)}
         onClose={() => {
           if (!busy) setRevoking(false);
         }}
         aria-labelledby="revoke-lease-title"
+        fullWidth
+        maxWidth="sm"
       >
         <DialogTitle id="revoke-lease-title">Revoke this lease?</DialogTitle>
         <DialogContent>

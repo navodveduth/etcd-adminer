@@ -22,7 +22,7 @@ it('requires typed confirmation before granting root', async () => {
       <UserInfo userName="alice" allRoles={['root']} />
     </MemoryRouter>,
   );
-  await screen.findByText('User Info: alice');
+  await waitFor(() => expect(screen.getByRole('combobox')).toBeEnabled());
   await user.click(screen.getByRole('combobox'));
   await user.click(screen.getByRole('option', { name: 'root' }));
   expect(screen.getByRole('button', { name: 'Assign' })).toBeDisabled();

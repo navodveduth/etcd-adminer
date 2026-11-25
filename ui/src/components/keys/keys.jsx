@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Grid from '@mui/material/Grid';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import Paper from '@mui/material/Paper';
 import Box from '@mui/material/Box';
 import Tabs from '@mui/material/Tabs';
@@ -19,8 +18,12 @@ import { buildKeyTree } from '../../data/keyTree';
 import { useReadOnly } from '../../readOnly';
 import { Link } from 'react-router-dom';
 import { patchKeyPage, reconnectDelay } from '../../data/liveKeys';
+import { EmptyState, ErrorState, PageHeader, ReadOnlyNotice, StatusBadge } from '../shared/page';
+import ConfirmationDialog from '../dialogs/confirmationDialog';
+import { useWorkspaceActivity } from '../../data/activity';
 
 export default function Keys() {
+  const widthID = useId();
   const readOnly = useReadOnly();
   const service = useDataService();
   const [activeKey, setActiveKey] = useState(null);
@@ -40,6 +43,10 @@ export default function Keys() {
   const [liveStatus, setLiveStatus] = useState('Off');
   const [membershipStale, setMembershipStale] = useState(false);
   const [serverRevisions, setServerRevisions] = useState({});
+  const [browserWidth, setBrowserWidth] = useState(36);
+  const [pendingAction, setPendingAction] = useState(null);
+  useWorkspaceActivity('draft', dirty ? 'Unsaved draft' : '');
+  useWorkspaceActivity('keys-watch', live && prefix ? `Keys: ${liveStatus}` : '');
   const prefixRef = useRef(null);
   const activeKeyRef = useRef(activeKey);
   activeKeyRef.current = activeKey;
@@ -159,15 +166,25 @@ export default function Keys() {
 
   const selectKey = (key) => {
     if (key === activeKey) return;
-    if (dirty && !window.confirm('Discard unsaved changes?')) return;
+    if (dirty) {
+      setPendingAction(() => () => {
+        setIsNewKey(drafts.some((item) => item.key === key && !item.isDirectory));
+        setActiveKey(key);
+      });
+      return;
+    }
     setIsNewKey(drafts.some((item) => item.key === key && !item.isDirectory));
     setActiveKey(key);
   };
 
-  const createDraft = (key, isDirectory) => {
+  const createDraft = (key, isDirectory, confirmed = false) => {
     if (readOnly) return;
     if (!key) return;
-    if (!isDirectory && dirty && !window.confirm('Discard unsaved changes?')) return;
+    if (!isDirectory && key === activeKey && isNewKey) return;
+    if (!isDirectory && dirty && !confirmed) {
+      setPendingAction(() => () => createDraft(key, isDirectory, true));
+      return;
+    }
     setDrafts((items) => [
       ...items.filter((item) => item.key !== key),
       { key, isDirectory, isVirtual: true },
@@ -178,19 +195,22 @@ export default function Keys() {
     }
   };
 
-  const deleteKey = async (node) => {
+  const deleteKey = async (node, confirmed = false) => {
     if (readOnly) return;
     try {
       const deletingSelection =
         activeKey === node.abspath ||
         (node.type === 'directory' && activeKey?.startsWith(`${node.abspath}/`));
-      if (deletingSelection && dirty && !window.confirm('Discard unsaved changes and delete?'))
+      if (deletingSelection && dirty && !confirmed) {
+        setPendingAction(() => () => deleteKey(node, true));
         return;
+      }
       if (!node.isVirtual) await service.DeleteNode(node.abspath, node.type === 'directory');
       setDrafts((items) => items.filter((item) => item.key !== node.abspath));
       if (deletingSelection) {
         setActiveKey(null);
         setIsNewKey(false);
+        setDirty(false);
       }
       restart();
     } catch (error) {
@@ -207,9 +227,7 @@ export default function Keys() {
   };
 
   return (
-    <Grid
-      container
-      spacing={2}
+    <Box
       onKeyDownCapture={(event) => {
         if (event.altKey && event.key.toLowerCase() === 'f') {
           event.preventDefault();
@@ -221,128 +239,192 @@ export default function Keys() {
         }
       }}
     >
-      <Grid size={12}>
-        <Typography variant="h4" component="h1">
-          Key browser
-        </Typography>
-      </Grid>
-      <Grid size={{ xs: 12, md: 4, lg: 3 }}>
-        <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', minHeight: 500 }}>
-          <Box
-            component="form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setPrefix(prefixInput);
-              restart();
-            }}
-          >
-            <TextField
-              inputRef={prefixRef}
-              fullWidth
-              size="small"
-              label="Key prefix"
-              value={prefixInput}
-              onChange={(event) => setPrefixInput(event.target.value)}
-            />
-            <Button type="submit" disabled={loading}>
-              Apply prefix
-            </Button>
-          </Box>
-          <Tabs value={view} onChange={(_event, value) => setView(value)} aria-label="Key view">
-            <Tab label="Folder" />
-            <Tab label="List" />
-          </Tabs>
-          <p>Showing one page (up to 100 keys). Revision: {page.revision}</p>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={live}
-                disabled={!prefix}
-                onChange={(event) => setLive(event.target.checked)}
-              />
-            }
-            label={`Live prefix updates: ${liveStatus}`}
+      <PageHeader
+        title="Key browser"
+        description="Browse a consistent snapshot by prefix. Select an exact key to inspect its value; changes are saved only after revision checks."
+        actions={
+          <StatusBadge
+            label={dirty ? 'Unsaved draft' : 'No unsaved changes'}
+            color={dirty ? 'warning' : 'default'}
           />
-          {!prefix && (
-            <Typography variant="caption">
-              Apply a nonempty prefix to enable live updates.
-            </Typography>
-          )}
-          {membershipStale && (
-            <Alert severity="warning">
-              Live page membership may be incomplete or the watch needs resync. Restart / refresh to
-              load a fresh snapshot. Drafts are preserved.
-            </Alert>
-          )}
-          {error && <Alert severity="error">{error}</Alert>}
-          {textItems.length !== page.items.length && (
-            <Alert severity="info">
-              {page.items.length - textItems.length} binary keys on this page cannot be edited in
-              the text view.
-            </Alert>
-          )}
-          {view === 0 ? (
-            <FSNavigator
-              keys={tree}
-              loading={loading}
-              onKeyClick={selectKey}
-              fetchKeys={restart}
-              createFile={(key) => createDraft(key, false)}
-              createDirectory={(key) => createDraft(key, true)}
-              deleteKey={deleteKey}
-            />
-          ) : (
-            <KeysList
-              items={[...textItems, ...drafts.filter((item) => !item.isDirectory)]}
-              loading={loading}
-              onKeyClick={selectKey}
-              deleteKey={deleteKey}
-              selected={selected}
-              onSelect={(key) =>
-                setSelected((items) =>
-                  items.includes(key) ? items.filter((item) => item !== key) : [...items, key],
-                )
-              }
-            />
-          )}
-          {selected.length > 0 && (
-            <Button
-              color="error"
-              disabled={readOnly || dirty}
-              component={Link}
-              to="/transfer"
-              state={{ keys: selected }}
-            >
-              Preview deleting {selected.length} selected keys…
-            </Button>
-          )}
-          <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-            <Button onClick={restart} disabled={loading}>
-              Restart / refresh
-            </Button>
-            <Button
-              onClick={() => setCursor(page.nextCursor)}
-              disabled={loading || Boolean(error) || !page.hasMore}
-            >
-              Next page
-            </Button>
-          </Stack>
-        </Paper>
-      </Grid>
-      <Grid size={{ xs: 12, md: 8, lg: 9 }}>
-        {activeKey && (
-          <Button component={Link} to={`/watchers?mode=exact&key=${encodeURIComponent(activeKey)}`}>
-            Watch this key
-          </Button>
-        )}
-        <EditorComponent
-          etcdKey={activeKey}
-          isNewKey={isNewKey}
-          onSaved={onSaved}
-          onDirtyChange={setDirty}
-          serverRevision={serverRevisions[activeKey]}
+        }
+      />
+      {readOnly && <ReadOnlyNotice />}
+      <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', gap: 2, mb: 2 }}>
+        <Typography component="label" htmlFor={widthID} variant="caption" color="text.secondary">
+          Browser width
+        </Typography>
+        <input
+          id={widthID}
+          type="range"
+          min="25"
+          max="60"
+          value={browserWidth}
+          onChange={(event) => setBrowserWidth(Number(event.target.value))}
+          aria-valuetext={`${browserWidth} percent`}
+          style={{ width: 140 }}
         />
-      </Grid>
-    </Grid>
+      </Box>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: 'minmax(0, 1fr)',
+            lg: `minmax(0, ${browserWidth}fr) minmax(0, ${100 - browserWidth}fr)`,
+          },
+          gap: 2,
+          alignItems: 'start',
+        }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Paper
+            variant="outlined"
+            sx={{ p: 2, display: 'flex', flexDirection: 'column', minWidth: 0 }}
+          >
+            <Box
+              component="form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setPrefix(prefixInput);
+                restart();
+              }}
+            >
+              <TextField
+                inputRef={prefixRef}
+                fullWidth
+                size="small"
+                label="Key prefix"
+                value={prefixInput}
+                onChange={(event) => setPrefixInput(event.target.value)}
+              />
+              <Button type="submit" disabled={loading}>
+                Apply prefix
+              </Button>
+            </Box>
+            <Tabs value={view} onChange={(_event, value) => setView(value)} aria-label="Key view">
+              <Tab label="Folder" />
+              <Tab label="List" />
+            </Tabs>
+            <Typography variant="body2" color="text.secondary" sx={{ my: 2 }}>
+              {page.items.length} keys on this page · Snapshot revision <code>{page.revision}</code>
+              {page.hasMore ? ' · More pages available' : ' · Last page'}
+            </Typography>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={live}
+                  disabled={!prefix}
+                  onChange={(event) => setLive(event.target.checked)}
+                />
+              }
+              label={`Live prefix updates: ${liveStatus}`}
+            />
+            {!prefix && (
+              <Typography variant="caption">
+                Apply a nonempty prefix to enable live updates.
+              </Typography>
+            )}
+            {membershipStale && (
+              <Alert severity="warning">
+                Live page membership may be incomplete or the watch needs resync. Restart / refresh
+                to load a fresh snapshot. Drafts are preserved.
+              </Alert>
+            )}
+            <ErrorState message={error} onRetry={restart} />
+            {textItems.length !== page.items.length && (
+              <Alert severity="info">
+                {page.items.length - textItems.length} binary keys on this page cannot be edited in
+                the text view.
+              </Alert>
+            )}
+            {!loading && !error && !page.items.length && !drafts.length && (
+              <EmptyState
+                compact
+                title="No keys on this page"
+                description="Try a different prefix, or create a key from the folder view when you have write access."
+              />
+            )}
+            <Box sx={{ maxHeight: { xs: '45vh', lg: '60vh' }, overflow: 'auto', minWidth: 0 }}>
+              {view === 0 ? (
+                <FSNavigator
+                  keys={tree}
+                  loading={loading}
+                  onKeyClick={selectKey}
+                  fetchKeys={restart}
+                  createFile={(key) => createDraft(key, false)}
+                  createDirectory={(key) => createDraft(key, true)}
+                  deleteKey={deleteKey}
+                />
+              ) : (
+                <KeysList
+                  activeKey={activeKey}
+                  items={[...textItems, ...drafts.filter((item) => !item.isDirectory)]}
+                  loading={loading}
+                  onKeyClick={selectKey}
+                  deleteKey={deleteKey}
+                  selected={selected}
+                  onSelect={(key) =>
+                    setSelected((items) =>
+                      items.includes(key) ? items.filter((item) => item !== key) : [...items, key],
+                    )
+                  }
+                />
+              )}
+            </Box>
+            {selected.length > 0 && (
+              <Button
+                color="error"
+                disabled={readOnly || dirty}
+                component={Link}
+                to="/transfer"
+                state={{ keys: selected }}
+              >
+                Preview deleting {selected.length} selected keys…
+              </Button>
+            )}
+            <Stack direction="row" spacing={1} useFlexGap sx={{ mt: 2, flexWrap: 'wrap' }}>
+              <Button onClick={restart} disabled={loading}>
+                Restart / refresh
+              </Button>
+              <Button
+                onClick={() => setCursor(page.nextCursor)}
+                disabled={loading || Boolean(error) || !page.hasMore}
+              >
+                Next page
+              </Button>
+            </Stack>
+          </Paper>
+        </Box>
+        <Box sx={{ minWidth: 0 }}>
+          {activeKey && (
+            <Button
+              component={Link}
+              to={`/watchers?mode=exact&key=${encodeURIComponent(activeKey)}`}
+            >
+              Watch this key
+            </Button>
+          )}
+          <EditorComponent
+            etcdKey={activeKey}
+            isNewKey={isNewKey}
+            onSaved={onSaved}
+            onDirtyChange={setDirty}
+            serverRevision={serverRevisions[activeKey]}
+          />
+        </Box>
+      </Box>
+      <ConfirmationDialog
+        open={Boolean(pendingAction)}
+        title="Discard unsaved changes?"
+        content="The current editor draft will be discarded before continuing. Your saved value is not changed by discarding the draft."
+        confirmLabel="Discard and continue"
+        onCancel={() => setPendingAction(null)}
+        onConfirm={() => {
+          const action = pendingAction;
+          setPendingAction(null);
+          action?.();
+        }}
+      />
+    </Box>
   );
 }

@@ -257,7 +257,7 @@ export default function NewConnection({ forceRefreshNav }) {
                 test.
               </Typography>
             )}
-            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+            <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
               <Button
                 type="button"
                 variant="outlined"

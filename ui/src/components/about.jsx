@@ -1,56 +1,75 @@
-import { Grid, Link } from '@mui/material';
-import Paper from '@mui/material/Paper';
-import Typography from '@mui/material/Typography';
-import GitHubIcon from '@mui/icons-material/GitHub';
+import { Box, Link, Stack, Typography } from '@mui/material';
+import { PageHeader, Section } from './shared/page';
 
-export default function About(props) {
+export default function About() {
   return (
-    <Grid container spacing={3}>
-      <Grid
-        size={12}
-        sx={{
-          justifyContent: 'center',
-          display: 'flex',
-          mt: '10%',
-        }}
-      >
-        <Paper
-          sx={{
-            p: 2,
-            justifyContent: 'center',
-            alignItems: 'center',
-            textAlign: 'center',
-            verticalAlign: 'middle',
-            maxWidth: 600,
-          }}
-        >
-          <img src="/images/logo100.png" alt="etcd-logo" height="100px" width="100px" />
-          <Typography variant="h2" component="h2">
-            ETCD ADMINER
-          </Typography>
-          <Typography variant="h6" component="h6">
+    <Box sx={{ maxWidth: 900, mx: 'auto' }}>
+      <PageHeader
+        title="About ETCD Adminer"
+        description="A browser workspace for inspecting etcd keys, cluster telemetry and access controls."
+      />
+      <Stack spacing={3}>
+        <Section title="Project & documentation">
+          <Stack spacing={1.5}>
             <Link
               href="https://github.com/navodveduth/etcd-adminer"
-              underline="hover"
               target="_blank"
-              rel="noopener"
+              rel="noopener noreferrer"
             >
-              Admin tool for ETCD
+              Project source & setup documentation
             </Link>
-          </Typography>
-          <Typography variant="subtitle2" color="text.secondary">
-            <GitHubIcon fontSize="20" /> Forked from{' '}
-            <Link
-              href="https://github.com/srimaln91/etcd-adminer"
-              underline="hover"
-              target="_blank"
-              rel="noopener"
-            >
-              srimaln91/etcd-adminer
+            <Link href="https://etcd.io/docs/" target="_blank" rel="noopener noreferrer">
+              etcd documentation
             </Link>
-          </Typography>
-        </Paper>
-      </Grid>
-    </Grid>
+            <Typography variant="body2" color="text.secondary">
+              Forked from{' '}
+              <Link
+                href="https://github.com/srimaln91/etcd-adminer"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                srimaln91/etcd-adminer
+              </Link>
+              . Cluster server versions are shown in the Cluster view; this build does not expose an
+              application version.
+            </Typography>
+          </Stack>
+        </Section>
+        <Section title="Workspace privacy & safety">
+          <Stack spacing={2}>
+            <Typography>
+              Saved profiles contain metadata, not passwords. Passwords and drafts remain in this
+              browser tab's memory. Reloading requires reauthentication.
+            </Typography>
+            <Typography>
+              Watches and automatic lease renewal belong to their workspace. Switching pages keeps
+              them running; closing, disconnecting or reloading stops them. Browser sleep can still
+              allow leases to expire.
+            </Typography>
+            <Typography>
+              Logical JSON exports are not cluster snapshots. Export files and optional watch values
+              may contain secrets. Keep them private and do not include credentials in issue
+              reports.
+            </Typography>
+          </Stack>
+        </Section>
+        <Section title="Troubleshooting">
+          <Stack spacing={1.5}>
+            <Typography>
+              For connection failures, test the selected backend from Connections. Endpoints, TLS
+              certificates and server names are configured on the Adminer server.
+            </Typography>
+            <Typography>
+              Administrator pages require the authenticated caller's etcd root role. Refresh access
+              after role changes. An unavailable status RPC does not establish whether the cluster
+              has write quorum.
+            </Typography>
+            <Typography>
+              Open Shortcuts in the header (F1) for keyboard navigation and editor actions.
+            </Typography>
+          </Stack>
+        </Section>
+      </Stack>
+    </Box>
   );
 }

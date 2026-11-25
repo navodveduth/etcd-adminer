@@ -7,18 +7,26 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import MenuItem from '@mui/material/MenuItem';
-import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
-import TableContainer from '@mui/material/TableContainer';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import Autocomplete from '@mui/material/Autocomplete';
 import { useDataService } from '../../data/context';
 import { useReadOnly } from '../../readOnly';
+import {
+  DataTable,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  PageHeader,
+  ReadOnlyNotice,
+  Section,
+} from '../shared/page';
 
 const scopeDescription = (scope, key, end) =>
   scope === 'prefix'
@@ -46,10 +54,12 @@ export default function Roles() {
   const [deleting, setDeleting] = useState(false);
   const [confirmation, setConfirmation] = useState('');
   const [removing, setRemoving] = useState(null);
+  const [loading, setLoading] = useState(true);
   const protectedRole = selected === 'root';
 
   useEffect(() => {
     const controller = new AbortController();
+    setLoading(true);
     service
       .ListRoles(controller.signal)
       .then((data) => {
@@ -65,6 +75,9 @@ export default function Roles() {
             error.response?.data?.message ??
               'Could not load roles. This screen requires an etcd administrator.',
           );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
   }, [service, version]);
@@ -111,21 +124,26 @@ export default function Roles() {
 
   return (
     <Stack spacing={2}>
-      <Typography variant="h4" component="h1">
-        Roles & permissions
-      </Typography>
-      <Typography color="text.secondary">
-        Grant the minimum access needed. Permissions from all assigned roles combine; removing one
-        rule may not remove access granted by another role.
-      </Typography>
-      {error && <Alert severity="error">{error}</Alert>}
+      <PageHeader
+        title="Roles & permissions"
+        description="Grant the minimum access needed. Permissions from all assigned roles combine; removing one rule may not remove access granted by another role."
+      />
+      {readOnly && <ReadOnlyNotice />}
+      <ErrorState
+        message={error}
+        onRetry={() => {
+          setError('');
+          setVersion((value) => value + 1);
+        }}
+      />
       {notice && (
         <Alert severity="success" role="status">
           {notice}
         </Alert>
       )}
-      <Paper
-        sx={{ p: 3 }}
+      <Section
+        title="Create a role"
+        description="New roles grant no key access until you add permissions and assign them to users."
         component="form"
         onSubmit={(event) => {
           event.preventDefault();
@@ -154,26 +172,33 @@ export default function Roles() {
             Create role
           </Button>
         </Stack>
-      </Paper>
-      <Paper sx={{ p: 3 }}>
+      </Section>
+      <Section
+        title="Role permissions"
+        description="Inspect the selected role, then grant an exact key, prefix or byte-ordered range."
+      >
+        {loading && <LoadingState label="Loading roles" />}
+        {!loading && !roles.length && !error && (
+          <EmptyState
+            compact
+            title="No roles reported"
+            description="Create a least-privilege role above, then add permissions."
+          />
+        )}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <TextField
-            select
-            label="Role"
-            value={roles.includes(selected) ? selected : ''}
-            onChange={(event) => {
+          <Autocomplete
+            options={roles}
+            value={roles.includes(selected) ? selected : null}
+            onChange={(_event, value) => {
               setError('');
-              setSelected(event.target.value);
+              setSelected(value ?? '');
             }}
             disabled={busy || !roles.length}
-            sx={{ minWidth: 220 }}
-          >
-            {roles.map((role) => (
-              <MenuItem key={role} value={role}>
-                {role}
-              </MenuItem>
-            ))}
-          </TextField>
+            sx={{ minWidth: 0, width: { xs: '100%', sm: 260 } }}
+            renderInput={(params) => (
+              <TextField {...params} label="Role" helperText="Search the loaded role inventory." />
+            )}
+          />
           <Button
             onClick={() => {
               setError('');
@@ -207,7 +232,7 @@ export default function Roles() {
         )}
         {detail && detail.name === selected && (
           <>
-            <TableContainer sx={{ mt: 2, maxHeight: 320 }}>
+            <DataTable aria-label="Scrollable role permissions" sx={{ mt: 2, maxHeight: 320 }}>
               <Table size="small" stickyHeader aria-label="Role permissions">
                 <TableHead>
                   <TableRow>
@@ -256,7 +281,7 @@ export default function Roles() {
                   )}
                 </TableBody>
               </Table>
-            </TableContainer>
+            </DataTable>
             {!protectedRole && (
               <Stack
                 spacing={2}
@@ -336,13 +361,15 @@ export default function Roles() {
             )}
           </>
         )}
-      </Paper>
+      </Section>
       <Dialog
         open={deleting}
         onClose={() => {
           if (!busy) setDeleting(false);
         }}
         aria-labelledby="delete-role-title"
+        fullWidth
+        maxWidth="sm"
       >
         <DialogTitle id="delete-role-title">Delete role {selected}?</DialogTitle>
         <DialogContent>
@@ -383,6 +410,8 @@ export default function Roles() {
           if (!busy) setRemoving(null);
         }}
         aria-labelledby="remove-permission-title"
+        fullWidth
+        maxWidth="sm"
       >
         <DialogTitle id="remove-permission-title">Remove this permission?</DialogTitle>
         <DialogContent>

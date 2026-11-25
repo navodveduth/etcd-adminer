@@ -10,7 +10,7 @@ import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Alert from '@mui/material/Alert';
-import { useDataService } from '../../data/context';
+import { useDataService, useWorkspaceActive } from '../../data/context';
 import TextField from '@mui/material/TextField';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -18,20 +18,36 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import { Link } from 'react-router-dom';
 import { useReadOnly } from '../../readOnly';
+import { CopyValue, LoadingState, Section } from '../shared/page';
+import IconButton from '@mui/material/IconButton';
+import RemoveCircleOutlineIcon from '@mui/icons-material/Delete';
+import InputAdornment from '@mui/material/InputAdornment';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 
 export default function UserInfo(props) {
+  const roleID = React.useId();
   const readOnly = useReadOnly();
+  const active = useWorkspaceActive();
 
   const [selectedRole, setSelectedRole] = React.useState('');
   const [user, setUser] = React.useState({ roles: [] });
   const [rootConfirmation, setRootConfirmation] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [confirmPassword, setConfirmPassword] = React.useState('');
+  const [showPasswords, setShowPasswords] = React.useState(false);
   const [passwordBusy, setPasswordBusy] = React.useState(false);
   const [roleBusy, setRoleBusy] = React.useState(false);
   const [message, setMessage] = React.useState(null);
   const [removingRole, setRemovingRole] = React.useState('');
   const [revokeConfirmation, setRevokeConfirmation] = React.useState('');
+  useEffect(() => {
+    if (!active) {
+      setPassword('');
+      setConfirmPassword('');
+      setShowPasswords(false);
+    }
+  }, [active]);
 
   const dataService = useDataService();
   const ready = user.name === props.userName;
@@ -128,20 +144,16 @@ export default function UserInfo(props) {
   };
 
   return (
-    <Paper
-      sx={{
-        p: 2,
-        display: 'flex',
-        flexDirection: 'column',
-      }}
+    <Section
+      title="User details"
+      description="Roles combine to determine access. Protected accounts and root safeguards are enforced by the server."
     >
-      <Typography variant="h6" gutterBottom>
-        User Info: {user.name}
-      </Typography>
+      <CopyValue value={props.userName} label="username" />
+      {!ready && !message && <LoadingState label="Loading user details" />}
       {message && <Alert severity={message.severity}>{message.text}</Alert>}
       <Grid container size={12}>
         <Grid size={12}>
-          <Typography variant="subtitle1" gutterBottom>
+          <Typography variant="subtitle1" component="h3" gutterBottom>
             Roles:
           </Typography>
         </Grid>
@@ -153,7 +165,7 @@ export default function UserInfo(props) {
               flexWrap: 'wrap',
               listStyle: 'none',
               p: 2,
-              m: 2,
+              my: 1,
             }}
           >
             {((user) => {
@@ -161,27 +173,38 @@ export default function UserInfo(props) {
                 return <Alert severity="warning">No roles assigned!</Alert>;
               } else {
                 return (
-                  <Stack direction="row" spacing={1}>
+                  <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
                     {user.roles.map((role) => (
-                      <Chip
+                      <Stack
                         key={role}
-                        label={role}
-                        variant="outlined"
-                        component={Link}
-                        to={`/roles?name=${encodeURIComponent(role)}`}
-                        clickable
-                        onDelete={
-                          readOnly ||
-                          roleBusy ||
-                          !ready ||
-                          (user.name === 'root' && role === 'root')
-                            ? undefined
-                            : () => {
-                                setRevokeConfirmation('');
-                                setRemovingRole(role);
-                              }
-                        }
-                      />
+                        direction="row"
+                        spacing={0.25}
+                        sx={{ alignItems: 'center' }}
+                      >
+                        <Chip
+                          label={role}
+                          variant="outlined"
+                          component={Link}
+                          to={`/roles?name=${encodeURIComponent(role)}`}
+                          clickable
+                        />
+                        <IconButton
+                          size="small"
+                          aria-label={`Remove role ${role}`}
+                          disabled={
+                            readOnly ||
+                            roleBusy ||
+                            !ready ||
+                            (user.name === 'root' && role === 'root')
+                          }
+                          onClick={() => {
+                            setRevokeConfirmation('');
+                            setRemovingRole(role);
+                          }}
+                        >
+                          <RemoveCircleOutlineIcon fontSize="small" />
+                        </IconButton>
+                      </Stack>
                     ))}
                   </Stack>
                 );
@@ -190,14 +213,14 @@ export default function UserInfo(props) {
           </Paper>
         </Grid>
         <Grid size={12}>
-          <Typography variant="subtitle1" gutterBottom>
+          <Typography variant="subtitle1" component="h3" gutterBottom>
             Assign New Role:
           </Typography>
-          <FormControl sx={{ m: 1, width: '100px' }}>
-            <InputLabel id="demo-simple-select-label">Roles</InputLabel>
+          <FormControl sx={{ my: 1, width: '100%' }}>
+            <InputLabel id={`${roleID}-label`}>Roles</InputLabel>
             <Select
-              labelId="demo-simple-select-label"
-              id="demo-simple-select"
+              labelId={`${roleID}-label`}
+              id={roleID}
               value={selectedRole}
               disabled={readOnly || roleBusy || !ready}
               label="Roles"
@@ -228,7 +251,6 @@ export default function UserInfo(props) {
             )}
             <Button
               variant="contained"
-              color="success"
               disabled={
                 readOnly ||
                 roleBusy ||
@@ -254,19 +276,41 @@ export default function UserInfo(props) {
         </Typography>
         <TextField
           label="New password"
-          type="password"
+          type={showPasswords ? 'text' : 'password'}
           autoComplete="new-password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           disabled={readOnly || passwordBusy}
+          error={new TextEncoder().encode(password).length > 72}
+          helperText={`${new TextEncoder().encode(password).length} / 72 UTF-8 bytes. Existing credentials may require reauthentication after a change.`}
+          slotProps={{
+            input: {
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label={showPasswords ? 'Hide new passwords' : 'Show new passwords'}
+                    onClick={() => setShowPasswords((value) => !value)}
+                  >
+                    {showPasswords ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
         />
         <TextField
           label="Confirm new password"
-          type="password"
+          type={showPasswords ? 'text' : 'password'}
           autoComplete="new-password"
           value={confirmPassword}
           onChange={(event) => setConfirmPassword(event.target.value)}
           disabled={readOnly || passwordBusy}
+          error={Boolean(confirmPassword && password !== confirmPassword)}
+          helperText={
+            confirmPassword && password !== confirmPassword
+              ? 'Passwords do not match.'
+              : 'Re-enter the new password.'
+          }
         />
         <Button
           disabled={
@@ -311,6 +355,8 @@ export default function UserInfo(props) {
           if (!roleBusy) setRemovingRole('');
         }}
         aria-labelledby="remove-user-role-title"
+        fullWidth
+        maxWidth="sm"
       >
         <DialogTitle id="remove-user-role-title">Remove role {removingRole}?</DialogTitle>
         <DialogContent>
@@ -346,6 +392,6 @@ export default function UserInfo(props) {
           </Button>
         </DialogActions>
       </Dialog>
-    </Paper>
+    </Section>
   );
 }

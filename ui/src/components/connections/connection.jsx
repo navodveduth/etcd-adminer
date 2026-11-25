@@ -48,8 +48,8 @@ export default function Connection({ onSessionChange }) {
     setProfiles(store.GetAll());
     onSessionChange?.({ open });
   };
-  const openProfile = (profile) => {
-    if (store.Get(profile.Name)?.Password !== undefined) {
+  const openProfile = (profile, reauthenticate = false) => {
+    if (!reauthenticate && store.Get(profile.Name)?.Password !== undefined) {
       store.SetActiveSession(profile);
       refresh(true);
     } else {
@@ -195,10 +195,11 @@ export default function Connection({ onSessionChange }) {
                         <code>{profile.UserName}</code>
                       </TableCell>
                       <TableCell>
-                        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                        <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
                           <Button variant="contained" onClick={() => openProfile(profile)}>
                             Open workspace
                           </Button>
+                          <Button onClick={() => openProfile(profile, true)}>Reauthenticate</Button>
                           <Button
                             component={Link}
                             to={`/connection/new?edit=${encodeURIComponent(profile.Name)}`}

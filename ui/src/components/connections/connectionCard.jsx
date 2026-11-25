@@ -46,6 +46,7 @@ export default function ConnectionCard({ connection, isActive, openProfile, dele
         <Button variant="contained" onClick={() => openProfile(connection)}>
           Open workspace
         </Button>
+        <Button onClick={() => openProfile(connection, true)}>Reauthenticate</Button>
         <Button component={Link} to={`/connection/new?edit=${encodeURIComponent(connection.Name)}`}>
           Edit / diagnose
         </Button>

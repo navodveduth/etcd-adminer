@@ -197,8 +197,7 @@ export default function Workspace({ profile, active = true }) {
                   direction="row"
                   spacing={1}
                   useFlexGap
-                  flexWrap="wrap"
-                  sx={{ mb: 2.5, alignItems: 'center', fontSize: 13 }}
+                  sx={{ mb: 2.5, alignItems: 'center', fontSize: 13, flexWrap: 'wrap' }}
                 >
                   <Typography variant="body2" color="text.secondary">
                     Backend{' '}

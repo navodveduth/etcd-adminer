@@ -230,12 +230,14 @@ export default function FSNavigator(props) {
       />
 
       <NewDirectoryDialog
+        prefix={`${contextMenuSelectedNode?.abspath ?? ''}/`}
         open={newDirectoryDialogOpen}
         handleSubmit={newDirectoryDialogSubmit}
         handleClose={newDirectoryDialogClose}
       />
 
       <NewFileDialog
+        prefix={`${contextMenuSelectedNode?.abspath ?? ''}/`}
         open={newFileDialogOpen}
         handleSubmit={newFileDialogSubmit}
         handleClose={newFileDialogClose}
