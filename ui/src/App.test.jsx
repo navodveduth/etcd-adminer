@@ -47,6 +47,18 @@ test('renders an actionable empty connection screen', async () => {
   expect(screen.getByRole('link', { name: 'New connection' })).toBeInTheDocument();
 });
 
+test('returns to Connections when clicking the application name from a connection subpage', async () => {
+  const user = userEvent.setup();
+  render(<App />);
+  await user.click(screen.getByRole('link', { name: 'New connection' }));
+  await screen.findByTestId('primary-color');
+  await user.click(screen.getByRole('button', { name: 'ETCD Adminer — Connections' }));
+  expect(
+    await screen.findByRole('heading', { name: 'Connections', exact: true }),
+  ).toBeInTheDocument();
+  expect(screen.queryByTestId('primary-color')).not.toBeInTheDocument();
+});
+
 test('keeps mutation controls disabled when instance settings cannot be loaded', async () => {
   getConfig.mockRejectedValue(new Error('network unavailable'));
   render(<App />);

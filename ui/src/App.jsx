@@ -34,6 +34,7 @@ const About = lazy(() => import('./components/about'));
 
 function Shell({ mode, toggleMode }) {
   const [page, setPage] = useState('connection');
+  const [connectionPageVersion, setConnectionPageVersion] = useState(0);
   const store = useMemo(() => new SessionStore(), []);
   const [workspaces, setWorkspaces] = useState([]);
   const [active, setActive] = useState('');
@@ -163,19 +164,26 @@ function Shell({ mode, toggleMode }) {
             '& > .MuiButton-root': { minWidth: 0, px: { xs: 0.75, sm: 1 } },
           }}
         >
-          <StorageOutlinedIcon sx={{ mr: 0.5, display: { xs: 'none', sm: 'block' } }} />
-          <Typography
-            variant="h6"
-            component="span"
-            sx={{
-              flexGrow: 1,
-              whiteSpace: 'nowrap',
-              fontSize: { xs: 16, sm: 18 },
-              fontWeight: 600,
-            }}
-          >
-            ETCD Adminer
-          </Typography>
+          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+            <Button
+              color="inherit"
+              aria-label="ETCD Adminer — Connections"
+              onClick={() => {
+                setConnectionPageVersion((version) => version + 1);
+                setPage('connection');
+              }}
+              sx={{ minWidth: 0, gap: 1.5, px: 0.5 }}
+            >
+              <StorageOutlinedIcon sx={{ display: { xs: 'none', sm: 'block' } }} />
+              <Typography
+                variant="h6"
+                component="span"
+                sx={{ whiteSpace: 'nowrap', fontSize: { xs: 16, sm: 18 }, fontWeight: 600 }}
+              >
+                ETCD Adminer
+              </Typography>
+            </Button>
+          </Box>
           <Button color="inherit" size="small" onClick={() => setPage('about')}>
             About
           </Button>
@@ -216,7 +224,7 @@ function Shell({ mode, toggleMode }) {
         )}
         <Suspense fallback={<CircularProgress aria-label="Loading page" />}>
           {page === 'connection' && (
-            <MemoryRouter initialEntries={['/connection']}>
+            <MemoryRouter key={connectionPageVersion} initialEntries={['/connection']}>
               <Routes>
                 <Route
                   path="/connection"

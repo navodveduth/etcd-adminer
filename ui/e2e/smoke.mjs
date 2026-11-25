@@ -264,7 +264,7 @@ try {
   await createDialog.getByRole('button', { name: 'Create key', exact: true }).click();
   await createDialog.waitFor({ state: 'hidden' });
   await page.getByText('unsaved-development-draft', { exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Connections', exact: true }).click();
+  await page.getByRole('button', { name: 'ETCD Adminer — Connections', exact: true }).click();
   await page.getByRole('button', { name: 'Actions for Development', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Reauthenticate', exact: true }).click();
   await page.getByLabel('Password', { exact: true }).fill('refreshed-browser-test');
