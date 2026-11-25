@@ -175,14 +175,6 @@ export default function Connection({ onSessionChange }) {
           </Stack>
         </>
       )}
-      <Box component="details" sx={{ mt: 3, color: 'text.secondary', fontSize: 14 }}>
-        <summary style={{ cursor: 'pointer' }}>How credentials are stored</summary>
-        <Typography variant="body2" sx={{ mt: 1, maxWidth: 720 }}>
-          Only profile metadata is saved. Passwords remain in this browser tab's memory; reloads
-          require reauthentication. Disconnecting clears held passwords and closes affected
-          workspaces.
-        </Typography>
-      </Box>
       <Dialog
         open={Boolean(pending)}
         onClose={cancel}
