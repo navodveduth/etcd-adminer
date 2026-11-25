@@ -39,6 +39,8 @@ try {
   const requests = [];
   let clusterUnavailable = false;
   let denseKeys = false;
+  let copyingFolder = false;
+  let copiedFolderBatches = 0;
   page.on('pageerror', (error) => errors.push(error.message));
   await page.addInitScript(() =>
     localStorage.setItem(
@@ -182,11 +184,39 @@ try {
         return json({ id: '123', ttl: 60 });
       case '/api/v1/transfer/batch': {
         const body = request.postDataJSON();
+        if (copyingFolder) {
+          assert.equal(body.policy, 'create');
+          assert.equal(body.operation, 'import');
+          assert.ok(
+            body.records.every((record) =>
+              Buffer.from(record.keyBase64, 'base64').toString().startsWith('/app-copy/'),
+            ),
+          );
+          if (!body.dryRun) copiedFolderBatches++;
+        }
         return json({
           applied: !body.dryRun,
-          existing: 1,
+          existing: copyingFolder ? 0 : 1,
           revision: '42',
-          records: body.records.map((record) => ({ ...record, expectedRevision: '40' })),
+          records: body.records.map((record) => ({
+            ...record,
+            expectedRevision: copyingFolder ? '0' : '40',
+          })),
+        });
+      }
+      case '/api/v1/transfer/export': {
+        assert.equal(url.searchParams.get('prefix'), '/app/');
+        const next = url.searchParams.get('cursor') === 'folder-page-2';
+        return json({
+          revision: '40',
+          records: [
+            {
+              keyBase64: Buffer.from(next ? '/app/nested/b' : '/app/a').toString('base64'),
+              valueBase64: Buffer.from('exact original value').toString('base64'),
+            },
+          ],
+          hasMore: !next,
+          ...(next ? {} : { nextCursor: 'folder-page-2' }),
         });
       }
       case '/api/v1/watch':
@@ -297,6 +327,28 @@ try {
       `${label}: single page heading`,
     );
   };
+  await navigate('Keys');
+  await page.getByRole('tab', { name: 'Folder', exact: true }).click();
+  await page.getByText('app', { exact: true }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Duplicate folder…', exact: true }).click();
+  copyingFolder = true;
+  const folderDialog = page.getByRole('dialog', { name: 'Duplicate folder', exact: true });
+  await folderDialog.getByRole('button', { name: 'Preview copy', exact: true }).click();
+  await folderDialog.getByText('/app-copy/nested/b', { exact: true }).waitFor();
+  const duplicate = folderDialog.getByRole('button', { name: 'Duplicate folder', exact: true });
+  assert.equal(await duplicate.isDisabled(), true);
+  assert.equal(copiedFolderBatches, 0, 'Preview must not write keys');
+  await folderDialog.getByLabel('Type COPY 2 to confirm', { exact: true }).fill('COPY 2');
+  assert.ok(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+    'Folder copy dialog must not overflow the page',
+  );
+  await duplicate.click();
+  await folderDialog.getByText(/2 keys copied to/).waitFor();
+  assert.equal(copiedFolderBatches, 2, 'Copy must apply both bounded pages');
+  await folderDialog.getByRole('button', { name: 'Done', exact: true }).click();
+  copyingFolder = false;
+  await page.getByRole('tab', { name: 'List', exact: true }).click();
   // 720px also checks the layout viewport equivalent of a 1440px browser at 200% zoom.
   for (const width of [375, 720, 768, 1280, 1440, 1920]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -452,7 +504,7 @@ try {
     requests.some((request) => request.path.endsWith('/renew') && request.backend === 'dev'),
   );
   console.log(
-    'Browser smoke passed: workspace isolation/drafts, RBAC, live keys, renewal, typed batch confirmation, all pages at 375/720/768/1280/1440/1920px in both themes, stale/retry, shortcuts and close cleanup.',
+    'Browser smoke passed: workspace isolation/drafts, RBAC, live keys, renewal, typed batch/folder-copy confirmation, all pages at 375/720/768/1280/1440/1920px in both themes, scrolled long keys, stale/retry, shortcuts and close cleanup.',
   );
 } finally {
   await browser?.close();

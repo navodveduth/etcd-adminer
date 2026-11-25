@@ -19,6 +19,8 @@ import ConfirmationDialog from '../dialogs/confirmationDialog';
 import NewDirectoryDialog from '../dialogs/newDirectoryDialog';
 import NewFileDialog from '../dialogs/newFileDialog';
 import ArticleIcon from '@mui/icons-material/Article';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import DuplicateFolderDialog from './duplicateFolderDialog';
 import { useReadOnly } from '../../readOnly';
 
 export default function FSNavigator(props) {
@@ -29,6 +31,7 @@ export default function FSNavigator(props) {
   const [contextMenuSelectedNode, setContextMenuSelectedNode] = React.useState(null);
   const [newDirectoryDialogOpen, setnewDirectoryDialogOpen] = React.useState(false);
   const [newFileDialogOpen, setnewFileDialogOpen] = React.useState(false);
+  const [duplicateSource, setDuplicateSource] = React.useState(null);
 
   const handleContextMenu = (event, node) => {
     event.preventDefault();
@@ -67,6 +70,9 @@ export default function FSNavigator(props) {
         break;
       case 'newdir':
         setnewDirectoryDialogOpen(true);
+        break;
+      case 'duplicate':
+        setDuplicateSource(`${contextMenuSelectedNode.abspath}/`);
         break;
       default:
         break;
@@ -204,6 +210,20 @@ export default function FSNavigator(props) {
           <ListItemText>New Directory</ListItemText>
         </MenuItem>
         <MenuItem
+          onClick={() => handleAction('duplicate')}
+          disabled={
+            readOnly ||
+            contextMenuSelectedNode?.type !== 'directory' ||
+            !contextMenuSelectedNode?.abspath ||
+            contextMenuSelectedNode?.isVirtual
+          }
+        >
+          <ListItemIcon>
+            <ContentCopyIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Duplicate folder…</ListItemText>
+        </MenuItem>
+        <MenuItem
           onClick={() => handleAction('delete')}
           data-id="delete"
           disabled={readOnly || !contextMenuSelectedNode?.abspath}
@@ -242,6 +262,14 @@ export default function FSNavigator(props) {
         handleSubmit={newFileDialogSubmit}
         handleClose={newFileDialogClose}
       />
+      {duplicateSource !== null && (
+        <DuplicateFolderDialog
+          key={duplicateSource}
+          source={duplicateSource}
+          onClose={() => setDuplicateSource(null)}
+          onCopied={props.fetchKeys}
+        />
+      )}
     </div>
   );
 }

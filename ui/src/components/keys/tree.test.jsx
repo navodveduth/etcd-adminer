@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { it, expect, vi } from 'vitest';
 import FSNavigator from './tree';
+import { ReadOnlyContext } from '../../readOnly';
 
 const keys = {
   id: 1,
@@ -16,6 +17,39 @@ it('selects the exact key without inspecting DOM parents', () => {
   render(<FSNavigator keys={keys} onKeyClick={onKeyClick} />);
   fireEvent.click(screen.getByText('config'));
   expect(onKeyClick).toHaveBeenCalledWith('/config');
+});
+
+it('offers folder duplication for persisted directories, not files or read-only connections', async () => {
+  const user = userEvent.setup();
+  const folders = {
+    ...keys,
+    children: [
+      ...keys.children,
+      { id: 3, name: 't0002', type: 'directory', abspath: '/t0002', children: [] },
+    ],
+  };
+  const view = render(<FSNavigator keys={folders} fetchKeys={vi.fn()} />);
+  fireEvent.contextMenu(screen.getByText('config'));
+  expect(screen.getByRole('menuitem', { name: 'Duplicate folder…' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
+  await user.keyboard('{Escape}');
+  fireEvent.contextMenu(screen.getByText('t0002'));
+  await user.click(screen.getByRole('menuitem', { name: 'Duplicate folder…' }));
+  expect(screen.getByRole('dialog', { name: 'Duplicate folder' })).toBeInTheDocument();
+  expect(screen.getByLabelText('Destination folder path')).toHaveValue('/t0002-copy');
+  view.unmount();
+  render(
+    <ReadOnlyContext.Provider value>
+      <FSNavigator keys={folders} />
+    </ReadOnlyContext.Provider>,
+  );
+  fireEvent.contextMenu(screen.getByText('t0002'));
+  expect(screen.getByRole('menuitem', { name: 'Duplicate folder…' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
 });
 
 it('supports keyboard selection and the context-menu key', async () => {

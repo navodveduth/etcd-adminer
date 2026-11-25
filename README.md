@@ -217,6 +217,24 @@ not restored. Cancellation of a submitted transaction does not prove rollback;
 inspect keys and preview again before retrying. List view supports selection
 of up to 50 exact keys for deletion preview.
 
+**Duplicate folder…** is available from a persisted folder's context menu in the
+key browser (right-click or Shift+F10). Choose a different destination path, preview
+all readable source keys, then type `COPY N` to apply. For example, copy
+`/system/automation-services/driver-simulator/v1/t0002/` to the corresponding
+`t0003/` prefix. This includes readable keys beyond the current browser page, not
+unsaved drafts or keys outside your read permissions. The source is unchanged;
+only key prefixes are rewritten. Values (including embedded IDs/paths) are copied
+byte-for-byte, and new keys have **no lease/TTL**.
+
+Copies are create-only: destination collisions stop the operation rather than
+overwrite data. Preview is bounded to 1,000 keys / 16 MiB of source records / 100
+export pages, with a two-minute limit for each preview/copy phase. Values remain
+limited to 128 KiB. Pages use one source snapshot and are applied in separate
+atomic batches of at most 20 keys; a whole folder is **not globally atomic**.
+Failures/cancellation can leave a partial copy. Confirmed progress is reported;
+inspect the destination before retrying an uncertain batch. No automatic rollback
+or retry occurs. Use etcd tooling for larger copies.
+
 **Overview** provides root-authorized maintenance metrics from configured
 endpoints: availability, DB size/in-use/quota (when reported), leader, Raft lag,
 and alarms. It keeps at most 60 local trend samples, pauses polling in hidden
