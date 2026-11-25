@@ -290,8 +290,10 @@ function Shell({ mode, toggleMode }) {
         </DialogActions>
       </Dialog>
       <Dialog open={help} onClose={() => setHelp(false)} aria-labelledby="shortcut-help">
-        <DialogTitle id="shortcut-help" sx={{ pr: 7 }}>
-          Keyboard shortcuts
+        <Box sx={{ position: 'relative' }}>
+          <DialogTitle id="shortcut-help" sx={{ pr: 7 }}>
+            Keyboard shortcuts
+          </DialogTitle>
           <IconButton
             autoFocus
             aria-label="Close help"
@@ -300,7 +302,7 @@ function Shell({ mode, toggleMode }) {
           >
             <CloseIcon />
           </IconButton>
-        </DialogTitle>
+        </Box>
         <DialogContent>
           <Typography color="text.secondary" sx={{ mb: 2 }}>
             Shortcuts act on the focused page or selected workspace.

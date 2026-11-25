@@ -42,3 +42,41 @@ it('reauthenticates saved metadata without storing the password and supports dis
   );
   expect(store.GetActiveSession()).toBeUndefined();
 });
+
+it('shows searchable profile cards with a safe actions menu', async () => {
+  const user = userEvent.setup();
+  const store = new SessionStore();
+  store.Add({
+    Name: 'Development',
+    BackEnd: 'DEV',
+    Endpoints: ['http://dev:2379'],
+    UserName: 'alice',
+  });
+  store.Add({
+    Name: 'Production',
+    BackEnd: 'PROD',
+    Endpoints: ['https://prod:2379'],
+    UserName: 'bob',
+  });
+  render(
+    <MemoryRouter>
+      <Connection />
+    </MemoryRouter>,
+  );
+  expect(screen.getAllByRole('article')).toHaveLength(2);
+  expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  const card = screen.getByRole('article', { name: 'Development' });
+  expect(within(card).getByText('http://dev:2379')).toBeInTheDocument();
+  await user.click(within(card).getByRole('button', { name: 'Actions for Development' }));
+  expect(screen.getByRole('menuitem', { name: 'Edit / diagnose' })).toHaveAttribute(
+    'href',
+    '/connection/new?edit=Development',
+  );
+  await user.click(screen.getByRole('menuitem', { name: 'Delete profile', exact: true }));
+  expect(store.Get('Development')).toBeDefined();
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  await user.type(screen.getByLabelText('Search connections'), 'bob');
+  expect(screen.queryByRole('article', { name: 'Development' })).not.toBeInTheDocument();
+  expect(screen.getByRole('article', { name: 'Production' })).toBeInTheDocument();
+});

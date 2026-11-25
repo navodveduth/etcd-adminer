@@ -31,6 +31,9 @@ test('closes shortcut help using the header close icon', async () => {
   const user = userEvent.setup();
   render(<App />);
   await user.click(screen.getByRole('button', { name: 'Shortcuts', exact: true }));
+  expect(
+    screen.getByRole('dialog', { name: 'Keyboard shortcuts', exact: true }),
+  ).toBeInTheDocument();
   const close = screen.getByRole('button', { name: 'Close help', exact: true });
   expect(close.querySelector('svg')).not.toBeNull();
   await user.click(close);

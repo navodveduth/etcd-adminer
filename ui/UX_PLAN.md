@@ -173,11 +173,14 @@ closing targets the correct workspace, and keyboard focus never remains in a hid
 
 ### 4.2 Saved connections
 
-**Goal:** find, open and maintain a profile without deciphering large cards.
+**Goal:** find, open and maintain a profile through clear, rounded connection cards.
 
 - Add a clear Connections heading, a blue New connection action and a useful
   first-run empty state explaining the next step.
-- Provide a searchable compact list/table on desktop and readable cards on mobile.
+- Use a searchable responsive card grid at every viewport (updated to the user's
+  card-layout preference). Give cards rounded borders, blue identity/selection,
+  readable backend/endpoint/user fields, a clear Open workspace action and a
+  labeled overflow menu for reauthentication, editing and safe profile deletion.
   Show profile, backend, endpoint, username and an obvious Open action.
 - Replace red initial avatars and heavy blue borders with neutral/blue identity
   treatment and a restrained active/open indicator.

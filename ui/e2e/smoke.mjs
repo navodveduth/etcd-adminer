@@ -193,7 +193,7 @@ try {
   });
   await page.goto('http://127.0.0.1:4174');
   const openProfile = async (name) => {
-    const card = page.getByRole('row').filter({ hasText: name });
+    const card = page.getByRole('article', { name, exact: true });
     await card.getByRole('button', { name: 'Open workspace' }).click();
     const password = page.getByLabel('Password', { exact: true });
     await password.fill('temporary-browser-test');
@@ -208,11 +208,8 @@ try {
   await page.keyboard.press('ControlOrMeta+a');
   await page.keyboard.insertText('unsaved-development-draft');
   await page.getByRole('button', { name: 'Connections', exact: true }).click();
-  await page
-    .getByRole('row')
-    .filter({ hasText: 'Development' })
-    .getByRole('button', { name: 'Reauthenticate', exact: true })
-    .click();
+  await page.getByRole('button', { name: 'Actions for Development', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Reauthenticate', exact: true }).click();
   await page.getByLabel('Password', { exact: true }).fill('refreshed-browser-test');
   await page.getByRole('button', { name: 'Authenticate', exact: true }).click();
   await page.getByText('unsaved-development-draft', { exact: true }).waitFor();
@@ -340,6 +337,11 @@ try {
       await page.getByRole('button', { name: 'Connections', exact: true }).click();
       await page.getByRole('heading', { name: 'Connections', exact: true }).waitFor();
       await noOverflow(`Connections ${width}px ${theme}`);
+      if (theme === 'dark' && [375, 1440].includes(width))
+        await page.screenshot({
+          path: `/tmp/opencode/etcd-connection-cards-${width}.png`,
+          fullPage: true,
+        });
       await page.getByRole('link', { name: 'New connection', exact: true }).click();
       await page.getByRole('heading', { name: 'New connection', exact: true }).waitFor();
       await noOverflow(`New connection ${width}px ${theme}`);

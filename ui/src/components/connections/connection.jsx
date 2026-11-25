@@ -3,7 +3,6 @@ import {
   Alert,
   Box,
   Button,
-  Chip,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -11,21 +10,15 @@ import {
   IconButton,
   InputAdornment,
   Stack,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
   TextField,
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import { Link } from 'react-router-dom';
 import ConnectionCard from './connectionCard';
-import { PageHeader, Section, DataTable, EmptyState, CopyValue } from '../shared/page';
+import { PageHeader, Section, EmptyState } from '../shared/page';
 import ConfirmationDialog from '../dialogs/confirmationDialog';
 import { Session, SessionStore } from '../../storage/session';
 import DataService from '../../data/service';
@@ -148,79 +141,15 @@ export default function Connection({ onSessionChange }) {
               {filtered.length} of {all.length} profiles · selection is not a live health check
             </Typography>
           </Stack>
-          <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-            <DataTable aria-label="Saved connections">
-              <Table aria-label="Connection profiles">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Profile</TableCell>
-                    <TableCell>Backend / endpoint</TableCell>
-                    <TableCell>User</TableCell>
-                    <TableCell>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filtered.map((profile) => (
-                    <TableRow key={profile.Name}>
-                      <TableCell>
-                        <Typography fontWeight={600}>{profile.Name}</Typography>
-                        <Chip
-                          size="small"
-                          variant="outlined"
-                          sx={{ mt: 0.75 }}
-                          label={profile.isActive ? 'Last selected' : 'Saved profile'}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" fontWeight={500}>
-                          {profile.BackEnd}
-                        </Typography>
-                        <Box sx={{ maxWidth: 500 }}>
-                          {(Array.isArray(profile.Endpoints)
-                            ? profile.Endpoints
-                            : [profile.Endpoints]
-                          )
-                            .filter(Boolean)
-                            .map((endpoint) => (
-                              <CopyValue
-                                key={endpoint}
-                                value={endpoint}
-                                mono={false}
-                                label={`endpoint for ${profile.Name}`}
-                              />
-                            ))}
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <code>{profile.UserName}</code>
-                      </TableCell>
-                      <TableCell>
-                        <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
-                          <Button variant="contained" onClick={() => openProfile(profile)}>
-                            Open workspace
-                          </Button>
-                          <Button onClick={() => openProfile(profile, true)}>Reauthenticate</Button>
-                          <Button
-                            component={Link}
-                            to={`/connection/new?edit=${encodeURIComponent(profile.Name)}`}
-                          >
-                            Edit / diagnose
-                          </Button>
-                          <IconButton
-                            aria-label={`Delete profile ${profile.Name}`}
-                            onClick={() => setRemoving(profile)}
-                          >
-                            <DeleteOutlineIcon />
-                          </IconButton>
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </DataTable>
-          </Box>
-          <Stack spacing={2} sx={{ display: { xs: 'flex', md: 'none' } }}>
+          <Box
+            aria-label="Saved connections"
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))',
+              gap: 3,
+              alignItems: 'stretch',
+            }}
+          >
             {filtered.map((profile) => (
               <ConnectionCard
                 key={profile.Name}
@@ -230,7 +159,7 @@ export default function Connection({ onSessionChange }) {
                 deleteSession={setRemoving}
               />
             ))}
-          </Stack>
+          </Box>
           {!filtered.length && (
             <Section>
               <EmptyState
