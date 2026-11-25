@@ -160,6 +160,7 @@ export default function NewConnection({ forceRefreshNav }) {
       >
         <Box
           component="form"
+          autoComplete="on"
           onSubmit={(event) => {
             event.preventDefault();
             save();
@@ -216,6 +217,7 @@ export default function NewConnection({ forceRefreshNav }) {
             >
               <TextField
                 label="Username"
+                name="username"
                 value={username}
                 onChange={change(setUsername)}
                 disabled={busy}
@@ -224,6 +226,7 @@ export default function NewConnection({ forceRefreshNav }) {
               />
               <TextField
                 label="Password"
+                name="password"
                 type={visible ? 'text' : 'password'}
                 value={password}
                 onChange={change(setPassword)}

@@ -39,7 +39,11 @@ export default function About() {
           <Stack spacing={2}>
             <Typography>
               Saved profiles contain metadata, not passwords. Passwords and drafts remain in this
-              browser tab's memory. Reloading requires reauthentication.
+              browser tab's memory. Reloading requires reauthentication. Use your browser password
+              manager to save and autofill credentials; save prompts depend on your browser and its
+              settings. For different backend passwords under the same username, label the saved
+              entries by backend in your password manager. This does not keep a workspace connected
+              after closing its tab. Use HTTPS when accessing Adminer remotely.
             </Typography>
             <Typography>
               Watches and automatic lease renewal belong to their workspace. Switching pages keeps

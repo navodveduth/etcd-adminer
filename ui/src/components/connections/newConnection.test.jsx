@@ -23,6 +23,11 @@ it('prefills profile metadata but requires a fresh test after every credential c
   );
   expect(screen.getByLabelText(/Profile name/)).toHaveValue('saved');
   expect(screen.getByLabelText('Password')).toHaveValue('');
+  expect(screen.getByLabelText(/Username/)).toHaveAttribute('name', 'username');
+  expect(screen.getByLabelText(/Username/)).toHaveAttribute('autocomplete', 'username');
+  expect(screen.getByLabelText('Password')).toHaveAttribute('name', 'password');
+  expect(screen.getByLabelText('Password')).toHaveAttribute('autocomplete', 'current-password');
+  expect(screen.getByLabelText('Password').closest('form')).toHaveAttribute('autocomplete', 'on');
   const save = screen.getByRole('button', { name: 'Save & open workspace' });
   expect(save).toBeDisabled();
   await user.type(screen.getByLabelText('Password'), 'tab-memory-only');

@@ -23,6 +23,14 @@ it('reauthenticates saved metadata without storing the password and supports dis
     </MemoryRouter>,
   );
   await user.click(screen.getByRole('button', { name: 'Open workspace' }));
+  const username = screen.getByLabelText('Username');
+  expect(username).toHaveValue('alice');
+  expect(username).toHaveAttribute('name', 'username');
+  expect(username).toHaveAttribute('autocomplete', 'username');
+  expect(username).toHaveAttribute('readonly');
+  expect(screen.getByLabelText('Password')).toHaveAttribute('name', 'password');
+  expect(screen.getByLabelText('Password')).toHaveAttribute('autocomplete', 'current-password');
+  expect(username.closest('form')).toHaveAttribute('autocomplete', 'on');
   await user.type(screen.getByLabelText('Password'), 'ephemeral-password');
   await user.click(screen.getByRole('button', { name: 'Authenticate' }));
   await waitFor(() => expect(store.GetActiveSession()?.UserName).toBe('alice'));

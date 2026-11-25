@@ -182,7 +182,7 @@ export default function Connection({ onSessionChange }) {
         maxWidth="xs"
         fullWidth
       >
-        <Box component="form" onSubmit={connect}>
+        <Box component="form" autoComplete="on" onSubmit={connect}>
           <DialogTitle id="authenticate-profile">Authenticate {pending?.Name}</DialogTitle>
           <DialogContent>
             <Typography
@@ -198,8 +198,18 @@ export default function Connection({ onSessionChange }) {
               </Alert>
             )}
             <TextField
+              label="Username"
+              name="username"
+              autoComplete="username"
+              value={pending?.UserName ?? ''}
+              slotProps={{ input: { readOnly: true } }}
+              fullWidth
+              sx={{ mb: 2 }}
+            />
+            <TextField
               autoFocus
               label="Password"
+              name="password"
               type={visible ? 'text' : 'password'}
               autoComplete="current-password"
               value={password}
@@ -223,7 +233,8 @@ export default function Connection({ onSessionChange }) {
               }}
             />
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-              Credentials apply only to this connection.
+              Use your browser password manager to save or autofill this login. Choose the entry for
+              this backend and username.
             </Typography>
           </DialogContent>
           <DialogActions>
