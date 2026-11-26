@@ -559,6 +559,112 @@ func TestRBACIntegration(t *testing.T) {
 			}
 		}
 	})
+	t.Run("folder seeks are bounded caller-scoped and snapshot-paginated", func(t *testing.T) {
+		for _, key := range []string{"/folder-fixture/allowed/project/a", "/folder-fixture/allowed/project/b", "/folder-fixture/hidden/secret", "/folder-fixture/other/key"} {
+			if _, err := admin.Put(ctx, key, "private-value-must-not-be-listed"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := admin.UserAdd(ctx, "folder-reader", password); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := admin.RoleAdd(ctx, "folder-reader"); err != nil {
+			t.Fatal(err)
+		}
+		for _, permission := range []struct{ start, end string }{{"/folder-fixture/allowed/project/a", ""}, {"/folder-fixture/other/", clientv3.GetPrefixRangeEnd("/folder-fixture/other/")}} {
+			if _, err := admin.RoleGrantPermission(ctx, "folder-reader", permission.start, permission.end, clientv3.PermissionType(clientv3.PermRead)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := admin.UserGrantRole(ctx, "folder-reader", "folder-reader"); err != nil {
+			t.Fatal(err)
+		}
+		list := func(user, prefix, cursor, limit string, action http.HandlerFunc) *httptest.ResponseRecorder {
+			query := url.Values{"prefix": {prefix}, "limit": {limit}}
+			if cursor != "" {
+				query.Set("cursor", cursor)
+			}
+			r := httptest.NewRequest("GET", "/api/v1/folders?"+query.Encode(), nil)
+			r = r.WithContext(request.WithMeta(ctx, request.RequestMeta{Backend: backend, User: user, Pass: password}))
+			w := httptest.NewRecorder()
+			action(w, r)
+			return w
+		}
+		type folderPage struct {
+			Items []struct {
+				Key         string `json:"key"`
+				IsDirectory bool   `json:"isDirectory"`
+			} `json:"items"`
+			Revision   string `json:"revision"`
+			HasMore    bool   `json:"hasMore"`
+			NextCursor string `json:"nextCursor"`
+		}
+		decode := func(w *httptest.ResponseRecorder) folderPage {
+			t.Helper()
+			if w.Code != 200 {
+				t.Fatalf("folder request: %d %s", w.Code, w.Body.String())
+			}
+			if strings.Contains(w.Body.String(), "private-value") {
+				t.Fatal("folder returned values")
+			}
+			var page folderPage
+			if err := json.Unmarshal(w.Body.Bytes(), &page); err != nil {
+				t.Fatal(err)
+			}
+			return page
+		}
+		reader := decode(list("folder-reader", "/folder-fixture/", "", "100", features.Keys.ListFolder))
+		if len(reader.Items) != 2 || reader.Items[0].Key != "/folder-fixture/allowed" || reader.Items[1].Key != "/folder-fixture/other" {
+			t.Fatalf("leaked/missing directories: %+v", reader)
+		}
+		exact := decode(list("folder-reader", "/folder-fixture/allowed/project/", "", "100", features.Keys.ListFolder))
+		if len(exact.Items) != 1 || exact.Items[0].IsDirectory || exact.Items[0].Key != "/folder-fixture/allowed/project/a" {
+			t.Fatalf("exact-key permission widened: %+v", exact)
+		}
+		first := decode(list("root", "/folder-fixture/", "", "1", features.Keys.ListFolder))
+		if len(first.Items) != 1 || !first.HasMore || !first.Items[0].IsDirectory {
+			t.Fatalf("unbounded folder response: %+v", first)
+		}
+		if _, err := admin.Put(ctx, "/folder-fixture/between/key", "new"); err != nil {
+			t.Fatal(err)
+		}
+		second := decode(list("root", "/folder-fixture/", first.NextCursor, "1", features.Keys.ListFolder))
+		if second.Revision != first.Revision || second.Items[0].Key != "/folder-fixture/hidden" {
+			t.Fatalf("snapshot drift: %+v", second)
+		}
+		for _, args := range [][4]string{{"folder-reader", "/folder-fixture/", first.NextCursor, "1"}, {"root", "/other/", first.NextCursor, "1"}, {"root", "/folder-fixture/", first.NextCursor, "2"}, {"root", "/folder-fixture/", first.NextCursor + "tamper", "1"}, {"root", "/folder-fixture/", "", "201"}} {
+			if w := list(args[0], args[1], args[2], args[3], features.Keys.ListFolder); w.Code != 400 {
+				t.Fatalf("invalid cursor/query accepted: %d", w.Code)
+			}
+		}
+		if w := list("root", "/folder-fixture/", first.NextCursor, "1", features.Keys.ListKeys); w.Code != 400 {
+			t.Fatal("folder cursor accepted by key-list API")
+		}
+		var keysPage response.KeyPage
+		keysResponse := list("root", "/folder-fixture/", "", "1", features.Keys.ListKeys)
+		if keysResponse.Code != 200 {
+			t.Fatalf("key cursor fixture: %d", keysResponse.Code)
+		}
+		if err := json.Unmarshal(keysResponse.Body.Bytes(), &keysPage); err != nil {
+			t.Fatal(err)
+		}
+		if keysPage.NextCursor == "" {
+			t.Fatal("expected a key continuation cursor")
+		}
+		if w := list("root", "/folder-fixture/", keysPage.NextCursor, "1", features.Keys.ListFolder); w.Code != 400 {
+			t.Fatal("key cursor accepted by folder API")
+		}
+		revision, err := strconv.ParseInt(first.Revision, 10, 64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := admin.Compact(ctx, revision+1); err != nil {
+			t.Fatal(err)
+		}
+		if w := list("root", "/folder-fixture/", first.NextCursor, "1", features.Keys.ListFolder); w.Code != 409 {
+			t.Fatalf("compacted folder cursor: %d %s", w.Code, w.Body.String())
+		}
+	})
 	t.Run("bounded pages retain their snapshot and reject altered cursors", func(t *testing.T) {
 		list := func(prefix, cursor string) *httptest.ResponseRecorder {
 			query := url.Values{"prefix": {prefix}, "limit": {"1"}}
