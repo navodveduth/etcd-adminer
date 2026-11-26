@@ -317,21 +317,26 @@ function Shell({ mode, toggleMode }) {
         maxWidth={false}
         sx={{ py: { xs: 2, sm: 3 }, px: { xs: 2, sm: 3, xl: 4 }, minWidth: 0, outline: 'none' }}
       >
-        <WorkspaceTabs
-          workspaces={workspaces}
-          activities={activities}
-          active={managing ? '' : (selected?.id ?? '')}
-          onChange={(id) => {
-            setActive(id);
-            const workspace = workspaces.find((item) => item.id === id);
-            if (workspace)
-              navigateBrowser(
-                workspaceURL(workspace.profile.Name, locations.current.get(workspace.profile.Name)),
-              );
-          }}
-          onClose={close}
-          onConnections={() => setPage('connection')}
-        />
+        {(workspaces.length > 0 || page !== 'connection') && (
+          <WorkspaceTabs
+            workspaces={workspaces}
+            activities={activities}
+            active={managing ? '' : (selected?.id ?? '')}
+            onChange={(id) => {
+              setActive(id);
+              const workspace = workspaces.find((item) => item.id === id);
+              if (workspace)
+                navigateBrowser(
+                  workspaceURL(
+                    workspace.profile.Name,
+                    locations.current.get(workspace.profile.Name),
+                  ),
+                );
+            }}
+            onClose={close}
+            onConnections={() => setPage('connection')}
+          />
+        )}
         {notice && (
           <Alert severity="warning" onClose={() => setNotice('')} sx={{ mb: 2 }}>
             {notice}

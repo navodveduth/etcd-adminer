@@ -70,6 +70,10 @@ test('closes shortcut help using the header close icon', async () => {
 test('renders an actionable empty connection screen', async () => {
   render(<App />);
   expect(await screen.findByText('ETCD Adminer')).toBeInTheDocument();
+  expect(screen.queryByRole('tablist', { name: 'Connection workspaces' })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: 'Connections', exact: true }),
+  ).not.toBeInTheDocument();
   expect(
     screen.getByRole('button', { name: 'ETCD Adminer — Connections' }).querySelector('img'),
   ).toHaveAttribute('src', '/images/logo.svg');
