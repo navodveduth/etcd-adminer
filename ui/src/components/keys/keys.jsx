@@ -524,7 +524,12 @@ export default function Keys() {
               </Button>
             )}
             {view === 1 && (
-              <Stack direction="row" spacing={1} useFlexGap sx={{ mt: 2, flexWrap: 'wrap' }}>
+              <Stack
+                direction="row"
+                spacing={1}
+                useFlexGap
+                sx={{ mt: 2, flexWrap: 'wrap', justifyContent: 'flex-end' }}
+              >
                 <Button
                   onClick={() => setCursor(page.nextCursor)}
                   disabled={loading || prefixPending || Boolean(error) || !page.hasMore}

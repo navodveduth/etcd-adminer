@@ -4,6 +4,7 @@ import Typography from '@mui/material/Typography';
 import FSNavigator from './tree';
 import { buildKeyTree } from '../../data/keyTree';
 import { useDataService } from '../../data/context';
+import { isProjectPrefix, loadProjectKeys } from '../../data/projectKeys';
 
 // Cache only branches the user has opened. Each branch has its own signed,
 // snapshot-bound pagination; values are still fetched only by the editor.
@@ -23,8 +24,22 @@ export default function FolderBrowser({ prefix, refresh = 0, drafts, ...actions 
       if (controllers.current.has(query) || (!more && previous?.loaded && !previous.error)) return;
       const controller = new AbortController();
       controllers.current.set(query, controller);
-      update(query, (record) => ({ ...record, loading: true, error: null }));
+      const subtree = isProjectPrefix(query);
+      update(query, (record) => ({ ...record, subtree, loading: true, error: null }));
       try {
+        if (subtree) {
+          const page = await loadProjectKeys(
+            service,
+            query,
+            more ? previous : null,
+            controller.signal,
+            (progress) =>
+              update(query, () => ({ ...progress, subtree: true, loaded: true, loading: true })),
+          );
+          controller.signal.throwIfAborted();
+          update(query, () => ({ ...page, subtree: true, loaded: true, loading: false }));
+          return;
+        }
         const page = await service.GetFolderPage(
           { prefix: query, cursor: more ? previous.nextCursor : null, limit: 100 },
           controller.signal,
@@ -69,6 +84,7 @@ export default function FolderBrowser({ prefix, refresh = 0, drafts, ...actions 
   const tree = useMemo(() => {
     const items = Object.values(records).flatMap((record) => record.items ?? []);
     const root = buildKeyTree([...items.filter((item) => item.keyEncoding === 'utf8'), ...drafts]);
+    const projects = Object.entries(records).filter(([, record]) => record.subtree);
     const annotate = (node) => {
       if (node.type === 'directory') {
         node.folderPrefix = node.id === '1' ? prefix : `${node.abspath}/`;
@@ -76,6 +92,15 @@ export default function FolderBrowser({ prefix, refresh = 0, drafts, ...actions 
         node.folderState = scaffold
           ? { loaded: true, scaffold: true }
           : (records[node.folderPrefix] ?? {});
+        const project = projects.find(([query]) => node.folderPrefix.startsWith(query));
+        if (project && project[0] !== node.folderPrefix && !scaffold) {
+          node.folderState = {
+            loaded: true,
+            subtree: true,
+            projectOwner: project[0],
+            partial: !project[1].loaded || project[1].hasMore || Boolean(project[1].error),
+          };
+        }
       }
       node.children.forEach(annotate);
     };
@@ -100,7 +125,9 @@ export default function FolderBrowser({ prefix, refresh = 0, drafts, ...actions 
           ? 'Folder listing incomplete'
           : !root?.loaded
             ? 'Loading folders…'
-            : `${root.items.length} entries at this level · Subfolders load on expansion`}
+            : root.subtree
+              ? `${root.items.length} project keys loaded · ${root.loading ? 'Loading…' : root.hasMore ? 'Partial project subtree' : 'Complete project subtree'}`
+              : `${root.items.length} entries at this level · Subfolders load on expansion`}
       </Typography>
       {root?.loaded && !root.items.length && (
         <Typography variant="body2" color="text.secondary">
@@ -118,7 +145,8 @@ export default function FolderBrowser({ prefix, refresh = 0, drafts, ...actions 
         keys={tree}
         loading={!root?.loaded && !root?.error}
         loadDirectory={(node, more = false) => {
-          if (!node.isVirtual && !node.folderState?.scaffold) load(node.folderPrefix, more);
+          if (!node.isVirtual && !node.folderState?.scaffold && !node.folderState?.projectOwner)
+            load(node.folderPrefix, more);
         }}
         cancelDirectory={(node) => {
           const controller = controllers.current.get(node.folderPrefix);

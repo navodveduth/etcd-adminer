@@ -305,6 +305,17 @@ clears that cache without changing editor drafts. Collapsing a loading branch,
 switching tabs or changing the prefix cancels outstanding requests. Folder view
 has one scrollbar. List view retains its separate pagination and live-prefix
 updates; refresh folders to discover new/deleted children.
+
+Project directories (the third nonempty path segment, such as
+`/system/driver-services/backend-meter/`) load all readable descendant key
+summaries when expanded, using the existing prefix-scoped key-page API. Nested
+folders such as `v1` then expand from that project cache without more requests.
+Ancestor namespaces still use immediate-child discovery, so opening `system`
+does not scan every project. Automatic project loading is capped at ten
+1,000-key pages per batch; incomplete projects are explicitly marked with a
+continuation action. Collapsing the project cancels pending reads, and refresh
+clears its cache. Values remain on-demand; large cached branches render 100
+children at a time with **Show more**.
 Substring filtering in List view applies only to that page; use the prefix field
 for server-side queries. The prefix is applied automatically after a 350 ms typing pause (Enter
 applies immediately); there is no Apply button. Changing it cancels stale reads,
@@ -322,6 +333,8 @@ editor **Expiration on save** settings expand on demand. Read-only users still s
 the key's current lease metadata, but no inactive expiration controls.
 Save/Discard and the other editor controls sit above a shorter, internally
 scrollable editor so actions do not require scrolling below the value.
+YAML/Format stay on the left; Save, Discard, Reload and Copy draft align right.
+List pagination's **Next page** button is right-aligned below the key table.
 
 For a reproducible disposable-cluster 100k-key API benchmark, run
 `ETCD_TEST_LARGE=1 sh scripts/test-integration.sh -v`. This reports 20 first-page

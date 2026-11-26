@@ -175,10 +175,9 @@ try {
               isDirectory: true,
             }));
           else
-            entries = Array.from({ length: prefix.includes('project-61') ? 94 : 100 }, (_, i) => ({
-              key: `${prefix}key-${i}`,
-              isDirectory: false,
-            }));
+            throw new Error(
+              'Project descendants should be loaded together through the key-page API',
+            );
         } else
           entries =
             prefix === ''
@@ -191,6 +190,19 @@ try {
         });
       }
       case '/api/v1/keys':
+        if (backend === 'prod' && url.searchParams.get('limit') === '1000') {
+          const prefix = url.searchParams.get('prefix');
+          assert.equal(prefix, '/system/driver-services/project-00/');
+          return json({
+            items: Array.from({ length: 100 }, (_, index) => ({
+              key: `${prefix}v1/key-${index}`,
+              keyEncoding: 'utf8',
+              modRevision: '40',
+            })),
+            revision: '40',
+            hasMore: false,
+          });
+        }
         return json({
           items: denseKeys
             ? Array.from({ length: 100 }, (_, index) => ({
@@ -280,6 +292,30 @@ try {
   await page.getByRole('tab', { name: 'List', exact: true }).click();
   await page.getByRole('button', { name: '/app/a', exact: true }).click();
   await page.locator('.monaco-editor .view-lines').waitFor();
+  const actionBounds = await page
+    .getByRole('group', { name: 'Save and draft actions' })
+    .boundingBox();
+  const editorPanelBounds = await page
+    .getByRole('region', { name: 'Key value editor' })
+    .boundingBox();
+  assert.ok(
+    Math.abs(
+      editorPanelBounds.x + editorPanelBounds.width - actionBounds.x - actionBounds.width - 16,
+    ) < 3,
+    'Save/Discard/Reload/Copy must align with the right editor corner',
+  );
+  const nextBounds = await page
+    .getByRole('button', { name: 'Next page', exact: true })
+    .boundingBox();
+  const browserPanelBounds = await page
+    .getByRole('region', { name: 'Key browser controls' })
+    .boundingBox();
+  assert.ok(
+    Math.abs(
+      browserPanelBounds.x + browserPanelBounds.width - nextBounds.x - nextBounds.width - 16,
+    ) < 3,
+    'Next page must align with the right browser corner',
+  );
   assert.ok(
     (await page.getByRole('button', { name: 'Save', exact: true }).boundingBox()).y <
       (await page.locator('.monaco-editor').boundingBox()).y,
@@ -355,6 +391,26 @@ try {
     }),
     1,
     'Folder browser should have a single vertical scroll owner',
+  );
+  await page.getByText('project-00', { exact: true }).click();
+  await page.getByText('v1', { exact: true }).waitFor();
+  const projectKeyRequests = requests.filter(
+    (request) => request.backend === 'prod' && request.path === '/api/v1/keys',
+  ).length;
+  assert.equal(projectKeyRequests, 1, 'Opening one project should fetch only that project subtree');
+  await page.getByText('v1', { exact: true }).click();
+  await page.getByText('key-0', { exact: true }).waitFor();
+  assert.equal(
+    requests.filter((request) => request.backend === 'prod' && request.path === '/api/v1/keys')
+      .length,
+    projectKeyRequests,
+    'Expanding v1 must reuse the loaded project summaries',
+  );
+  assert.equal(
+    requests.filter((request) => request.backend === 'prod' && request.path === '/api/v1/folders')
+      .length,
+    3,
+    'Project subfolders must not trigger more folder requests',
   );
   assert.equal(await page.getByRole('button', { name: 'New key', exact: true }).isDisabled(), true);
   assert.equal(

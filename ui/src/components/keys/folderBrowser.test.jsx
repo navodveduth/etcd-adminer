@@ -171,3 +171,59 @@ it('refreshes the branch cache and resets expansion without prefetching descenda
   await user.click(screen.getByText('system'));
   expect(await screen.findByText('current')).toBeVisible();
 });
+
+it('loads all descendant summaries for an expanded project and reuses them for deeper folders', async () => {
+  const prefix = '/system/driver-services/backend-meter/';
+  getFolder.mockResolvedValue(page([entry(prefix.slice(0, -1), true)]));
+  getKeys
+    .mockResolvedValueOnce(page([entry(`${prefix}v1/a`)], 'project-next'))
+    .mockResolvedValueOnce(page([entry(`${prefix}v1/nested/b`)]));
+  const user = userEvent.setup();
+  show({ prefix: '/system/driver-services/' });
+  await user.click(await screen.findByText('system'));
+  await user.click(screen.getByText('driver-services'));
+  await user.click(screen.getByText('backend-meter'));
+  await user.click(await screen.findByText('v1'));
+  expect(await screen.findByText('a')).toBeVisible();
+  await user.click(screen.getByText('nested'));
+  expect(screen.getByText('b')).toBeVisible();
+  expect(getFolder).toHaveBeenCalledTimes(1);
+  expect(getKeys.mock.calls.map(([query]) => query)).toEqual([
+    { prefix, cursor: null, limit: 1000 },
+    { prefix, cursor: 'project-next', limit: 1000 },
+  ]);
+  await user.click(screen.getByText('backend-meter'));
+  await user.click(screen.getByText('backend-meter'));
+  expect(getKeys).toHaveBeenCalledTimes(2);
+});
+
+it('cancels project pagination on collapse and keeps partial descendants explicitly marked', async () => {
+  const prefix = '/system/driver-services/backend-meter/';
+  let finish;
+  getFolder.mockResolvedValue(page([entry(prefix.slice(0, -1), true)]));
+  getKeys
+    .mockResolvedValueOnce(page([entry(`${prefix}v1/a`)], 'project-next'))
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+  const user = userEvent.setup();
+  show({ prefix: '/system/driver-services/' });
+  await user.click(await screen.findByText('system'));
+  await user.click(screen.getByText('driver-services'));
+  await user.click(screen.getByText('backend-meter'));
+  await screen.findByText('v1');
+  const signal = getKeys.mock.calls[1][1];
+  await user.click(screen.getByText('backend-meter'));
+  expect(signal.aborted).toBe(true);
+  await act(async () => finish(page([entry(`${prefix}v1/late`)])));
+  await user.click(screen.getByText('backend-meter'));
+  await screen.findByRole('button', { name: 'Load more in backend-meter' });
+  await user.click(screen.getByText('v1'));
+  expect(screen.getByText('a')).toBeVisible();
+  expect(screen.queryByText('late')).not.toBeInTheDocument();
+  expect(screen.getByText(/Project subtree incomplete/)).toBeVisible();
+  expect(getFolder).toHaveBeenCalledTimes(1);
+});

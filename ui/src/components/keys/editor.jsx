@@ -277,58 +277,76 @@ export default function EditorComponent({
         direction="row"
         spacing={1}
         useFlexGap
-        sx={{ mb: 1.5, flexWrap: 'wrap' }}
+        sx={{ mb: 1.5, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}
       >
-        <Select
-          size="small"
-          value={language}
-          onChange={(event) => setLanguage(event.target.value)}
-          inputProps={{ 'aria-label': 'Value language' }}
+        <Stack
+          direction="row"
+          spacing={1}
+          useFlexGap
+          sx={{ alignItems: 'center', flexWrap: 'wrap' }}
         >
-          <MenuItem value="yaml">YAML</MenuItem>
-          <MenuItem value="json">JSON</MenuItem>
-          <MenuItem value="plaintext">Text</MenuItem>
-        </Select>
-        <Button onClick={formatJSON} disabled={readOnly || status !== 'ready' || saving}>
-          Format JSON
-        </Button>
-        <Button
-          variant="contained"
-          onClick={save}
-          disabled={
-            readOnly ||
-            status !== 'ready' ||
-            saving ||
-            !etcdKey ||
-            (leaseMode === 'attach' && !/^-?[1-9]\d*$/.test(lease))
-          }
+          <Select
+            size="small"
+            value={language}
+            onChange={(event) => setLanguage(event.target.value)}
+            inputProps={{ 'aria-label': 'Value language' }}
+          >
+            <MenuItem value="yaml">YAML</MenuItem>
+            <MenuItem value="json">JSON</MenuItem>
+            <MenuItem value="plaintext">Text</MenuItem>
+          </Select>
+          <Button onClick={formatJSON} disabled={readOnly || status !== 'ready' || saving}>
+            Format JSON
+          </Button>
+        </Stack>
+        <Stack
+          role="group"
+          aria-label="Save and draft actions"
+          direction="row"
+          spacing={1}
+          useFlexGap
+          sx={{ ml: 'auto', justifyContent: 'flex-end', flexWrap: 'wrap', maxWidth: '100%' }}
         >
-          Save
-        </Button>
-        <Button
-          onClick={() => {
-            setDiscardAction('discard');
-          }}
-          disabled={!dirty || saving}
-        >
-          Discard
-        </Button>
-        <Button onClick={reloadKey} disabled={!etcdKey || saving || isNewKey}>
-          Reload
-        </Button>
-        <Button
-          disabled={status !== 'ready'}
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(value);
-              setCopyNotice('Draft copied. It may contain secrets; keep it private.');
-            } catch {
-              setCopyNotice('Clipboard unavailable. Select the editor text and copy it manually.');
+          <Button
+            variant="contained"
+            onClick={save}
+            disabled={
+              readOnly ||
+              status !== 'ready' ||
+              saving ||
+              !etcdKey ||
+              (leaseMode === 'attach' && !/^-?[1-9]\d*$/.test(lease))
             }
-          }}
-        >
-          Copy draft
-        </Button>
+          >
+            Save
+          </Button>
+          <Button
+            onClick={() => {
+              setDiscardAction('discard');
+            }}
+            disabled={!dirty || saving}
+          >
+            Discard
+          </Button>
+          <Button onClick={reloadKey} disabled={!etcdKey || saving || isNewKey}>
+            Reload
+          </Button>
+          <Button
+            disabled={status !== 'ready'}
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(value);
+                setCopyNotice('Draft copied. It may contain secrets; keep it private.');
+              } catch {
+                setCopyNotice(
+                  'Clipboard unavailable. Select the editor text and copy it manually.',
+                );
+              }
+            }}
+          >
+            Copy draft
+          </Button>
+        </Stack>
       </Stack>
       {status === 'loading' && <LoadingState label="Loading key…" />}
       {status === 'idle' && (

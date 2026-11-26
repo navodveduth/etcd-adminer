@@ -96,7 +96,7 @@ export default function FSNavigator(props) {
     const children = (nodes.children ?? []).toSorted(
       (left, right) => Number(right.type === 'directory') - Number(left.type === 'directory'),
     );
-    const limit = remote ? children.length : (childLimits[nodes.id] ?? 100);
+    const limit = remote && !state.subtree ? children.length : (childLimits[nodes.id] ?? 100);
     return (
       <>
         {children.slice(0, limit).map((node) => renderTree(node))}
@@ -104,7 +104,12 @@ export default function FSNavigator(props) {
           <TreeItem
             itemId={`loading:${nodes.id}`}
             disabled
-            label={<CircularProgress size={16} aria-label={`Loading ${nodes.name}`} />}
+            label={
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                <CircularProgress size={16} aria-label={`Loading ${nodes.name}`} />
+                {state.subtree && `Loading project keys… ${state.items?.length ?? 0} loaded`}
+              </Box>
+            }
           />
         )}
         {state.error && (
@@ -139,6 +144,20 @@ export default function FSNavigator(props) {
                 Load more in {nodes.name}
               </Button>
             }
+          />
+        )}
+        {state.subtree && state.hasMore && !state.loading && !state.error && (
+          <TreeItem
+            itemId={`partial:${nodes.id}`}
+            disabled
+            label="Partial project subtree — load more keys above (10,000 per batch)."
+          />
+        )}
+        {state.partial && (
+          <TreeItem
+            itemId={`partial:${nodes.id}`}
+            disabled
+            label="Project subtree incomplete — load more from the project folder."
           />
         )}
         {children.length > limit && (
