@@ -1,4 +1,4 @@
-// A bounded display tree over one server page. Paths remain exact etcd key bytes
+// A display tree over loaded key summaries. Paths remain exact etcd key bytes
 // represented as UTF-8 strings; binary keys are deliberately handled separately.
 export function buildKeyTree(items) {
   const root = { id: '1', name: '/', type: 'directory', abspath: '', children: [] };

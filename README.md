@@ -288,9 +288,14 @@ to the backend/user/credentials/query, expire after 10 minutes, and become
 invalid after an adminer restart. Compacted snapshots return HTTP 409; restart
 the listing. Prefixes are limited to 8 KiB and cursor tokens to 64 KiB.
 
-Tree and list views show **one server page**, not the entire cluster. Substring
-filtering applies only to that page; use the prefix field for server-side
-queries. The prefix is applied automatically after a 350 ms typing pause (Enter
+List view shows **one 100-key server page**. Folder view automatically collects
+up to ten 1,000-key pages of key summaries at the same snapshot, so projects
+beyond the first page are included in the tree. Progress is visible; a partial
+tree is explicitly labelled, with **Load more keys** to append another bounded
+batch or a prefix to narrow the query. Permission, cursor and compaction errors
+are surfaced, never presented as a complete tree. Values are not prefetched.
+Substring filtering in List view applies only to that page; use the prefix field
+for server-side queries. The prefix is applied automatically after a 350 ms typing pause (Enter
 applies immediately); there is no Apply button. Changing it cancels stale reads,
 resets pagination/selection and pauses the old live stream without replacing
 editor drafts. Clearing it restarts the unfiltered listing. IME composition is

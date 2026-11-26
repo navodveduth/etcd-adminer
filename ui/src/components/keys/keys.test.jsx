@@ -22,18 +22,19 @@ vi.mock('./editor', () => ({
 
 it('automatically applies prefix queries and resets pagination without an Apply button', async () => {
   const user = userEvent.setup();
-  getPage.mockResolvedValue({
-    items: [{ key: '/one', keyEncoding: 'utf8' }],
+  getPage.mockReset().mockImplementation(async ({ cursor }) => ({
+    items: [{ key: cursor ? '/two' : '/one', keyEncoding: 'utf8' }],
     revision: '7',
-    hasMore: true,
-    nextCursor: 'signed-next',
-  });
+    hasMore: !cursor,
+    nextCursor: cursor ? null : 'signed-next',
+  }));
   render(
     <MemoryRouter>
       <Keys />
     </MemoryRouter>,
   );
   await screen.findByText('one');
+  await user.click(screen.getByRole('tab', { name: 'List', exact: true }));
   await user.click(screen.getByRole('button', { name: 'Next page' }));
   await waitFor(() =>
     expect(getPage).toHaveBeenCalledWith(
@@ -56,6 +57,114 @@ it('automatically applies prefix queries and resets pagination without an Apply 
       expect.any(AbortSignal),
     ),
   );
+});
+
+it('shows projects beyond the first page together in Folder view', async () => {
+  getPage
+    .mockReset()
+    .mockResolvedValueOnce({
+      items: Array.from({ length: 100 }, (_, i) => ({
+        key: `/system/driver-services/backend-meter/key-${i}`,
+        keyEncoding: 'utf8',
+      })),
+      revision: '169592',
+      hasMore: true,
+      nextCursor: 'more-projects',
+    })
+    .mockResolvedValueOnce({
+      items: [
+        '/system/driver-services/driver-payment/config',
+        '/system/driver-services/waiting-fee-service/config',
+        '/system/rider-services/config',
+      ].map((key) => ({ key, keyEncoding: 'utf8' })),
+      revision: '169592',
+      hasMore: false,
+    });
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter>
+      <Keys />
+    </MemoryRouter>,
+  );
+  await screen.findByText(/All matching keys loaded/);
+  await user.click(screen.getByText('system'));
+  await user.click(screen.getByText('driver-services'));
+  expect(screen.getByText('backend-meter')).toBeVisible();
+  expect(screen.getByText('driver-payment')).toBeVisible();
+  expect(screen.getByText('waiting-fee-service')).toBeVisible();
+  expect(screen.getByText('rider-services')).toBeVisible();
+  expect(screen.getByRole('status')).toHaveTextContent('103 keys in folder tree');
+  expect(getPage).toHaveBeenLastCalledWith(
+    { prefix: '', cursor: 'more-projects', limit: 1000 },
+    expect.any(AbortSignal),
+  );
+});
+
+it('does not report a failed folder listing as complete and allows a fresh retry', async () => {
+  getPage
+    .mockReset()
+    .mockRejectedValueOnce(new Error('Snapshot compacted'))
+    .mockResolvedValue({
+      items: [{ key: '/retried', keyEncoding: 'utf8' }],
+      revision: '9',
+      hasMore: false,
+    });
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter>
+      <Keys />
+    </MemoryRouter>,
+  );
+  await screen.findByText('Snapshot compacted');
+  expect(screen.getByRole('status')).toHaveTextContent('Listing incomplete');
+  expect(screen.queryByText(/All matching keys loaded/)).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Restart / refresh' }));
+  await screen.findByText('retried');
+  expect(screen.getByRole('status')).toHaveTextContent('All matching keys loaded');
+});
+
+it('aborts later folder pages when the prefix changes without mixing trees', async () => {
+  let finish;
+  getPage
+    .mockReset()
+    .mockResolvedValueOnce({
+      items: [{ key: '/old-project/config', keyEncoding: 'utf8' }],
+      revision: '7',
+      hasMore: true,
+      nextCursor: 'pending-page',
+    })
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    )
+    .mockResolvedValue({
+      items: [{ key: '/new-project/config', keyEncoding: 'utf8' }],
+      revision: '8',
+      hasMore: false,
+    });
+  render(
+    <MemoryRouter>
+      <Keys />
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(getPage).toHaveBeenCalledTimes(2));
+  const signal = getPage.mock.calls[1][1];
+  fireEvent.change(screen.getByRole('textbox', { name: 'Key prefix' }), {
+    target: { value: '/new-project/' },
+  });
+  expect(signal.aborted).toBe(true);
+  await screen.findByText('new-project');
+  await act(async () =>
+    finish({
+      items: [{ key: '/late-project/config', keyEncoding: 'utf8' }],
+      revision: '7',
+      hasMore: false,
+    }),
+  );
+  expect(screen.queryByText('old-project')).not.toBeInTheDocument();
+  expect(screen.queryByText('late-project')).not.toBeInTheDocument();
 });
 
 it('debounces rapid prefix edits and waits for IME composition to finish', async () => {
@@ -85,7 +194,7 @@ it('debounces rapid prefix edits and waits for IME composition to finish', async
     });
     expect(getPage).toHaveBeenCalledTimes(2);
     expect(getPage).toHaveBeenLastCalledWith(
-      { prefix: '/app/', cursor: null, limit: 100 },
+      { prefix: '/app/', cursor: null, limit: 1000 },
       expect.any(AbortSignal),
     );
     fireEvent.compositionStart(input);
@@ -99,7 +208,7 @@ it('debounces rapid prefix edits and waits for IME composition to finish', async
       await vi.advanceTimersByTimeAsync(350);
     });
     expect(getPage).toHaveBeenLastCalledWith(
-      { prefix: '/日本語/', cursor: null, limit: 100 },
+      { prefix: '/日本語/', cursor: null, limit: 1000 },
       expect.any(AbortSignal),
     );
     fireEvent.change(input, { target: { value: '/fast/' } });
@@ -107,7 +216,7 @@ it('debounces rapid prefix edits and waits for IME composition to finish', async
       fireEvent.keyDown(input, { key: 'Enter' });
     });
     expect(getPage).toHaveBeenLastCalledWith(
-      { prefix: '/fast/', cursor: null, limit: 100 },
+      { prefix: '/fast/', cursor: null, limit: 1000 },
       expect.any(AbortSignal),
     );
   } finally {

@@ -17,6 +17,7 @@ import CreateKeyDialog from './createKeyDialog';
 import AddIcon from '@mui/icons-material/Add';
 import { useDataService } from '../../data/context';
 import { buildKeyTree } from '../../data/keyTree';
+import { loadFolderKeys } from '../../data/folderKeys';
 import { useReadOnly } from '../../readOnly';
 import { Link } from 'react-router-dom';
 import { patchKeyPage, reconnectDelay } from '../../data/liveKeys';
@@ -76,8 +77,13 @@ export default function Keys() {
     setMembershipStale(false);
     setServerRevisions({});
     if (prefixPending) return () => controller.abort();
-    service
-      .GetKeyPage({ prefix, cursor, limit: 100 }, controller.signal)
+    const initial = view === 0 && cursor ? pageRef.current : null;
+    if (!initial) setPage({ items: [], hasMore: false, revision: '0' });
+    const request =
+      view === 0
+        ? loadFolderKeys(service, prefix, initial, controller.signal, setPage)
+        : service.GetKeyPage({ prefix, cursor, limit: 100 }, controller.signal);
+    request
       .then((data) => {
         if (!controller.signal.aborted) setPage(data);
       })
@@ -85,6 +91,7 @@ export default function Keys() {
         if (controller.signal.aborted) return;
         setError(
           error.response?.data?.message ??
+            error.message ??
             'Could not load this page. Retry or restart the listing.',
         );
       })
@@ -92,7 +99,7 @@ export default function Keys() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [service, prefix, cursor, refresh, prefixPending]);
+  }, [service, prefix, cursor, refresh, prefixPending, view]);
 
   useEffect(() => {
     if (!live || !prefix || loading || prefixPending || error || page.revision === '0') {
@@ -333,7 +340,10 @@ export default function Keys() {
           >
             <Tabs
               value={view}
-              onChange={(_event, value) => setView(value)}
+              onChange={(_event, value) => {
+                setCursor(null);
+                setView(value);
+              }}
               aria-label="Key view"
               sx={{ mb: 1 }}
             >
@@ -374,15 +384,33 @@ export default function Keys() {
             </Box>
             <Typography role="status" variant="caption" color="text.secondary" sx={{ my: 1 }}>
               {loading || prefixPending ? (
-                'Updating results…'
+                view === 0 && !prefixPending ? (
+                  `Loading folders… ${page.items.length} keys loaded`
+                ) : (
+                  'Updating results…'
+                )
+              ) : error ? (
+                'Listing incomplete — restart / refresh to retry.'
               ) : (
                 <>
-                  {page.items.length} keys on this page · Snapshot revision{' '}
-                  <code>{page.revision}</code>
-                  {page.hasMore ? ' · More pages available' : ' · Last page'}
+                  {page.items.length} keys {view === 0 ? 'in folder tree' : 'on this page'} ·
+                  Snapshot revision <code>{page.revision}</code>
+                  {page.hasMore
+                    ? view === 0
+                      ? ' · Partial tree — more keys available'
+                      : ' · More pages available'
+                    : view === 0
+                      ? ' · All matching keys loaded'
+                      : ' · Last page'}
                 </>
               )}
             </Typography>
+            {view === 0 && page.hasMore && !loading && (
+              <Alert severity="warning" sx={{ mb: 1 }}>
+                This tree is incomplete. Load more keys below to reveal remaining projects, or enter
+                a narrower key prefix. Each load is limited to 10,000 keys.
+              </Alert>
+            )}
             {readOnly && (
               <Typography variant="caption" color="info.main" sx={{ mb: 1 }}>
                 View only. Changes are disabled by instance policy or your current permissions.
@@ -479,7 +507,7 @@ export default function Keys() {
                 onClick={() => setCursor(page.nextCursor)}
                 disabled={loading || prefixPending || Boolean(error) || !page.hasMore}
               >
-                Next page
+                {view === 0 ? 'Load more keys' : 'Next page'}
               </Button>
             </Stack>
           </Paper>

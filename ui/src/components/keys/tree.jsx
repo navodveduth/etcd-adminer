@@ -167,7 +167,7 @@ export default function FSNavigator(props) {
         </Box>
       ) : (
         <SimpleTreeView
-          aria-label="Key folders on this page"
+          aria-label="Key folders"
           defaultExpandedItems={['1']}
           slots={{ collapseIcon: FolderOpenIcon, expandIcon: FolderIcon, endIcon: ArticleIcon }}
           sx={{ height: 700, flexGrow: 1, maxWidth: 400, overflowY: 'auto' }}

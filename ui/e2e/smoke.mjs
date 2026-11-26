@@ -163,6 +163,25 @@ try {
           ],
         });
       case '/api/v1/keys':
+        // Reproduce the deployed regression: a folder tree must include projects
+        // after the first 100 (and first 1,000) keys, without reading values.
+        if (backend === 'prod' && url.searchParams.get('limit') === '1000') {
+          const start = Number((url.searchParams.get('cursor') ?? 'folder-0').slice(7));
+          const end = Math.min(start + 1000, 6194);
+          return json({
+            items: Array.from({ length: end - start }, (_, offset) => {
+              const index = start + offset;
+              return {
+                key: `/system/driver-services/project-${String(Math.floor(index / 100)).padStart(2, '0')}/key-${String(index).padStart(4, '0')}`,
+                keyEncoding: 'utf8',
+                modRevision: '40',
+              };
+            }),
+            revision: '40',
+            hasMore: end < 6194,
+            ...(end < 6194 ? { nextCursor: `folder-${end}` } : {}),
+          });
+        }
         return json({
           items: denseKeys
             ? Array.from({ length: 100 }, (_, index) => ({
@@ -277,6 +296,11 @@ try {
   await page.getByText('unsaved-development-draft', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Connections', exact: true }).click();
   await openProfile('Production');
+  await page.getByRole('status').filter({ hasText: '6194 keys in folder tree' }).waitFor();
+  await page.getByText('system', { exact: true }).click();
+  await page.getByText('driver-services', { exact: true }).click();
+  await page.getByText('project-00', { exact: true }).waitFor();
+  await page.getByText('project-61', { exact: true }).waitFor();
   assert.equal(await page.getByRole('button', { name: 'New key', exact: true }).isDisabled(), true);
   assert.equal(
     await page.getByRole('link', { name: 'Roles', exact: true }).getAttribute('aria-disabled'),
@@ -582,7 +606,7 @@ try {
     requests.some((request) => request.path.endsWith('/renew') && request.backend === 'dev'),
   );
   console.log(
-    'Browser smoke passed: workspace isolation/drafts, RBAC, live keys, renewal, typed batch/folder-copy confirmation, all pages at 375/720/768/1280/1440/1920px in both themes, scrolled long keys, stale/retry, shortcuts and close cleanup.',
+    'Browser smoke passed: 6,194-key multi-page folder tree, workspace isolation/drafts, RBAC, live keys, renewal, typed batch/folder-copy confirmation, all pages at 375/720/768/1280/1440/1920px in both themes, scrolled long keys, stale/retry, shortcuts and close cleanup.',
   );
 } finally {
   await browser?.close();
