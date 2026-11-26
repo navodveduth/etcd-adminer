@@ -294,6 +294,12 @@ beyond the first page are included in the tree. Progress is visible; a partial
 tree is explicitly labelled, with **Load more keys** to append another bounded
 batch or a prefix to narrow the query. Permission, cursor and compaction errors
 are surfaced, never presented as a complete tree. Values are not prefetched.
+The summary index is fetched upfront, but only expanded branches are rendered.
+Directories appear before keys; expanding a branch initially shows up to 100
+immediate children, with **Show more** for the rest. Collapsing it unmounts its
+descendants. The folder panel owns a single scrollbar. Switching to List clears
+the folder result before requesting its own bounded page, rather than briefly
+rendering the entire index as table rows.
 Substring filtering in List view applies only to that page; use the prefix field
 for server-side queries. The prefix is applied automatically after a 350 ms typing pause (Enter
 applies immediately); there is no Apply button. Changing it cancels stale reads,

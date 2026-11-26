@@ -32,6 +32,9 @@ export default function FSNavigator(props) {
   const [newDirectoryDialogOpen, setnewDirectoryDialogOpen] = React.useState(false);
   const [newFileDialogOpen, setnewFileDialogOpen] = React.useState(false);
   const [duplicateSource, setDuplicateSource] = React.useState(null);
+  const [expanded, setExpanded] = React.useState(['1']);
+  const [childLimits, setChildLimits] = React.useState({});
+  const expandedIDs = new Set(expanded);
 
   const handleContextMenu = (event, node) => {
     event.preventDefault();
@@ -79,6 +82,39 @@ export default function FSNavigator(props) {
     }
   };
 
+  const renderChildren = (nodes) => {
+    if (!nodes.children?.length) return null;
+    if (!expandedIDs.has(nodes.id.toString())) {
+      // Preserve the expansion affordance without mounting hidden descendants.
+      return <TreeItem itemId={`unloaded:${nodes.id}`} label="Expand to show children" disabled />;
+    }
+    const children = nodes.children.toSorted(
+      (left, right) => Number(right.type === 'directory') - Number(left.type === 'directory'),
+    );
+    const limit = childLimits[nodes.id] ?? 100;
+    return (
+      <>
+        {children.slice(0, limit).map((node) => renderTree(node))}
+        {children.length > limit && (
+          <TreeItem
+            itemId={`more:${nodes.id}`}
+            label={
+              <Button
+                size="small"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setChildLimits((limits) => ({ ...limits, [nodes.id]: limit + 100 }));
+                }}
+              >
+                Show more in {nodes.name} ({limit} of {children.length} entries)
+              </Button>
+            }
+          />
+        )}
+      </>
+    );
+  };
+
   const renderTree = (nodes) => (
     <TreeItem
       key={nodes.id}
@@ -106,7 +142,7 @@ export default function FSNavigator(props) {
         }
       }}
     >
-      {Array.isArray(nodes.children) ? nodes.children.map((node) => renderTree(node)) : null}
+      {renderChildren(nodes)}
     </TreeItem>
   );
 
@@ -162,15 +198,18 @@ export default function FSNavigator(props) {
       )}
 
       {props.loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 700 }}>
+        <Box
+          sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 120 }}
+        >
           <CircularProgress size={40} />
         </Box>
       ) : (
         <SimpleTreeView
           aria-label="Key folders"
-          defaultExpandedItems={['1']}
+          expandedItems={expanded}
+          onExpandedItemsChange={(_event, ids) => setExpanded(ids)}
           slots={{ collapseIcon: FolderOpenIcon, expandIcon: FolderIcon, endIcon: ArticleIcon }}
-          sx={{ height: 700, flexGrow: 1, maxWidth: 400, overflowY: 'auto' }}
+          sx={{ minWidth: 0 }}
         >
           {renderTree(props.keys)}
         </SimpleTreeView>

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { it, expect, vi } from 'vitest';
 import FSNavigator from './tree';
 import { ReadOnlyContext } from '../../readOnly';
+import { buildKeyTree } from '../../data/keyTree';
 
 const keys = {
   id: 1,
@@ -72,4 +73,49 @@ it('runs explicit menu actions and dismisses safely with Escape', async () => {
   fireEvent.contextMenu(screen.getByText('config'));
   await user.keyboard('{Escape}');
   expect(fetchKeys).toHaveBeenCalledTimes(1);
+});
+
+it('mounts only expanded branches of a large folder index', async () => {
+  const user = userEvent.setup();
+  const tree = buildKeyTree(
+    Array.from({ length: 6194 }, (_, index) => ({
+      key: `/system/driver-services/project-${String(Math.floor(index / 100)).padStart(2, '0')}/key-${index}`,
+    })),
+  );
+  const { container } = render(<FSNavigator keys={tree} />);
+  expect(screen.getByText('system')).toBeVisible();
+  expect(screen.queryByText('driver-services')).not.toBeInTheDocument();
+  expect(container.querySelectorAll('[role="treeitem"]').length).toBeLessThan(10);
+  await user.click(screen.getByText('system'));
+  expect(screen.getByText('driver-services')).toBeVisible();
+  expect(screen.queryByText('project-00')).not.toBeInTheDocument();
+  await user.click(screen.getByText('driver-services'));
+  expect(screen.getByText('project-00')).toBeVisible();
+  expect(screen.getByText('project-61')).toBeVisible();
+  expect(screen.queryByText('key-0')).not.toBeInTheDocument();
+  expect(container.querySelectorAll('[role="treeitem"]').length).toBeLessThan(150);
+  await user.click(screen.getByText('project-00'));
+  expect(screen.getByText('key-0')).toBeVisible();
+  await user.click(screen.getByText('project-00'));
+  expect(screen.queryByText('key-0')).not.toBeInTheDocument();
+});
+
+it('shows directories before keys and bounds large expanded branches with explicit continuation', async () => {
+  const user = userEvent.setup();
+  const tree = buildKeyTree([
+    { key: '/a-file' },
+    ...Array.from({ length: 150 }, (_, index) => ({ key: `/z-folder/key-${index}` })),
+  ]);
+  render(<FSNavigator keys={tree} />);
+  const treeItems = screen.getAllByRole('treeitem');
+  expect(treeItems[1]).toHaveTextContent('z-folder');
+  expect(treeItems[2]).toHaveTextContent('a-file');
+  await user.click(screen.getByText('z-folder'));
+  expect(screen.getByText('key-99')).toBeVisible();
+  expect(screen.queryByText('key-100')).not.toBeInTheDocument();
+  await user.click(
+    screen.getByRole('button', { name: 'Show more in z-folder (100 of 150 entries)' }),
+  );
+  expect(screen.getByText('key-149')).toBeVisible();
+  expect(screen.queryByRole('button', { name: /Show more in z-folder/ })).not.toBeInTheDocument();
 });

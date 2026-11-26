@@ -312,3 +312,45 @@ it('retains the selected draft until discard is explicitly confirmed', async () 
   await user.click(screen.getByRole('button', { name: 'Discard and continue' }));
   expect(screen.getByText('Editing: /two')).toBeInTheDocument();
 });
+
+it('cancels a folder load when switching to List and ignores its late results', async () => {
+  let finishFolder;
+  getPage
+    .mockReset()
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishFolder = resolve;
+        }),
+    )
+    .mockResolvedValue({
+      items: [{ key: '/list-only', keyEncoding: 'utf8' }],
+      revision: '9',
+      hasMore: false,
+    });
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter>
+      <Keys />
+    </MemoryRouter>,
+  );
+  const folderSignal = getPage.mock.calls[0][1];
+  await user.click(screen.getByRole('tab', { name: 'List', exact: true }));
+  expect(folderSignal.aborted).toBe(true);
+  await screen.findByRole('button', { name: '/list-only', exact: true });
+  await act(async () =>
+    finishFolder({
+      items: [{ key: '/late-folder', keyEncoding: 'utf8' }],
+      revision: '8',
+      hasMore: false,
+    }),
+  );
+  expect(
+    screen.queryByRole('button', { name: '/late-folder', exact: true }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole('status')).toHaveTextContent('1 keys on this page');
+  expect(getPage).toHaveBeenLastCalledWith(
+    { prefix: '', cursor: null, limit: 100 },
+    expect.any(AbortSignal),
+  );
+});

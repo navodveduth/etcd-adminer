@@ -297,16 +297,52 @@ try {
   await page.getByRole('button', { name: 'Connections', exact: true }).click();
   await openProfile('Production');
   await page.getByRole('status').filter({ hasText: '6194 keys in folder tree' }).waitFor();
+  const folders = page.getByRole('tree', { name: 'Key folders', exact: true });
+  assert.ok(
+    (await folders.getByRole('treeitem', { includeHidden: true }).count()) < 10,
+    'Collapsed folder branches must not mount thousands of hidden key rows',
+  );
   await page.getByText('system', { exact: true }).click();
   await page.getByText('driver-services', { exact: true }).click();
   await page.getByText('project-00', { exact: true }).waitFor();
   await page.getByText('project-61', { exact: true }).waitFor();
+  assert.ok(
+    (await folders.getByRole('treeitem', { includeHidden: true }).count()) < 150,
+    'Opening the projects directory should only mount immediate children',
+  );
+  assert.equal(
+    await folders.evaluate((tree) => {
+      let scrollContainers = 0;
+      for (
+        let element = tree;
+        element && element.getAttribute('aria-label') !== 'Key browser controls';
+        element = element.parentElement
+      ) {
+        if (['auto', 'scroll'].includes(getComputedStyle(element).overflowY)) scrollContainers++;
+      }
+      return scrollContainers;
+    }),
+    1,
+    'Folder browser should have a single vertical scroll owner',
+  );
   assert.equal(await page.getByRole('button', { name: 'New key', exact: true }).isDisabled(), true);
   assert.equal(
     await page.getByRole('link', { name: 'Roles', exact: true }).getAttribute('aria-disabled'),
     'true',
   );
   await page.getByRole('tab', { name: 'List', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: '1 keys on this page' }).waitFor();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await page.getByRole('tab', { name: 'Folder', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: '6194 keys in folder tree' }).waitFor();
+    await page.getByRole('tab', { name: 'List', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: '1 keys on this page' }).waitFor();
+    assert.equal(
+      await page.getByRole('table', { name: 'Keys on this page' }).getByRole('row').count(),
+      2,
+      'List must use its own bounded page, never the full folder index',
+    );
+  }
   await page.getByRole('button', { name: '/app/a', exact: true }).click();
   await page.getByText('prod-value', { exact: true }).waitFor();
   await page.getByRole('tab', { name: /Development · dev · alice/ }).click();

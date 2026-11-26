@@ -183,8 +183,11 @@ export default function Keys() {
 
   const textItems = page.items.filter((item) => item.keyEncoding === 'utf8');
   const tree = useMemo(
-    () => buildKeyTree([...page.items.filter((item) => item.keyEncoding === 'utf8'), ...drafts]),
-    [page.items, drafts],
+    () =>
+      view === 0
+        ? buildKeyTree([...page.items.filter((item) => item.keyEncoding === 'utf8'), ...drafts])
+        : null,
+    [page.items, drafts, view],
   );
 
   const selectKey = (key) => {
@@ -341,6 +344,10 @@ export default function Keys() {
             <Tabs
               value={view}
               onChange={(_event, value) => {
+                // Do not render a 6,000-key folder index as List table rows for
+                // one commit before the query effect switches to a 100-key page.
+                setLoading(true);
+                setPage({ items: [], hasMore: false, revision: '0' });
                 setCursor(null);
                 setView(value);
               }}
