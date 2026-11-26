@@ -168,7 +168,7 @@ export default function Connection({ onSessionChange, initialProfile }) {
               sx={{ width: { xs: '100%', sm: 360 } }}
             />
             <Typography variant="body2" color="text.secondary">
-              {filtered.length} of {all.length} profiles · selection is not a live health check
+              {filtered.length} of {all.length} profiles
             </Typography>
           </Stack>
           <Box
