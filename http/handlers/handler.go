@@ -11,11 +11,13 @@ import (
 	"github.com/srimaln91/etcd-adminer/http/handlers/settings"
 	"github.com/srimaln91/etcd-adminer/http/handlers/transfer"
 	"github.com/srimaln91/etcd-adminer/http/handlers/watch"
+	"github.com/srimaln91/etcd-adminer/internal/browsersession"
 	"github.com/srimaln91/etcd-adminer/internal/keyspace"
 	"github.com/srimaln91/etcd-adminer/log"
 )
 
 type Handler struct {
+	Sessions *browsersession.Manager
 	Access   *access.Handler
 	Cluster  *cluster.Handler
 	Keys     *keys.Handler
@@ -25,16 +27,21 @@ type Handler struct {
 	Watch    *watch.Handler
 }
 
-func NewHTTPHandler(logger log.Logger) (*Handler, error) {
+func NewHTTPHandler(logger log.Logger, managers ...*browsersession.Manager) (*Handler, error) {
 	signer, err := keyspace.NewSigner()
 	if err != nil {
 		return nil, err
 	}
 	clients := &handlerkit.Clients{Logger: logger}
+	sessions := browsersession.New("")
+	if len(managers) != 0 {
+		sessions = managers[0]
+	}
 	return &Handler{
-		Access: &access.Handler{Clients: clients}, Cluster: &cluster.Handler{Clients: clients},
+		Sessions: sessions,
+		Access:   &access.Handler{Clients: clients, Sessions: sessions}, Cluster: &cluster.Handler{Clients: clients},
 		Keys: &keys.Handler{Clients: clients, Signer: signer}, Leases: &leases.Handler{Clients: clients},
-		Settings: &settings.Handler{}, Transfer: &transfer.Handler{Clients: clients, Signer: signer},
+		Settings: &settings.Handler{Sessions: sessions}, Transfer: &transfer.Handler{Clients: clients, Signer: signer},
 		Watch: &watch.Handler{Clients: clients},
 	}, nil
 }

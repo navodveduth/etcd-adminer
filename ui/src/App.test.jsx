@@ -20,14 +20,17 @@ vi.mock('./components/connections/newConnection', () => ({
     );
   },
 }));
-const { getConfig } = vi.hoisted(() => ({ getConfig: vi.fn() }));
+const { getConfig, getSessions } = vi.hoisted(() => ({ getConfig: vi.fn(), getSessions: vi.fn() }));
 vi.mock('./data/service', () => ({
   default: class {
     GetConfig = getConfig;
+    GetSessions = getSessions;
   },
 }));
 beforeEach(() => {
+  window.history.replaceState(null, '', '/');
   getConfig.mockReset();
+  getSessions.mockReset().mockResolvedValue({ connections: [] });
   getConfig.mockResolvedValue({ clusters: [], readOnly: false });
 });
 
@@ -42,7 +45,7 @@ test('opens a workspace when secure-context randomUUID is unavailable', async ()
     store.SetActiveSession(profile);
     const user = userEvent.setup();
     render(<App />);
-    await user.click(screen.getByRole('link', { name: 'New connection' }));
+    await user.click(await screen.findByRole('link', { name: 'New connection' }));
     await user.click(await screen.findByRole('button', { name: 'Open test workspace' }));
     expect(await screen.findByText('Opened test workspace')).toBeInTheDocument();
     expect(randomUUID).not.toHaveBeenCalled();
@@ -54,7 +57,7 @@ test('opens a workspace when secure-context randomUUID is unavailable', async ()
 test('closes shortcut help using the header close icon', async () => {
   const user = userEvent.setup();
   render(<App />);
-  await user.click(screen.getByRole('button', { name: 'Shortcuts', exact: true }));
+  await user.click(await screen.findByRole('button', { name: 'Shortcuts', exact: true }));
   expect(
     screen.getByRole('dialog', { name: 'Keyboard shortcuts', exact: true }),
   ).toBeInTheDocument();
@@ -66,7 +69,7 @@ test('closes shortcut help using the header close icon', async () => {
 
 test('renders an actionable empty connection screen', async () => {
   render(<App />);
-  expect(screen.getByText('ETCD Adminer')).toBeInTheDocument();
+  expect(await screen.findByText('ETCD Adminer')).toBeInTheDocument();
   expect(await screen.findByRole('heading', { name: 'No saved connections' })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'New connection' })).toBeInTheDocument();
 });
@@ -74,7 +77,7 @@ test('renders an actionable empty connection screen', async () => {
 test('returns to Connections when clicking the application name from a connection subpage', async () => {
   const user = userEvent.setup();
   render(<App />);
-  await user.click(screen.getByRole('link', { name: 'New connection' }));
+  await user.click(await screen.findByRole('link', { name: 'New connection' }));
   await screen.findByTestId('primary-color');
   await user.click(screen.getByRole('button', { name: 'ETCD Adminer — Connections' }));
   expect(
@@ -97,6 +100,59 @@ test.each([
 ])('preserves the previous blue palette in %s mode', async (mode, primary) => {
   localStorage.setItem('themeMode', mode);
   render(<App />);
-  await userEvent.click(screen.getByRole('link', { name: 'New connection' }));
+  await userEvent.click(await screen.findByRole('link', { name: 'New connection' }));
   expect(await screen.findByTestId('primary-color')).toHaveTextContent(primary);
+});
+
+test('restores a remembered workspace directly at its browser URL without a password prompt', async () => {
+  const info = {
+    id: 'remembered-reference',
+    profile: 'Remembered',
+    backend: 'prod',
+    user: 'alice',
+    expiresAt: new Date(Date.now() + 86400000).toISOString(),
+  };
+  localStorage.setItem(
+    'sessions',
+    JSON.stringify({
+      Remembered: {
+        Name: 'Remembered',
+        BackEnd: 'prod',
+        UserName: 'alice',
+        SessionID: info.id,
+        isActive: true,
+      },
+    }),
+  );
+  getSessions.mockResolvedValue({ connections: [info] });
+  window.history.replaceState(null, '', '/workspaces/Remembered/metrics');
+  render(<App />);
+  expect(await screen.findByText('Opened test workspace')).toBeInTheDocument();
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(window.location.pathname).toBe('/workspaces/Remembered/metrics');
+  expect(new SessionStore().Get('Remembered')).not.toHaveProperty('Password');
+});
+
+test('keeps the target URL and requests reauthentication for a revoked remembered login', async () => {
+  localStorage.setItem(
+    'sessions',
+    JSON.stringify({
+      Remembered: {
+        Name: 'Remembered',
+        BackEnd: 'prod',
+        UserName: 'alice',
+        SessionID: 'revoked',
+        isActive: true,
+      },
+    }),
+  );
+  window.history.replaceState(null, '', '/workspaces/Remembered/keys?view=list');
+  render(<App />);
+  expect(
+    await screen.findByRole('dialog', { name: 'Authenticate Remembered' }),
+  ).toBeInTheDocument();
+  expect(screen.getByLabelText('Password')).toHaveValue('');
+  expect(window.location.pathname + window.location.search).toBe(
+    '/workspaces/Remembered/keys?view=list',
+  );
 });

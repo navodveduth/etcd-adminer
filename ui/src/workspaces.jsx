@@ -9,12 +9,14 @@ import DataService from './data/service';
 import { SessionStore } from './storage/session';
 import { ReadOnlyContext, useReadOnly } from './readOnly';
 import NavMenu from './components/layout/navMenu';
+import { LocationBridge } from './navigation';
 import {
   DataServiceContext,
   CapabilityContext,
   WorkspaceActiveContext,
   useCapabilities,
   useWorkspaceActive,
+  WorkspacePathsContext,
 } from './data/context';
 
 const pages = {
@@ -29,6 +31,22 @@ const pages = {
   '/roles': lazy(() => import('./components/access/roles')),
 };
 const adminPages = new Set(['/cluster', '/metrics', '/leases', '/users', '/users/new', '/roles']);
+
+function WorkspacePaths({ children }) {
+  const location = useLocation();
+  const [paths, setPaths] = useState({});
+  const path = location.pathname + location.search + location.hash;
+  useEffect(() => {
+    setPaths((previous) =>
+      previous[location.pathname] === path ? previous : { ...previous, [location.pathname]: path },
+    );
+  }, [location.pathname, path]);
+  return (
+    <WorkspacePathsContext.Provider value={{ ...paths, [location.pathname]: path }}>
+      {children}
+    </WorkspacePathsContext.Provider>
+  );
+}
 
 function WorkspacePages() {
   const location = useLocation();
@@ -134,7 +152,13 @@ function WorkspaceNavigation({ profile, children }) {
   );
 }
 
-export default function Workspace({ profile, active = true }) {
+export default function Workspace({
+  profile,
+  active = true,
+  initialPath = '/keys',
+  browserPath,
+  onLocationChange,
+}) {
   const instanceReadOnly = useReadOnly();
   const service = useMemo(() => {
     const store = new SessionStore();
@@ -143,7 +167,7 @@ export default function Workspace({ profile, active = true }) {
         const current = store.Get(profile.Name);
         return current?.BackEnd === profile.BackEnd &&
           current.UserName === profile.UserName &&
-          current.Password !== undefined
+          (current.Authenticated || current.Password !== undefined)
           ? current
           : undefined;
       },
@@ -191,59 +215,66 @@ export default function Workspace({ profile, active = true }) {
       <CapabilityContext.Provider value={capabilities}>
         <WorkspaceActiveContext.Provider value={active}>
           <ReadOnlyContext.Provider value={instanceReadOnly || !capabilities?.write}>
-            <MemoryRouter initialEntries={['/keys']}>
-              <WorkspaceNavigation profile={profile}>
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  useFlexGap
-                  sx={{ mb: 2.5, alignItems: 'center', fontSize: 13, flexWrap: 'wrap' }}
-                >
-                  <Typography variant="body2" color="text.secondary">
-                    Backend{' '}
-                    <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                      {profile.BackEnd}
-                    </Box>{' '}
-                    · User{' '}
-                    <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                      {profile.UserName}
-                    </Box>
-                  </Typography>
-                  {capabilities?.administrator && (
-                    <Chip size="small" variant="outlined" label="Administrator" />
-                  )}
-                  {(instanceReadOnly || (capabilities && !capabilities.write)) && (
-                    <Chip
-                      size="small"
-                      color="info"
-                      variant="outlined"
-                      label={instanceReadOnly ? 'Read-only instance' : 'View only'}
-                    />
-                  )}
-                </Stack>
-                {capabilityError && (
-                  <Alert
-                    severity="warning"
-                    sx={{ mb: 2 }}
-                    action={
-                      <Button
-                        color="inherit"
-                        size="small"
-                        onClick={() => setAccessVersion((value) => value + 1)}
-                      >
-                        Refresh access
-                      </Button>
-                    }
+            <MemoryRouter initialEntries={[initialPath]}>
+              <WorkspacePaths>
+                <LocationBridge
+                  active={active}
+                  externalPath={browserPath}
+                  onChange={onLocationChange}
+                />
+                <WorkspaceNavigation profile={profile}>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    useFlexGap
+                    sx={{ mb: 2.5, alignItems: 'center', fontSize: 13, flexWrap: 'wrap' }}
                   >
-                    {capabilityError}
-                  </Alert>
-                )}
-                {!capabilities && !capabilityError ? (
-                  <LoadingState label="Checking access" />
-                ) : (
-                  <WorkspacePages />
-                )}
-              </WorkspaceNavigation>
+                    <Typography variant="body2" color="text.secondary">
+                      Backend{' '}
+                      <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                        {profile.BackEnd}
+                      </Box>{' '}
+                      · User{' '}
+                      <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                        {profile.UserName}
+                      </Box>
+                    </Typography>
+                    {capabilities?.administrator && (
+                      <Chip size="small" variant="outlined" label="Administrator" />
+                    )}
+                    {(instanceReadOnly || (capabilities && !capabilities.write)) && (
+                      <Chip
+                        size="small"
+                        color="info"
+                        variant="outlined"
+                        label={instanceReadOnly ? 'Read-only instance' : 'View only'}
+                      />
+                    )}
+                  </Stack>
+                  {capabilityError && (
+                    <Alert
+                      severity="warning"
+                      sx={{ mb: 2 }}
+                      action={
+                        <Button
+                          color="inherit"
+                          size="small"
+                          onClick={() => setAccessVersion((value) => value + 1)}
+                        >
+                          Refresh access
+                        </Button>
+                      }
+                    >
+                      {capabilityError}
+                    </Alert>
+                  )}
+                  {!capabilities && !capabilityError ? (
+                    <LoadingState label="Checking access" />
+                  ) : (
+                    <WorkspacePages />
+                  )}
+                </WorkspaceNavigation>
+              </WorkspacePaths>
             </MemoryRouter>
           </ReadOnlyContext.Provider>
         </WorkspaceActiveContext.Provider>

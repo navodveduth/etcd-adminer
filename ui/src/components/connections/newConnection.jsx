@@ -13,6 +13,8 @@ import {
   Stepper,
   TextField,
   Typography,
+  Checkbox,
+  FormControlLabel,
 } from '@mui/material';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
@@ -21,8 +23,11 @@ import ConfirmationDialog from '../dialogs/confirmationDialog';
 import { SessionStore, Session } from '../../storage/session';
 import DataService from '../../data/service';
 import { connectionErrorMessage } from './errorMessage';
+import { useRememberSessions } from '../../data/context';
 
 export default function NewConnection({ forceRefreshNav }) {
+  const rememberAvailable = useRememberSessions();
+  const [remember, setRemember] = useState(true);
   const [params] = useSearchParams();
   const editing = params.get('edit');
   const store = useMemo(() => new SessionStore(), []);
@@ -73,14 +78,17 @@ export default function NewConnection({ forceRefreshNav }) {
     setMessage(null);
     const start = performance.now();
     try {
-      const success = await service.TestConnection(username, password, backend, abort.signal);
+      const success = await service.TestConnection(username, password, backend, abort.signal, {
+        profile: name.trim(),
+        remember: rememberAvailable && remember,
+      });
       if (abort.signal.aborted) return;
       setTested(success);
       setMessage(
         success
           ? {
               severity: 'success',
-              text: `Authentication succeeded in ${Math.round(performance.now() - start)} ms (HTTP + etcd authentication, not cluster operation latency). Access is checked separately per operation.`,
+              text: `Authentication succeeded in ${Math.round(performance.now() - start)} ms (HTTP + etcd authentication, not cluster operation latency). Access is checked separately per operation. ${service.lastAuthentication?.rememberMessage ?? (rememberAvailable && remember ? 'Remembered sessions expire after 7 days or a server restart.' : 'Login lasts until this tab closes or reloads.')}`,
             }
           : {
               severity: 'error',
@@ -100,7 +108,7 @@ export default function NewConnection({ forceRefreshNav }) {
       if (!abort.signal.aborted) setBusy(false);
     }
   };
-  const save = (confirmed = false) => {
+  const save = async (confirmed = false) => {
     if (!tested || busy || !name.trim()) return;
     if ((!editing || name.trim() !== editing) && store.Get(name.trim())) {
       setMessage({
@@ -114,7 +122,10 @@ export default function NewConnection({ forceRefreshNav }) {
       return;
     }
     setConfirmEdit(false);
+    setBusy(true);
     try {
+      if (editing && editing !== name.trim() && original?.SessionID)
+        await service.Logout(original.SessionID);
       const cluster = clusters.find((item) => item.name === backend);
       const profile = new Session(
         name.trim(),
@@ -134,6 +145,8 @@ export default function NewConnection({ forceRefreshNav }) {
         severity: 'error',
         text: 'Could not save the profile. Check local-storage permissions.',
       });
+    } finally {
+      setBusy(false);
     }
   };
   const duplicate = Boolean(name.trim() && name.trim() !== editing && store.Get(name.trim()));
@@ -262,11 +275,29 @@ export default function NewConnection({ forceRefreshNav }) {
                 test.
               </Typography>
             )}
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={rememberAvailable && remember}
+                  disabled={!rememberAvailable || busy}
+                  onChange={(event) => {
+                    setRemember(event.target.checked);
+                    setTested(false);
+                  }}
+                />
+              }
+              label="Remember login for 7 days"
+            />
+            <Typography variant="caption" color="text.secondary">
+              {rememberAvailable
+                ? 'Uses an HttpOnly session cookie. Do not remember login on shared devices; a server restart signs you out.'
+                : 'Remembered login requires HTTPS. Password-manager autofill remains available.'}
+            </Typography>
             <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
               <Button
                 type="button"
                 variant="outlined"
-                disabled={busy || !backend || !username}
+                disabled={busy || !backend || !username || !name.trim()}
                 onClick={test}
               >
                 {busy ? 'Testing…' : 'Test & diagnose'}

@@ -12,6 +12,8 @@ import {
   Stack,
   TextField,
   Typography,
+  Checkbox,
+  FormControlLabel,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
@@ -23,8 +25,12 @@ import ConfirmationDialog from '../dialogs/confirmationDialog';
 import { Session, SessionStore } from '../../storage/session';
 import DataService from '../../data/service';
 import { connectionErrorMessage } from './errorMessage';
+import { useRememberSessions } from '../../data/context';
 
-export default function Connection({ onSessionChange }) {
+export default function Connection({ onSessionChange, initialProfile }) {
+  const rememberAvailable = useRememberSessions();
+  const [remember, setRemember] = useState(true);
+  const [loggingOut, setLoggingOut] = useState(false);
   const store = useMemo(() => new SessionStore(), []);
   const service = useMemo(() => new DataService(), []);
   const [profiles, setProfiles] = useState(() => store.GetAll());
@@ -37,13 +43,31 @@ export default function Connection({ onSessionChange }) {
   const [removing, setRemoving] = useState(null);
   const [disconnecting, setDisconnecting] = useState(false);
   const controller = useRef(null);
+  const autoOpened = useRef(null);
+  useEffect(() => {
+    if (!initialProfile) {
+      autoOpened.current = null;
+      return;
+    }
+    if (autoOpened.current === initialProfile) return;
+    autoOpened.current = initialProfile;
+    const profile = store.Get(initialProfile);
+    if (!profile) return;
+    if (profile.Authenticated) {
+      store.SetActiveSession(profile);
+      onSessionChange?.({ open: true });
+    } else setPending(profile);
+  }, [initialProfile, store, onSessionChange]);
   useEffect(() => () => controller.current?.abort(), []);
   const refresh = (open = false) => {
     setProfiles(store.GetAll());
     onSessionChange?.({ open });
   };
   const openProfile = (profile, reauthenticate = false) => {
-    if (!reauthenticate && store.Get(profile.Name)?.Password !== undefined) {
+    if (
+      !reauthenticate &&
+      (store.Get(profile.Name)?.Authenticated || store.Get(profile.Name)?.Password !== undefined)
+    ) {
       store.SetActiveSession(profile);
       refresh(true);
     } else {
@@ -75,6 +99,7 @@ export default function Connection({ onSessionChange }) {
         password,
         profile.BackEnd,
         abort.signal,
+        { profile: profile.Name, remember: rememberAvailable && remember },
       );
       if (abort.signal.aborted) return;
       if (!success) {
@@ -119,6 +144,11 @@ export default function Connection({ onSessionChange }) {
         description="Open a saved profile in an isolated workspace. Your drafts and background tasks stay with that workspace."
         actions={all.length ? newConnection : undefined}
       />
+      {error && !pending && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
       {!all.length ? (
         <Section>
           <EmptyState
@@ -239,6 +269,21 @@ export default function Connection({ onSessionChange }) {
               Use your browser password manager to save or autofill this login. Choose the entry for
               this backend and username.
             </Typography>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={rememberAvailable && remember}
+                  disabled={!rememberAvailable || connecting}
+                  onChange={(event) => setRemember(event.target.checked)}
+                />
+              }
+              label="Remember login for 7 days"
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+              {rememberAvailable
+                ? 'Uses an HttpOnly session cookie, not browser-stored passwords. Avoid remembered login on shared devices. A server restart signs you out.'
+                : 'Remembered login requires HTTPS. This HTTP connection lasts until the page reloads or closes.'}
+            </Typography>
           </DialogContent>
           <DialogActions>
             <Button onClick={cancel}>{connecting ? 'Cancel request' : 'Cancel'}</Button>
@@ -253,23 +298,45 @@ export default function Connection({ onSessionChange }) {
         title={`Delete profile ${removing?.Name ?? ''}?`}
         content="This removes the saved profile and closes its workspaces, discarding drafts and stopping watches and renewal. Cluster keys are not deleted."
         confirmLabel="Delete profile"
+        busy={loggingOut}
+        warning={error ?? undefined}
         onCancel={() => setRemoving(null)}
-        onConfirm={() => {
-          store.Delete(removing);
-          setRemoving(null);
-          refresh();
+        onConfirm={async () => {
+          setLoggingOut(true);
+          setError(null);
+          try {
+            if (removing.SessionID) await service.Logout(removing.SessionID);
+            store.Delete(removing);
+            setRemoving(null);
+            refresh();
+          } catch {
+            setError('Could not revoke this server session. Retry before deleting the profile.');
+          } finally {
+            setLoggingOut(false);
+          }
         }}
       />
       <ConfirmationDialog
         open={disconnecting}
         title="Disconnect all connections?"
-        content="All workspace drafts will be discarded and watches and automatic renewal will stop. Passwords held in this tab will be cleared. Leased keys may expire when renewal stops."
+        content="All workspace drafts will be discarded and watches and automatic renewal will stop. Remembered server sessions will be revoked and passwords held in this tab cleared. Leased keys may expire when renewal stops."
         confirmLabel="Disconnect all"
+        busy={loggingOut}
+        warning={error ?? undefined}
         onCancel={() => setDisconnecting(false)}
-        onConfirm={() => {
-          store.DisconnectAll();
-          setDisconnecting(false);
-          refresh();
+        onConfirm={async () => {
+          setLoggingOut(true);
+          setError(null);
+          try {
+            if (rememberAvailable) await service.Logout();
+            store.DisconnectAll();
+            setDisconnecting(false);
+            refresh();
+          } catch {
+            setError('Could not revoke remembered server sessions. Retry to finish disconnecting.');
+          } finally {
+            setLoggingOut(false);
+          }
         }}
       />
     </>

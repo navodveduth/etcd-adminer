@@ -13,7 +13,17 @@
   small injectable client interface and configured endpoints only.
 - `../internal/transfer/`: validated binary-safe atomic batch planning/execution.
 - `../internal/keyspace/`: caller-readable ranges, snapshot paging and scoped
-  cursor signing, shared by listing/export without cross-handler dependencies.
+  cursor signing, plus immediate-child folder discovery using subtree-skipping
+  keys-only seeks, without cross-handler dependencies.
+- `../internal/browsersession/`: bounded, process-local remembered credentials;
+  opaque HttpOnly cookies, per-connection references/expiry and logout revocation.
+  `router/` shares one manager between authentication, request validation and
+  session-management routes. References are not bearer credentials: resolving
+  one also requires the browser cookie, matching backend and secure transport.
+
+Cookie-authenticated mutations require an exact Origin. Logout is an authentication
+operation, not an etcd write, and remains available under read-only policy. Existing
+Basic-auth clients are supported without creating persistent browser sessions.
 
 New business logic should use internal feature packages with explicit context
 and client dependencies. All metadata and mutations use caller-authenticated

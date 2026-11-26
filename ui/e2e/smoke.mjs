@@ -3,6 +3,8 @@
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 
 const server = spawn(
   process.execPath,
@@ -35,14 +37,27 @@ try {
   });
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
+  const captureDocs = async (name) => {
+    if (process.env.UPDATE_SCREENSHOTS !== '1') return;
+    const directory = new URL('../../resources/screenshots/', import.meta.url);
+    await mkdir(directory, { recursive: true });
+    await page.screenshot({
+      path: fileURLToPath(new URL(name, directory)),
+      fullPage: true,
+      animations: 'disabled',
+    });
+  };
   const errors = [];
   const requests = [];
   let clusterUnavailable = false;
   let denseKeys = false;
   let copyingFolder = false;
   let copiedFolderBatches = 0;
+  const browserSessions = new Map();
+  let nextSession = 0;
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.addInitScript(() =>
+  await page.addInitScript(() => {
+    if (localStorage.getItem('sessions')) return;
     localStorage.setItem(
       'sessions',
       JSON.stringify({
@@ -61,18 +76,47 @@ try {
           isActive: false,
         },
       }),
-    ),
-  );
-  await page.route('**/api/**', async (route) => {
+    );
+  });
+  const handleAPI = async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const backend = request.headers()['x-backend'];
-    const username = Buffer.from(
-      (request.headers().authorization ?? '').replace('Basic ', ''),
-      'base64',
-    )
-      .toString()
-      .split(':')[0];
+    const cookieSession = request.headers().cookie?.includes('fixture-session=valid')
+      ? browserSessions.get(request.headers()['x-connection-id'])
+      : null;
+    const username =
+      cookieSession?.user ??
+      Buffer.from((request.headers().authorization ?? '').replace('Basic ', ''), 'base64')
+        .toString()
+        .split(':')[0];
+    const json = (body, status = 200, headers = {}) =>
+      route.fulfill({
+        status,
+        contentType: 'application/json',
+        headers,
+        body: JSON.stringify(body),
+      });
+    if (url.pathname === '/api/v1/sessions') {
+      if (request.method() === 'DELETE') {
+        if (url.searchParams.has('id')) browserSessions.delete(url.searchParams.get('id'));
+        else browserSessions.clear();
+        return route.fulfill({
+          status: 204,
+          headers: browserSessions.size
+            ? {}
+            : { 'set-cookie': 'fixture-session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' },
+        });
+      }
+      return json({
+        available: true,
+        connections: request.headers().cookie?.includes('fixture-session=valid')
+          ? [...browserSessions.values()]
+          : [],
+      });
+    }
+    if (request.headers()['x-connection-id'] && !cookieSession)
+      return json({ code: 'unauthenticated', message: 'Session expired' }, 401);
     if (url.pathname !== '/api/getconfig') {
       assert.ok(
         (backend === 'dev' && username === 'alice') || (backend === 'prod' && username === 'bob'),
@@ -80,19 +124,35 @@ try {
       );
       requests.push({ path: url.pathname, backend, method: request.method() });
     }
-    const json = (body, status = 200) =>
-      route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     switch (url.pathname) {
       case '/api/getconfig':
         return json({
           readOnly: false,
+          rememberSessions: true,
           clusters: [
             { name: 'dev', endpoints: ['http://dev:2379'] },
             { name: 'prod', endpoints: ['https://prod:2379'] },
           ],
         });
-      case '/api/auth':
-        return json({});
+      case '/api/auth': {
+        const options = request.postDataJSON();
+        if (!options?.remember) return json({ authenticated: true });
+        const previous = [...browserSessions.values()].find(
+          (session) => session.profile === options.profile,
+        );
+        if (previous) browserSessions.delete(previous.id);
+        const session = {
+          id: `session-${++nextSession}`.padEnd(43, 'x'),
+          profile: options.profile,
+          backend,
+          user: username,
+          expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
+        };
+        browserSessions.set(session.id, session);
+        return json({ authenticated: true, session }, 200, {
+          'set-cookie': 'fixture-session=valid; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800',
+        });
+      }
       case '/api/v1/capabilities':
         return json({ administrator: backend === 'dev', read: true, write: backend === 'dev' });
       case '/api/clusterinfo':
@@ -226,7 +286,12 @@ try {
           assert.equal(body.lease, undefined);
           return json({ revision: '42' });
         }
-        return json({ key: '/app/a', value: `${backend}-value`, modRevision: '40', lease: '0' });
+        return json({
+          key: url.searchParams.get('key') ?? '/app/a',
+          value: `${backend}-value`,
+          modRevision: '40',
+          lease: '0',
+        });
       case '/api/v1/leases':
         return json({ ids: ['123'], truncated: false });
       case '/api/v1/leases/123':
@@ -278,8 +343,11 @@ try {
       default:
         return json({ message: 'Unexpected test API request' }, 404);
     }
-  });
+  };
+  await page.context().route('**/api/**', handleAPI);
   await page.goto('http://127.0.0.1:4174');
+  await page.getByRole('button', { name: 'Actions for Development', exact: true }).waitFor();
+  await captureDocs('connections-dark.png');
   const openProfile = async (name) => {
     const card = page.getByRole('article', { name, exact: true });
     await card.getByRole('button', { name: 'Open workspace' }).click();
@@ -400,6 +468,9 @@ try {
   assert.equal(projectKeyRequests, 1, 'Opening one project should fetch only that project subtree');
   await page.getByText('v1', { exact: true }).click();
   await page.getByText('key-0', { exact: true }).waitFor();
+  await page.getByText('key-0', { exact: true }).click();
+  await page.getByText('prod-value', { exact: true }).waitFor();
+  await captureDocs('keys-folder-dark.png');
   assert.equal(
     requests.filter((request) => request.backend === 'prod' && request.path === '/api/v1/keys')
       .length,
@@ -559,6 +630,13 @@ try {
         }
         await noOverflow(`${link} ${width}px ${theme}`);
         if (link === 'Keys') {
+          if (process.env.UPDATE_SCREENSHOTS === '1' && theme === 'light' && width === 1440) {
+            await page.getByRole('tab', { name: 'List', exact: true }).click();
+            await page.getByRole('button', { name: '/app/a', exact: true }).waitFor();
+            await captureDocs('keys-list-light.png');
+            await page.getByRole('tab', { name: 'Folder', exact: true }).click();
+            await page.getByText('app', { exact: true }).waitFor();
+          }
           if (width >= 1280) {
             const browserBounds = await page
               .getByRole('region', { name: 'Key browser controls', exact: true })
@@ -646,6 +724,7 @@ try {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await navigate('Keys');
   denseKeys = true;
+  await page.getByRole('tab', { name: 'List', exact: true }).click();
   await page.getByRole('button', { name: 'Refresh keys', exact: true }).click();
   await page
     .getByRole('button', {
@@ -732,12 +811,96 @@ try {
   await page.getByRole('button', { name: 'Close active workspace', exact: true }).click();
   await page.getByRole('button', { name: 'Close workspace', exact: true }).click();
   assert.equal(await page.getByRole('tab', { name: /Development · dev · alice/ }).count(), 0);
+  denseKeys = false;
+  await page.getByRole('link', { name: 'Keys', exact: true }).click();
+  await page.getByRole('tab', { name: 'List', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Key prefix', exact: true }).fill('/app/');
+  await page.getByRole('button', { name: '/app/a', exact: true }).click();
+  await page.waitForURL(
+    (url) =>
+      url.pathname === '/workspaces/Production/keys' &&
+      url.searchParams.get('view') === 'list' &&
+      url.searchParams.get('key') === '/app/a' &&
+      url.searchParams.get('prefix') === '/app/',
+  );
+  const savedURL = page.url();
+  const authenticationCalls = requests.filter((request) => request.path === '/api/auth').length;
+  await page.reload();
+  await page.getByText('prod-value', { exact: true }).waitFor();
+  assert.equal(page.url(), savedURL, 'Refresh must retain workspace/page/query URL');
+  assert.equal(
+    await page.getByRole('tab', { name: 'List', exact: true }).getAttribute('aria-selected'),
+    'true',
+  );
+  assert.equal(
+    await page.getByRole('textbox', { name: 'Key prefix', exact: true }).inputValue(),
+    '/app/',
+  );
+  assert.equal(
+    requests.filter((request) => request.path === '/api/auth').length,
+    authenticationCalls,
+    'Refresh must restore the remembered session without reentering a password',
+  );
+  const cookies = await page.context().cookies();
+  const cookie = cookies.find((entry) => entry.name === 'fixture-session');
+  assert.ok(
+    cookie?.httpOnly && cookie.expires > Date.now() / 1000 + 6 * 86400,
+    'Remembered cookie must be HttpOnly and persistent',
+  );
+  assert.equal(
+    await page.evaluate(() => document.cookie.includes('fixture-session')),
+    false,
+    'JavaScript must not read the session cookie',
+  );
+  const stored = await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }));
+  assert.ok(
+    !stored.includes('temporary-browser-test') &&
+      !stored.includes('refreshed-browser-test') &&
+      !stored.includes('Password'),
+    'Browser storage must not contain login passwords',
+  );
+  const reopenedContext = await browser.newContext({
+    storageState: await page.context().storageState(),
+    viewport: { width: 1440, height: 1000 },
+  });
+  await reopenedContext.route('**/api/**', handleAPI);
+  const reopened = await reopenedContext.newPage();
+  reopened.on('pageerror', (error) => errors.push(error.message));
+  await reopened.goto(savedURL);
+  await reopened.getByText('prod-value', { exact: true }).waitFor();
+  assert.equal(
+    await reopened.getByRole('dialog').count(),
+    0,
+    'Browser reopening must not prompt while its cookie is valid',
+  );
+  await reopened.getByRole('link', { name: 'Live changes', exact: true }).click();
+  await reopened.waitForURL(/\/watchers/);
+  await reopened.goBack();
+  await reopened.waitForURL(savedURL);
+  await reopened.getByText('prod-value', { exact: true }).waitFor();
+  await reopened.getByRole('button', { name: 'Connections', exact: true }).click();
+  await reopened.getByRole('button', { name: 'Disconnect all', exact: true }).click();
+  await reopened
+    .getByRole('dialog', { name: 'Disconnect all connections?' })
+    .getByRole('button', { name: 'Disconnect all', exact: true })
+    .click();
+  await reopened.getByRole('dialog').waitFor({ state: 'hidden' });
+  assert.equal(browserSessions.size, 0, 'Disconnect must revoke server sessions');
+  await reopened.goto(savedURL);
+  await reopened.getByRole('dialog', { name: 'Authenticate Production', exact: true }).waitFor();
+  assert.equal(
+    reopened.url(),
+    savedURL,
+    'Expired/revoked login must retain its requested destination',
+  );
+  assert.equal(await reopened.getByLabel('Password', { exact: true }).inputValue(), '');
+  await reopenedContext.close();
   assert.equal(errors.length, 0, errors.join('\n'));
   assert.ok(
     requests.some((request) => request.path.endsWith('/renew') && request.backend === 'dev'),
   );
   console.log(
-    'Browser smoke passed: backend-lazy folders for a 6,194-key fixture, single folder scrollbar, repeated List switches, top editor actions/refresh icon, workspace isolation/drafts, RBAC, live keys, renewal, typed confirmations and responsive layouts.',
+    'Browser smoke passed: HttpOnly remembered login, refresh/reopen restoration, real URLs/Back, logout revocation, lazy project browsing, workspace isolation/drafts, RBAC, live keys, renewal, typed confirmations and responsive layouts.',
   );
 } finally {
   await browser?.close();

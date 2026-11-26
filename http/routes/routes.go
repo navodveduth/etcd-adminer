@@ -19,6 +19,8 @@ type api struct {
 func Register(router *mux.Router, handler *handlers.Handler, authenticate func(http.HandlerFunc) http.Handler) {
 	a := api{router, handler, authenticate}
 	router.HandleFunc("/api/getconfig", handler.Settings.GetConfig).Methods(http.MethodGet, http.MethodOptions)
+	router.HandleFunc("/api/v1/sessions", handler.Sessions.List).Methods(http.MethodGet)
+	router.HandleFunc("/api/v1/sessions", handler.Sessions.Logout).Methods(http.MethodDelete)
 	a.handle("/api/auth", handler.Access.Authenticate, http.MethodPost, http.MethodOptions)
 	a.handle("/api/v1/capabilities", handler.Access.Capabilities, http.MethodGet)
 	a.keys()

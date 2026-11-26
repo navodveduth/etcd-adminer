@@ -1,8 +1,24 @@
 import axios from 'axios';
-import { SessionStore } from '../storage/session';
+import { SessionStore, recordAuthentication, invalidateRemembered } from '../storage/session';
 import { readSSE } from './sse';
 
 const api = axios.create({ timeout: 30000 });
+function expired(id) {
+  if (!id) return;
+  invalidateRemembered(id);
+  window.dispatchEvent(new CustomEvent('adminer-session-expired', { detail: { id } }));
+}
+api.interceptors?.response.use(
+  (result) => result,
+  (error) => {
+    if (error.response?.status === 401)
+      expired(
+        error.config?.headers?.get?.('X-Connection-ID') ??
+          error.config?.headers?.['X-Connection-ID'],
+      );
+    return Promise.reject(error);
+  },
+);
 const segment = (value) => encodeURIComponent(value);
 
 export default class DataService {
@@ -13,6 +29,10 @@ export default class DataService {
   requestConfig = () => {
     const session = this.sessionStore.GetActiveSession();
     if (!session) throw new Error('Select an active connection first.');
+    if (session.SessionID && session.Authenticated)
+      return { headers: { 'X-Backend': session.BackEnd, 'X-Connection-ID': session.SessionID } };
+    if (typeof session.Password !== 'string')
+      throw new Error('This login expired. Reauthenticate the saved connection.');
     return {
       auth: { username: session.UserName, password: session.Password },
       headers: { 'X-Backend': session.BackEnd },
@@ -28,20 +48,24 @@ export default class DataService {
 
   WatchChanges = async (query, onFrame, signal) => {
     const config = this.requestConfig();
-    const bytes = new TextEncoder().encode(`${config.auth.username}:${config.auth.password}`);
-    const encoded = btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(''));
+    const authorization = config.auth
+      ? {
+          Authorization: `Basic ${btoa(Array.from(new TextEncoder().encode(`${config.auth.username}:${config.auth.password}`), (byte) => String.fromCharCode(byte)).join(''))}`,
+        }
+      : {};
     const params = new URLSearchParams(
       Object.fromEntries(Object.entries(query).map(([key, value]) => [key, String(value)])),
     );
     const response = await fetch(`/api/v1/watch?${params}`, {
       headers: {
         ...config.headers,
-        Authorization: `Basic ${encoded}`,
+        ...authorization,
         Accept: 'text/event-stream',
       },
       signal,
     });
     if (!response.ok) {
+      if (response.status === 401) expired(config.headers['X-Connection-ID']);
       const data = await response
         .json()
         .catch(() => ({ message: 'Could not establish the watch.' }));
@@ -55,6 +79,8 @@ export default class DataService {
   };
 
   GetConfig = async (signal) => (await api.get('/api/getconfig', { signal })).data;
+  GetSessions = async (signal) => (await api.get('/api/v1/sessions', { signal })).data;
+  Logout = async (id) => api.delete('/api/v1/sessions', { ...(id ? { params: { id } } : {}) });
   GetFolderPage = async (params, signal) =>
     (await api.get('/api/v1/folders', { ...this.requestConfig(), params, signal })).data;
 
@@ -75,13 +101,15 @@ export default class DataService {
   TransferBatch = async (batch, signal) =>
     (await api.post('/api/v1/transfer/batch', batch, { ...this.requestConfig(), signal })).data;
 
-  TestConnection = async (username, password, backend, signal) => {
+  TestConnection = async (username, password, backend, signal, options) => {
     try {
-      await api.post('/api/auth', null, {
+      const result = await api.post('/api/auth', options ?? null, {
         auth: { username, password },
         headers: { 'X-Backend': backend },
         signal,
       });
+      this.lastAuthentication = result?.data;
+      if (options?.profile) recordAuthentication(options.profile, result?.data?.session);
       return true;
     } catch (error) {
       const { status, data } = error.response ?? {};

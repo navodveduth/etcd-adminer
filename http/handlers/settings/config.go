@@ -14,6 +14,7 @@ func (jh *Handler) GetConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cfg := response.GetConfig{Clusters: []response.Cluster{}, ReadOnly: config.AppConfig.HTTP.ReadOnly}
+	cfg.RememberSessions = jh.Sessions != nil && jh.Sessions.Available(r)
 
 	for _, cluster := range config.AppConfig.ETCD {
 		cfg.Clusters = append(cfg.Clusters, response.Cluster{

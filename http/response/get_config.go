@@ -5,6 +5,7 @@ type Cluster struct {
 	Endpoints []string `json:"endpoints"`
 }
 type GetConfig struct {
-	Clusters []Cluster `json:"clusters"`
-	ReadOnly bool      `json:"readOnly"`
+	Clusters         []Cluster `json:"clusters"`
+	ReadOnly         bool      `json:"readOnly"`
+	RememberSessions bool      `json:"rememberSessions"`
 }

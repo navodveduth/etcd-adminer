@@ -20,22 +20,40 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { useReadOnly } from '../../readOnly';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { patchKeyPage, reconnectDelay } from '../../data/liveKeys';
 import { EmptyState, ErrorState, PageHeader, StatusBadge } from '../shared/page';
 import ConfirmationDialog from '../dialogs/confirmationDialog';
 import { useWorkspaceActivity } from '../../data/activity';
 
 export default function Keys() {
+  const [params, setParams] = useSearchParams();
+  const queryPrefix = (params.get('prefix') ?? '').slice(0, 8192);
+  const queryKey = params.get('key')?.slice(0, 8192) || null;
+  const queryView = params.get('view') === 'list' ? 1 : 0;
+  const updateQuery = useCallback(
+    (name, value) => {
+      setParams(
+        (previous) => {
+          const next = new URLSearchParams(previous);
+          if (value) next.set(name, value);
+          else next.delete(name);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setParams],
+  );
   const widthID = useId();
   const readOnly = useReadOnly();
   const service = useDataService();
-  const [activeKey, setActiveKey] = useState(null);
+  const [activeKey, setActiveKey] = useState(queryKey);
   const [isNewKey, setIsNewKey] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [view, setView] = useState(0);
-  const [prefixInput, setPrefixInput] = useState('');
-  const [prefix, setPrefix] = useState('');
+  const [view, setView] = useState(queryView);
+  const [prefixInput, setPrefixInput] = useState(queryPrefix);
+  const [prefix, setPrefix] = useState(queryPrefix);
   const [prefixComposing, setPrefixComposing] = useState(false);
   const prefixPending = prefixComposing || prefixInput !== prefix;
   const [cursor, setCursor] = useState(null);
@@ -60,15 +78,45 @@ export default function Keys() {
   activeKeyRef.current = activeKey;
   const pageRef = useRef(page);
   pageRef.current = page;
+  const locationState = useRef({ prefix: queryPrefix, key: queryKey, view: queryView });
+  const editingState = useRef({ activeKey, dirty });
+  editingState.current = { activeKey, dirty };
+  const cancelLocationKey = useRef(undefined);
+  useEffect(() => {
+    const previous = locationState.current;
+    locationState.current = { prefix: queryPrefix, key: queryKey, view: queryView };
+    if (previous.prefix !== queryPrefix) {
+      setPrefixInput(queryPrefix);
+      setPrefix(queryPrefix);
+      setCursor(null);
+    }
+    if (previous.view !== queryView) {
+      setView(queryView);
+      setCursor(null);
+      setLoading(true);
+    }
+    if (previous.key !== queryKey && editingState.current.activeKey !== queryKey) {
+      const apply = () => {
+        setIsNewKey(false);
+        setActiveKey(queryKey);
+      };
+      if (editingState.current.dirty) {
+        cancelLocationKey.current = previous.key;
+        setPendingAction(() => apply);
+      } else apply();
+    }
+  }, [queryPrefix, queryKey, queryView]);
 
   useEffect(() => {
     if (prefixComposing || prefixInput === prefix) return;
     const timer = setTimeout(() => {
       setCursor(null);
       setPrefix(prefixInput);
+      locationState.current.prefix = prefixInput;
+      updateQuery('prefix', prefixInput);
     }, 350);
     return () => clearTimeout(timer);
-  }, [prefixInput, prefix, prefixComposing]);
+  }, [prefixInput, prefix, prefixComposing, updateQuery]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -198,11 +246,13 @@ export default function Keys() {
       setPendingAction(() => () => {
         setIsNewKey(drafts.some((item) => item.key === key && !item.isDirectory));
         setActiveKey(key);
+        updateQuery('key', key);
       });
       return;
     }
     setIsNewKey(drafts.some((item) => item.key === key && !item.isDirectory));
     setActiveKey(key);
+    updateQuery('key', key);
   };
 
   const createDraft = (key, isDirectory, confirmed = false) => {
@@ -237,6 +287,7 @@ export default function Keys() {
       setDrafts((items) => items.filter((item) => item.key !== node.abspath));
       if (deletingSelection) {
         setActiveKey(null);
+        updateQuery('key', null);
         setIsNewKey(false);
         setDirty(false);
       }
@@ -251,6 +302,7 @@ export default function Keys() {
   const onSaved = (key) => {
     setDrafts((items) => items.filter((item) => item.key !== key));
     setIsNewKey(false);
+    updateQuery('key', key);
     restart();
   };
 
@@ -353,6 +405,8 @@ export default function Keys() {
                   setPage({ items: [], hasMore: false, revision: '0' });
                   setCursor(null);
                   setView(value);
+                  locationState.current.view = value;
+                  updateQuery('view', value === 1 ? 'list' : null);
                 }}
                 aria-label="Key view"
                 sx={{ flex: 1, minWidth: 0 }}
@@ -395,6 +449,8 @@ export default function Keys() {
                     event.preventDefault();
                     setCursor(null);
                     setPrefix(prefixInput);
+                    locationState.current.prefix = prefixInput;
+                    updateQuery('prefix', prefixInput);
                   }
                 }}
                 helperText={
@@ -566,10 +622,17 @@ export default function Keys() {
         title="Discard unsaved changes?"
         content="The current editor draft will be discarded before continuing. Your saved value is not changed by discarding the draft."
         confirmLabel="Discard and continue"
-        onCancel={() => setPendingAction(null)}
+        onCancel={() => {
+          setPendingAction(null);
+          if (cancelLocationKey.current !== undefined) {
+            updateQuery('key', cancelLocationKey.current);
+            cancelLocationKey.current = undefined;
+          }
+        }}
         onConfirm={() => {
           const action = pendingAction;
           setPendingAction(null);
+          cancelLocationKey.current = undefined;
           action?.();
         }}
       />

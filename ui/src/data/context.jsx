@@ -4,6 +4,11 @@ import DataService from './service';
 export const DataServiceContext = createContext(null);
 export const CapabilityContext = createContext(null);
 export const WorkspaceActiveContext = createContext(true);
+export const RememberSessionsContext = createContext(true);
+export const WorkspacePathsContext = createContext({});
+export function useRememberSessions() {
+  return useContext(RememberSessionsContext);
+}
 export function useDataService() {
   const service = useContext(DataServiceContext);
   return useMemo(() => service ?? new DataService(), [service]);

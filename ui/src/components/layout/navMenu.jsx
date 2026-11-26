@@ -8,7 +8,8 @@ import TimerOutlinedIcon from '@mui/icons-material/TimerOutlined';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
 import SensorsIcon from '@mui/icons-material/Sensors';
 import { NavLink } from 'react-router-dom';
-import { useCapabilities } from '../../data/context';
+import { useContext } from 'react';
+import { useCapabilities, WorkspacePathsContext } from '../../data/context';
 
 const groups = [
   { label: 'Browse', items: [{ path: 'keys', label: 'Keys', icon: DataObjectIcon }] },
@@ -38,6 +39,7 @@ const groups = [
 
 export default function NavMenu({ workspace = false, onNavigate }) {
   const capabilities = useCapabilities();
+  const paths = useContext(WorkspacePathsContext);
   return (
     <Box sx={{ py: 1 }}>
       {groups.map((group) => (
@@ -54,7 +56,7 @@ export default function NavMenu({ workspace = false, onNavigate }) {
               <ListItemButton
                 key={path}
                 component={NavLink}
-                to={`/${path}`}
+                to={paths[`/${path}`] ?? `/${path}`}
                 onClick={onNavigate}
                 title={
                   workspace && admin && !capabilities?.administrator

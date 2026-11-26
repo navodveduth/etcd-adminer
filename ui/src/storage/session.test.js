@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { Session, SessionStore } from './session';
+import { Session, SessionStore, recordAuthentication } from './session';
 
 describe('SessionStore', () => {
   it('tolerates empty, corrupt, and invalid saved profiles', () => {
@@ -69,5 +69,72 @@ describe('SessionStore', () => {
     vi.resetModules();
     const { SessionStore: ReloadedStore } = await import('./session');
     expect(new ReloadedStore().GetActiveSession()).toBeUndefined();
+  });
+
+  it('keeps remembered passwords out of memory profiles/storage and reconfirms references after reload', async () => {
+    const store = new SessionStore();
+    const info = {
+      id: 'public-reference',
+      profile: 'remembered',
+      backend: 'prod',
+      user: 'alice',
+      expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
+    };
+    recordAuthentication('remembered', info);
+    store.Add(new Session('remembered', 'prod', [], 'alice', 'never-store-me'));
+    store.SetActiveSession({ Name: 'remembered' });
+    expect(store.GetActiveSession().Authenticated).toBe(true);
+    expect(store.GetActiveSession()).not.toHaveProperty('Password');
+    expect(localStorage.getItem('sessions')).not.toContain('never-store-me');
+    expect(localStorage.getItem('sessions')).not.toContain('Password');
+    vi.resetModules();
+    const { SessionStore: ReloadedStore } = await import('./session');
+    const reloaded = new ReloadedStore();
+    expect(reloaded.GetActiveSession()).toBeUndefined();
+    reloaded.RestoreRemembered([info]);
+    expect(reloaded.GetActiveSession().SessionID).toBe(info.id);
+    expect(reloaded.GetActiveSession()).not.toHaveProperty('Password');
+    reloaded.RestoreRemembered([]);
+    expect(reloaded.GetActiveSession()).toBeUndefined();
+  });
+
+  it('rejects forged metadata, other identities and expired remembered references', () => {
+    const store = new SessionStore();
+    const info = {
+      id: 'reference',
+      profile: 'saved',
+      backend: 'prod',
+      user: 'alice',
+      expiresAt: new Date(Date.now() + 10000).toISOString(),
+    };
+    localStorage.setItem(
+      'sessions',
+      JSON.stringify({
+        saved: {
+          Name: 'saved',
+          BackEnd: 'prod',
+          UserName: 'root',
+          SessionID: info.id,
+          isActive: true,
+        },
+      }),
+    );
+    store.RestoreRemembered([info]);
+    expect(store.Get('saved').Authenticated).toBe(false);
+    localStorage.setItem(
+      'sessions',
+      JSON.stringify({
+        saved: {
+          Name: 'saved',
+          BackEnd: 'prod',
+          UserName: 'alice',
+          SessionID: info.id,
+          isActive: true,
+        },
+      }),
+    );
+    expect(store.Get('saved').Authenticated).toBe(true);
+    store.RestoreRemembered([{ ...info, expiresAt: new Date(Date.now() - 1).toISOString() }]);
+    expect(store.GetActiveSession()).toBeUndefined();
   });
 });

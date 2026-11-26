@@ -9,6 +9,7 @@ const { authenticate } = vi.hoisted(() => ({ authenticate: vi.fn() }));
 vi.mock('../../data/service', () => ({
   default: class {
     TestConnection = authenticate;
+    Logout = async () => {};
   },
 }));
 
@@ -39,6 +40,7 @@ it('reauthenticates saved metadata without storing the password and supports dis
     'ephemeral-password',
     'cluster',
     expect.any(AbortSignal),
+    { profile: 'saved', remember: true },
   );
   expect(localStorage.getItem('sessions')).not.toContain('ephemeral-password');
   await user.click(await screen.findByRole('button', { name: 'Disconnect all' }));
@@ -48,7 +50,7 @@ it('reauthenticates saved metadata without storing the password and supports dis
       { name: 'Disconnect all' },
     ),
   );
-  expect(store.GetActiveSession()).toBeUndefined();
+  await waitFor(() => expect(store.GetActiveSession()).toBeUndefined());
 });
 
 it('shows searchable profile cards with a safe actions menu', async () => {

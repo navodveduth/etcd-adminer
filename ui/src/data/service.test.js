@@ -14,6 +14,36 @@ const service = new DataService({ GetActiveSession: () => session });
 beforeEach(() => vi.resetAllMocks());
 
 describe('DataService', () => {
+  it('uses the cookie-bound reference instead of sending a remembered password', async () => {
+    const remembered = new DataService({
+      GetActiveSession: () => ({
+        Name: 'saved',
+        BackEnd: 'prod',
+        UserName: 'alice',
+        SessionID: 'reference',
+        Authenticated: true,
+      }),
+    });
+    api.get.mockResolvedValue({ data: {} });
+    await remembered.GetFolderPage({ prefix: '' });
+    expect(api.get).toHaveBeenLastCalledWith(
+      '/api/v1/folders',
+      expect.objectContaining({ headers: { 'X-Backend': 'prod', 'X-Connection-ID': 'reference' } }),
+    );
+    expect(api.get.mock.calls[0][1]).not.toHaveProperty('auth');
+  });
+
+  it('restores and revokes browser sessions without exposing credentials', async () => {
+    api.get.mockResolvedValue({ data: { connections: [] } });
+    api.delete.mockResolvedValue({ status: 204 });
+    const signal = new AbortController().signal;
+    await service.GetSessions(signal);
+    expect(api.get).toHaveBeenCalledWith('/api/v1/sessions', { signal });
+    await service.Logout('reference');
+    expect(api.delete).toHaveBeenCalledWith('/api/v1/sessions', { params: { id: 'reference' } });
+    await service.Logout();
+    expect(api.delete).toHaveBeenLastCalledWith('/api/v1/sessions', {});
+  });
   it('passes folder prefix, cursor and cancellation using caller-scoped credentials', async () => {
     const page = { items: [], revision: '7', hasMore: false };
     api.get.mockResolvedValue({ data: page });

@@ -22,21 +22,50 @@ import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
 import { EmptyState } from './components/shared/page';
 import { MemoryRouter, Navigate, Route, Routes } from 'react-router-dom';
 import DataService from './data/service';
+import { RememberSessionsContext } from './data/context';
 import { ReadOnlyContext } from './readOnly';
 import { SessionStore } from './storage/session';
 import Workspace from './workspaces';
 import WorkspaceTabs from './components/layout/workspaceTabs';
 import { WorkspaceActivity } from './data/activity';
+import {
+  LocationBridge,
+  navigateBrowser,
+  parseLocation,
+  readNavigation,
+  saveNavigation,
+  useBrowserLocation,
+  workspaceURL,
+} from './navigation';
 import Connection from './components/connections/connection';
 
 const NewConnection = lazy(() => import('./components/connections/newConnection'));
 const About = lazy(() => import('./components/about'));
 
 function Shell({ mode, toggleMode }) {
-  const [page, setPage] = useState('connection');
+  const browserLocation = useBrowserLocation();
+  const route = parseLocation(browserLocation);
+  const saved = useRef(readNavigation());
+  const locations = useRef(saved.current.paths);
+  if (route.kind === 'workspace' && !locations.current.has(route.profile))
+    locations.current.set(route.profile, route.path);
   const [connectionPageVersion, setConnectionPageVersion] = useState(0);
   const store = useMemo(() => new SessionStore(), []);
-  const [workspaces, setWorkspaces] = useState([]);
+  const [workspaces, setWorkspaces] = useState(() => {
+    const names = [
+      ...new Set([...saved.current.open, ...(route.kind === 'workspace' ? [route.profile] : [])]),
+    ];
+    return names
+      .filter((name) => store.Get(name)?.Authenticated)
+      .slice(-4)
+      .map((name, index) => {
+        const profile = store.Get(name);
+        return {
+          id: `workspace-${index + 1}`,
+          profile: { Name: profile.Name, BackEnd: profile.BackEnd, UserName: profile.UserName },
+        };
+      });
+  });
   const [active, setActive] = useState('');
   const [notice, setNotice] = useState('');
   const [help, setHelp] = useState(false);
@@ -45,7 +74,74 @@ function Shell({ mode, toggleMode }) {
   const workspaceIDs = useRef(new Set());
   // IDs only identify in-memory tabs, not credentials or persistent records.
   // A counter also works on HTTP origins without secure-context Web Crypto APIs.
-  const nextWorkspaceID = useRef(0);
+  const nextWorkspaceID = useRef(workspaces.length);
+  const selected =
+    route.kind === 'workspace'
+      ? workspaces.find((workspace) => workspace.profile.Name === route.profile)
+      : null;
+  const page =
+    route.kind === 'workspace' && selected
+      ? 'workspace'
+      : route.kind === 'about'
+        ? 'about'
+        : 'connection';
+  const setPage = (value) => {
+    if (value === 'workspace') {
+      const workspace = workspaces.find((item) => item.id === active);
+      if (workspace)
+        navigateBrowser(
+          workspaceURL(workspace.profile.Name, locations.current.get(workspace.profile.Name)),
+        );
+    } else navigateBrowser(value === 'about' ? '/about' : '/connection');
+  };
+  const workspaceLocationChanged = useCallback((name, path, options) => {
+    locations.current.set(name, path);
+    if (options.active && !options.fromBrowser)
+      navigateBrowser(workspaceURL(name, path), { replace: options.replace });
+  }, []);
+  const connectionLocationChanged = useCallback((path, options) => {
+    if (!options.fromBrowser) navigateBrowser(path, { replace: options.replace });
+  }, []);
+  useEffect(() => {
+    if (window.location.pathname === '/' && parseLocation(saved.current.last).kind === 'workspace')
+      navigateBrowser(saved.current.last, { replace: true });
+  }, []);
+  useEffect(() => {
+    saveNavigation(
+      workspaces.map((workspace) => workspace.profile.Name),
+      locations.current,
+      browserLocation,
+    );
+  }, [workspaces, browserLocation]);
+  useEffect(() => {
+    const reconcile = () => {
+      setWorkspaces((current) =>
+        current.filter((workspace) => store.Get(workspace.profile.Name)?.Authenticated),
+      );
+      setConnectionPageVersion((value) => value + 1);
+    };
+    const expired = () => {
+      setNotice(
+        'This remembered login expired or was revoked. Reauthenticate to return to your page.',
+      );
+      reconcile();
+    };
+    const changed = (event) => {
+      if (event.key !== 'auth-revocation') return;
+      try {
+        store.ForgetRuntime(JSON.parse(event.newValue).profile);
+        reconcile();
+      } catch {
+        /* Ignore malformed notifications. */
+      }
+    };
+    window.addEventListener('adminer-session-expired', expired);
+    window.addEventListener('storage', changed);
+    return () => {
+      window.removeEventListener('adminer-session-expired', expired);
+      window.removeEventListener('storage', changed);
+    };
+  }, [store]);
   workspaceIDs.current = new Set(workspaces.map((workspace) => workspace.id));
   const activityChanged = useCallback((id, kind, label) => {
     if (!workspaceIDs.current.has(id)) return;
@@ -64,8 +160,8 @@ function Shell({ mode, toggleMode }) {
     });
   }, [workspaces]);
   useEffect(() => {
-    if (page === 'workspace' && active) document.getElementById(`tab-${active}`)?.focus();
-  }, [active, page]);
+    if (page === 'workspace' && selected) document.getElementById(`tab-${selected.id}`)?.focus();
+  }, [selected, page]);
   const managing = page !== 'workspace';
   const sessionChanged = ({ open = true, replaced } = {}) => {
     const profile = store.GetActiveSession();
@@ -73,7 +169,7 @@ function Shell({ mode, toggleMode }) {
       if (previous.Name === replaced) return false;
       const current = store.Get(previous.Name);
       return (
-        current?.Password !== undefined &&
+        (current?.Authenticated || current?.Password !== undefined) &&
         current.BackEnd === previous.BackEnd &&
         current.UserName === previous.UserName
       );
@@ -111,7 +207,7 @@ function Shell({ mode, toggleMode }) {
       ]);
       setActive(id);
     }
-    setPage('workspace');
+    navigateBrowser(workspaceURL(profile.Name, locations.current.get(profile.Name)));
   };
   const close = (id) => {
     setClosing(workspaces.find((item) => item.id === id) ?? null);
@@ -121,6 +217,12 @@ function Shell({ mode, toggleMode }) {
     const retained = workspaces.filter((item) => item.id !== id);
     setWorkspaces(retained);
     if (active === id) setActive(retained[0]?.id ?? '');
+    if (selected?.id === id)
+      navigateBrowser(
+        retained.length
+          ? workspaceURL(retained[0].profile.Name, locations.current.get(retained[0].profile.Name))
+          : '/connection',
+      );
     setClosing(null);
   };
   useEffect(() => {
@@ -134,7 +236,9 @@ function Shell({ mode, toggleMode }) {
         if (workspace) {
           event.preventDefault();
           setActive(workspace.id);
-          setPage('workspace');
+          navigateBrowser(
+            workspaceURL(workspace.profile.Name, locations.current.get(workspace.profile.Name)),
+          );
         }
       }
     };
@@ -212,10 +316,14 @@ function Shell({ mode, toggleMode }) {
         <WorkspaceTabs
           workspaces={workspaces}
           activities={activities}
-          active={managing ? '' : active}
+          active={managing ? '' : (selected?.id ?? '')}
           onChange={(id) => {
             setActive(id);
-            setPage('workspace');
+            const workspace = workspaces.find((item) => item.id === id);
+            if (workspace)
+              navigateBrowser(
+                workspaceURL(workspace.profile.Name, locations.current.get(workspace.profile.Name)),
+              );
           }}
           onClose={close}
           onConnections={() => setPage('connection')}
@@ -227,11 +335,28 @@ function Shell({ mode, toggleMode }) {
         )}
         <Suspense fallback={<CircularProgress aria-label="Loading page" />}>
           {page === 'connection' && (
-            <MemoryRouter key={connectionPageVersion} initialEntries={['/connection']}>
+            <MemoryRouter
+              key={connectionPageVersion}
+              initialEntries={[route.kind === 'connection' ? route.path : '/connection']}
+            >
+              {route.kind === 'connection' && (
+                <LocationBridge externalPath={route.path} onChange={connectionLocationChanged} />
+              )}
+              {route.kind === 'workspace' && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Authenticate {route.profile} to return to the requested page. Passwords are never
+                  stored in browser storage.
+                </Alert>
+              )}
               <Routes>
                 <Route
                   path="/connection"
-                  element={<Connection onSessionChange={sessionChanged} />}
+                  element={
+                    <Connection
+                      onSessionChange={sessionChanged}
+                      initialProfile={route.kind === 'workspace' ? route.profile : undefined}
+                    />
+                  }
                 />
                 <Route
                   path="/connection/new"
@@ -260,12 +385,21 @@ function Shell({ mode, toggleMode }) {
             id={`panel-${workspace.id}`}
             role="tabpanel"
             aria-labelledby={`tab-${workspace.id}`}
-            hidden={managing || active !== workspace.id}
+            hidden={managing || selected?.id !== workspace.id}
           >
             <WorkspaceActivity id={workspace.id} onChange={activityChanged}>
               <Workspace
                 profile={workspace.profile}
-                active={!managing && active === workspace.id}
+                active={!managing && selected?.id === workspace.id}
+                initialPath={locations.current.get(workspace.profile.Name) ?? '/keys'}
+                browserPath={
+                  route.kind === 'workspace' && route.profile === workspace.profile.Name
+                    ? route.path
+                    : locations.current.get(workspace.profile.Name)
+                }
+                onLocationChange={(path, options) =>
+                  workspaceLocationChanged(workspace.profile.Name, path, options)
+                }
               />
             </WorkspaceActivity>
           </Box>
@@ -361,6 +495,8 @@ export default function App() {
   const service = useMemo(() => new DataService(), []);
   const [readOnly, setReadOnly] = useState(true);
   const [settingsError, setSettingsError] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [rememberSessions, setRememberSessions] = useState(false);
   const [mode, setMode] = useState(() => {
     try {
       return localStorage.getItem('themeMode') === 'light' ? 'light' : 'dark';
@@ -429,10 +565,24 @@ export default function App() {
     service
       .GetConfig(controller.signal)
       .then((settings) => {
-        if (!controller.signal.aborted) setReadOnly(settings.readOnly !== false);
+        if (!controller.signal.aborted) {
+          setReadOnly(settings.readOnly !== false);
+          setRememberSessions(settings.rememberSessions === true);
+        }
       })
       .catch(() => {
         if (!controller.signal.aborted) setSettingsError(true);
+      });
+    service
+      .GetSessions(controller.signal)
+      .then((data) => {
+        if (!controller.signal.aborted) new SessionStore().RestoreRemembered(data.connections);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) new SessionStore().RestoreRemembered([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setSessionReady(true);
       });
     return () => controller.abort();
   }, [service]);
@@ -447,20 +597,26 @@ export default function App() {
               : 'Read-only instance: mutations are disabled.'}
           </Alert>
         )}
-        <Shell
-          mode={mode}
-          toggleMode={() =>
-            setMode((previous) => {
-              const next = previous === 'dark' ? 'light' : 'dark';
-              try {
-                localStorage.setItem('themeMode', next);
-              } catch {
-                /* Memory-only preference. */
+        <RememberSessionsContext.Provider value={rememberSessions}>
+          {sessionReady ? (
+            <Shell
+              mode={mode}
+              toggleMode={() =>
+                setMode((previous) => {
+                  const next = previous === 'dark' ? 'light' : 'dark';
+                  try {
+                    localStorage.setItem('themeMode', next);
+                  } catch {
+                    /* Memory-only preference. */
+                  }
+                  return next;
+                })
               }
-              return next;
-            })
-          }
-        />
+            />
+          ) : (
+            <CircularProgress aria-label="Restoring session" />
+          )}
+        </RememberSessionsContext.Provider>
       </ReadOnlyContext.Provider>
     </ThemeProvider>
   );

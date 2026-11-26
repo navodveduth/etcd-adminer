@@ -26,8 +26,10 @@ import (
 	"github.com/srimaln91/etcd-adminer/etcd"
 	"github.com/srimaln91/etcd-adminer/http/handlers"
 	"github.com/srimaln91/etcd-adminer/http/handlers/access"
+	"github.com/srimaln91/etcd-adminer/http/middlewares"
 	"github.com/srimaln91/etcd-adminer/http/request"
 	"github.com/srimaln91/etcd-adminer/http/response"
+	"github.com/srimaln91/etcd-adminer/http/routes"
 	"github.com/srimaln91/etcd-adminer/internal/keyspace"
 	"github.com/srimaln91/etcd-adminer/log"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
@@ -663,6 +665,103 @@ func TestRBACIntegration(t *testing.T) {
 		}
 		if w := list("root", "/folder-fixture/", first.NextCursor, "1", features.Keys.ListFolder); w.Code != 409 {
 			t.Fatalf("compacted folder cursor: %d %s", w.Code, w.Body.String())
+		}
+	})
+	t.Run("remembered browser sessions preserve RBAC and revoke in read-only mode", func(t *testing.T) {
+		if _, err := admin.Put(ctx, "/browser-fixture/key", "value"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := admin.UserAdd(ctx, "browser-reader", password); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := admin.RoleAdd(ctx, "browser-reader"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := admin.RoleGrantPermission(ctx, "browser-reader", "/browser-fixture/", clientv3.GetPrefixRangeEnd("/browser-fixture/"), clientv3.PermissionType(clientv3.PermRead)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := admin.UserGrantRole(ctx, "browser-reader", "browser-reader"); err != nil {
+			t.Fatal(err)
+		}
+		router := mux.NewRouter()
+		router.Use(middlewares.SameOrigin(""))
+		router.Use(middlewares.ReadOnly(true))
+		routes.Register(router, features, middlewares.NewRequestValidateMiddleware(provider, features.Sessions).ValidateRequest)
+		call := func(method, target, user, body, origin, id string, cookie *http.Cookie) *httptest.ResponseRecorder {
+			r := httptest.NewRequest(method, target, strings.NewReader(body))
+			r.Header.Set("Origin", origin)
+			r.Header.Set("Content-Type", "application/json")
+			r.Header.Set("X-Backend", "test")
+			r.Header.Set("X-Connection-ID", id)
+			if user != "" {
+				r.SetBasicAuth(user, password)
+			}
+			if cookie != nil {
+				r.AddCookie(cookie)
+			}
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, r)
+			return w
+		}
+		type result struct {
+			Session struct {
+				ID string `json:"id"`
+			} `json:"session"`
+		}
+		login := call("POST", "http://localhost/api/auth", "browser-reader", `{"profile":"reader","remember":true}`, "http://localhost", "", nil)
+		if login.Code != 200 {
+			t.Fatalf("login: %d %s", login.Code, login.Body.String())
+		}
+		var reader result
+		if err := json.Unmarshal(login.Body.Bytes(), &reader); err != nil {
+			t.Fatal(err)
+		}
+		cookie := login.Result().Cookies()[0]
+		if !cookie.HttpOnly || cookie.MaxAge != 604800 || cookie.SameSite != http.SameSiteStrictMode {
+			t.Fatal("unsafe remembered cookie")
+		}
+		if w := call("GET", "http://localhost/api/v1/keys?prefix=%2Fbrowser-fixture%2F", "", "", "", reader.Session.ID, cookie); w.Code != 200 {
+			t.Fatalf("cookie read: %d %s", w.Code, w.Body.String())
+		}
+		if w := call("GET", "http://localhost/api/v1/roles", "", "", "", reader.Session.ID, cookie); w.Code != 403 {
+			t.Fatalf("reader gained admin access: %d", w.Code)
+		}
+		rootLogin := call("POST", "http://localhost/api/auth", "root", `{"profile":"root","remember":true}`, "http://localhost", "", cookie)
+		var root result
+		if err := json.Unmarshal(rootLogin.Body.Bytes(), &root); err != nil {
+			t.Fatal(err)
+		}
+		cookie = rootLogin.Result().Cookies()[0]
+		if w := call("GET", "http://localhost/api/v1/roles", "", "", "", root.Session.ID, cookie); w.Code != 200 {
+			t.Fatalf("root session: %d %s", w.Code, w.Body.String())
+		}
+		if w := call("GET", "http://localhost/api/v1/roles", "", "", "", reader.Session.ID, cookie); w.Code != 403 {
+			t.Fatal("root login elevated another workspace")
+		}
+		if w := call("GET", "http://localhost/api/v1/sessions", "", "", "", "", cookie); w.Code != 200 || strings.Contains(w.Body.String(), password) || strings.Contains(w.Body.String(), cookie.Value) {
+			t.Fatal("session metadata leaked credentials")
+		}
+		if w := call("DELETE", "http://localhost/api/v1/sessions?id="+reader.Session.ID, "", "", "https://attacker.example", "", cookie); w.Code != 403 {
+			t.Fatal("cross-origin logout accepted")
+		}
+		if w := call("DELETE", "http://localhost/api/v1/sessions?id="+reader.Session.ID, "", "", "http://localhost", "", cookie); w.Code != 204 {
+			t.Fatalf("read-only logout rejected: %d", w.Code)
+		}
+		if w := call("GET", "http://localhost/api/v1/keys", "", "", "", reader.Session.ID, cookie); w.Code != 401 {
+			t.Fatal("revoked reference still authenticates")
+		}
+		if w := call("GET", "http://localhost/api/v1/roles", "", "", "", root.Session.ID, cookie); w.Code != 200 {
+			t.Fatal("logout affected unrelated workspace")
+		}
+		if w := call("DELETE", "http://localhost/api/v1/sessions", "", "", "http://localhost", "", cookie); w.Code != 204 {
+			t.Fatal("logout all failed")
+		}
+		if w := call("GET", "http://localhost/api/v1/roles", "", "", "", root.Session.ID, cookie); w.Code != 401 {
+			t.Fatal("logout all not revoked")
+		}
+		insecure := call("POST", "http://remote.internal/api/auth", "root", `{"profile":"http","remember":true}`, "http://remote.internal", "", nil)
+		if insecure.Code != 200 || len(insecure.Result().Cookies()) != 0 || !strings.Contains(insecure.Body.String(), "requires HTTPS") {
+			t.Fatal("persistent credentials allowed on remote HTTP")
 		}
 	})
 	t.Run("bounded pages retain their snapshot and reject altered cursors", func(t *testing.T) {
