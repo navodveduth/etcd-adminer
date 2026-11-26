@@ -1,9 +1,48 @@
-# Web based admin interface for ETCD (https://etcd.io)
+# ETCD Adminer
 
-## Screenshot
-![image info](./resources/screenshot.png)
+A web interface for [etcd](https://etcd.io), with caller-scoped RBAC, safe key
+editing, lazy project browsing, remembered logins and isolated workspaces.
+
+## Features
+
+| Area            | Features                                                                                                                                                                                        |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Connections     | Named profiles, server-configured backends, connection diagnostics, password-manager autofill, optional 7-day remembered login, per-profile revocation and Disconnect all                       |
+| Navigation      | Up to four isolated workspaces, real bookmarkable URLs, browser Back/Forward, refresh/reopen restoration, saved prefix/List view/selected key, keyboard shortcuts                               |
+| Key browsing    | Backend immediate-child folder discovery, project-scoped subtree prefetch, lazy branch rendering, bounded List pagination, automatic debounced server-side prefix queries, one folder scrollbar |
+| Editor          | YAML/JSON/text, JSON formatting, exact full-path creation, revision-checked create/update, conflict-safe drafts, copy/reload, lease preservation/attachment/removal, right-aligned actions      |
+| Bulk operations | Bounded export/import, preview, exact-key batches, create-only folder duplication, typed destructive confirmations, cancellation and explicit partial-outcome reporting                         |
+| Live data       | Exact/prefix SSE watches, optional List-prefix updates, revision-based reconnect/resync warnings, separate live-change workspace page                                                           |
+| Leases          | TTL inspection, create, one-shot renewal, optional bounded workspace auto-renewal, typed revocation confirmation                                                                                |
+| Administration  | Caller-owned user/role management, permission inspection, protected-account guards, cluster inventory and partial maintenance metrics                                                           |
+| Safety          | Per-request etcd authorization, fail-closed capability hints, server-enforced read-only mode, same-origin/CSRF protection, bounded reads, non-root runtime, verified etcd TLS/mTLS              |
+| UI              | Original blue palette, light/dark themes, responsive layouts, adjustable browser width, accessible navigation, draft/background-task indicators                                                 |
+
+Limits and behavior are detailed below. Remembered login does not grant additional
+etcd permissions, and stopping a browser task cannot undo already committed writes.
+
+## Screenshots
+
+Captured from the production UI with deterministic demo API fixtures, not real
+cluster data or login credentials.
+
+### Connections
+
+![Saved connection cards in the dark blue theme](resources/screenshots/connections-dark.png)
+
+### Folder browser and editor
+
+![Project folder browser with right-aligned editor actions](resources/screenshots/keys-folder-dark.png)
+
+### List view in the light theme
+
+![Paginated key list and value editor in the light theme](resources/screenshots/keys-list-light.png)
+
+To regenerate these screenshots safely, run `UPDATE_SCREENSHOTS=1 npm run test:browser`
+from `ui/`. This uses only the simulated API fixture; it never connects to configured etcd backends.
 
 ## Configuration
+
 The application configuration uses YAML; start from [config.default.yaml](config.default.yaml).
 
 ```yaml
@@ -14,12 +53,13 @@ logger:
   level: "INFO"
 
 etcd:
-- name: "LOCAL"
-  endpoints:
-    - "http://127.0.0.1:23791"
-    - "http://127.0.0.1:23792"
-    - "http://127.0.0.1:23793"
+  - name: "LOCAL"
+    endpoints:
+      - "http://127.0.0.1:23791"
+      - "http://127.0.0.1:23792"
+      - "http://127.0.0.1:23793"
 ```
+
 ## How to run
 
 ### Local development cluster
@@ -52,7 +92,29 @@ disposable containers and never use these volumes.
 
 ### Using Docker
 
-#### Run the latest version using the publicly hosted image
+#### Build this checkout
+
+The features documented here describe this source checkout. Build it rather than
+assuming an older registry tag or the legacy upstream image includes these changes.
+
+```sh
+docker build -t etcd-adminer:local .
+docker run -d --name etcd-adminer \
+  --read-only --cap-drop=ALL --security-opt=no-new-privileges \
+  -p 127.0.0.1:8080:8080 \
+  -v /absolute/path/to/config.yaml:/app/config.yaml:ro \
+  etcd-adminer:local
+```
+
+The image runs as a non-root user. The default configuration is only a template;
+provide endpoints reachable from the container. Expose deployed instances through
+an HTTPS reverse proxy, not an unrestricted public HTTP listener.
+
+#### Legacy upstream image
+
+The original upstream image is available below, but is not a release guarantee
+for the features in this checkout:
+
 ```bash
 docker run -d --name etcd-adminer -p 8080:8080 srimaln91/etcd-adminer:latest
 ```
@@ -72,6 +134,7 @@ docker run -d --name etcd-adminer -p 8080:8080 -v /path/to/config.yaml:/app/conf
 ### Build and run
 
 #### Backend API
+
 Requires Go 1.27.4 (the version declared in `go.mod`).
 
 ```bash
@@ -97,6 +160,7 @@ It does not use your configured cluster or mount any host etcd data.
 #### React UI
 
 The project uses React with Vite. Use Node.js 24.22.3 (`ui/.nvmrc`).
+
 ```bash
 cd ./ui
 
@@ -143,8 +207,20 @@ workspace binds requests to its own backend/user and keeps its own navigation,
 key draft, selection, cached pages and watches when switching tabs or feature
 pages. Profile editing/deletion and disconnect close affected workspaces;
 closing a workspace explicitly warns about discarded drafts and stopped watches
-and renewal. Workspaces are in-memory and require reopening after reload.
-Feature navigation uses workspace-local memory history, not global deep links.
+and renewal. Browser URLs identify the selected connection and feature page, such
+as `/workspaces/Production/keys?view=list&prefix=%2Fsystem%2F&key=%2Fsystem%2Fexample`.
+Each workspace keeps an isolated router and draft state while the active one is
+synchronized with browser history. With a valid remembered session, refresh and
+browser reopening restore open workspace metadata and the requested page/view,
+prefix and selected key. Bookmarks and Back/Forward work independently of the
+in-memory workspace IDs. Expired sessions prompt for the saved connection and
+return to the original destination after authentication.
+
+Unsaved values, virtual drafts, running watches, renewals and in-flight writes are
+not persisted or automatically restarted after a full reload. Signed List cursors
+are not stored in URLs; the listing restarts at its first snapshot page while the
+selected key is re-read. Closing a workspace stops its tasks but is not logout;
+use **Disconnect all** or delete its profile to revoke remembered authentication.
 
 Open **Live updates** in the key-browser panel to watch a nonempty prefix from
 the loaded snapshot revision. The current live state remains visible when collapsed.
@@ -342,13 +418,42 @@ samples, not a browser benchmark or multi-node production performance guarantee.
 
 ### Credential and origin handling
 
-Saved browser profiles contain metadata only. Legacy stored passwords are
-removed on access; you must reauthenticate after reloading/opening a tab.
-Passwords remain in tab memory until disconnect, deletion, or tab closure;
-they are still sent as HTTP Basic credentials to the API. **Use HTTPS for
-non-local deployments.** Full short-lived server-side cookie sessions
-remain planned; these changes are not a claim of
-complete production security hardening.
+Saved browser profiles contain metadata only. Passwords are never placed in
+localStorage, sessionStorage, URLs or cookies; legacy stored passwords are scrubbed.
+
+**Remember login for 7 days** is optional. After verifying the supplied etcd
+credentials, Adminer retains them in server memory and issues an opaque,
+host-only **HttpOnly, Secure, SameSite=Strict** cookie with a seven-day lifetime.
+The UI stores only a non-secret connection reference and expiry alongside the
+profile; that reference cannot authenticate without the matching cookie. On
+startup, references must be confirmed by `GET /api/v1/sessions` before use.
+Each API request still uses and is authorized as that connection's etcd caller.
+Cookie-authenticated mutations additionally require an exact, nonempty Origin.
+
+- Production remembered login requires HTTPS. Behind TLS termination, set
+  `http.publicOrigin` to the actual HTTPS origin; arbitrary forwarded-protocol
+  headers are not trusted. Secure production cookies use the `__Host-` prefix.
+- A separate non-Secure, HttpOnly cookie is permitted only on loopback hosts
+  (`localhost`/loopback IPs) for local development. Non-local HTTP connections
+  cannot remember login and fall back to tab-memory credentials.
+- Expiry is seven days per remembered connection, not extended by normal reads.
+  Reauthentication explicitly renews it. Logout/deletion revokes the applicable
+  server reference; **Disconnect all** revokes all connections in that browser
+  session and clears its cookie. Logout remains available in read-only mode.
+- Server restart/redeployment invalidates all remembered logins. State is not
+  persisted to disk. Use a single replica or sticky routing to the same process;
+  a shared durable session store is not implemented.
+- State is bounded: 4,096 browser sessions, 16 remembered connections per browser,
+  16 KiB per credential record and a 32 MiB aggregate credential-byte budget.
+- Unchecking Remember keeps credentials only in tab memory and uses HTTP Basic
+  for API requests. CLI Basic authentication remains supported. Password-manager
+  autofill is available in either mode.
+
+Seven-day admin sessions are a convenience/security tradeoff: prefer restricted
+etcd accounts, avoid remembered login on shared devices, protect process memory
+and proxy logs, and disconnect when finished. HttpOnly reduces token/password
+exposure to JavaScript but does not stop a malicious same-origin script from
+performing actions. These controls are not a claim of complete production hardening.
 
 The API no longer enables wildcard CORS and rejects cross-origin browser
 mutations. For TLS termination at a reverse proxy, set `http.publicOrigin`
