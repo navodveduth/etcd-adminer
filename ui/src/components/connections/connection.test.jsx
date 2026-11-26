@@ -25,6 +25,7 @@ it('reauthenticates saved metadata without storing the password and supports dis
   );
   await user.click(screen.getByRole('button', { name: 'Open workspace' }));
   const username = screen.getByLabelText('Username');
+  expect(screen.queryByRole('checkbox', { name: 'Remember login for 7 days' })).not.toBeInTheDocument();
   expect(username).toHaveValue('alice');
   expect(username).toHaveAttribute('name', 'username');
   expect(username).toHaveAttribute('autocomplete', 'username');

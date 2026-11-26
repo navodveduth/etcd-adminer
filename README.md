@@ -7,7 +7,7 @@ editing, lazy project browsing, remembered logins and isolated workspaces.
 
 | Area            | Features                                                                                                                                                                                        |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Connections     | Named profiles, server-configured backends, connection diagnostics, password-manager autofill, optional 7-day remembered login, per-profile revocation and Disconnect all                       |
+| Connections     | Named profiles, server-configured backends, connection diagnostics, password-manager autofill, automatic 7-day remembered login, per-profile revocation and Disconnect all                      |
 | Navigation      | Up to four isolated workspaces, real bookmarkable URLs, browser Back/Forward, refresh/reopen restoration, saved prefix/List view/selected key, keyboard shortcuts                               |
 | Key browsing    | Backend immediate-child folder discovery, project-scoped subtree prefetch, lazy branch rendering, bounded List pagination, automatic debounced server-side prefix queries, one folder scrollbar |
 | Editor          | YAML/JSON/text, JSON formatting, exact full-path creation, revision-checked create/update, conflict-safe drafts, copy/reload, lease preservation/attachment/removal, right-aligned actions      |
@@ -421,7 +421,8 @@ samples, not a browser benchmark or multi-node production performance guarantee.
 Saved browser profiles contain metadata only. Passwords are never placed in
 localStorage, sessionStorage, URLs or cookies; legacy stored passwords are scrubbed.
 
-**Remember login for 7 days** is optional. After verifying the supplied etcd
+Browser logins are **remembered for 7 days automatically** where secure cookies
+are supported; no checkbox is required. After verifying the supplied etcd
 credentials, Adminer retains them in server memory and issues an opaque,
 host-only **HttpOnly, Secure, SameSite=Strict** cookie with a seven-day lifetime.
 The UI stores only a non-secret connection reference and expiry alongside the
@@ -445,9 +446,9 @@ Cookie-authenticated mutations additionally require an exact, nonempty Origin.
   a shared durable session store is not implemented.
 - State is bounded: 4,096 browser sessions, 16 remembered connections per browser,
   16 KiB per credential record and a 32 MiB aggregate credential-byte budget.
-- Unchecking Remember keeps credentials only in tab memory and uses HTTP Basic
-  for API requests. CLI Basic authentication remains supported. Password-manager
-  autofill is available in either mode.
+- Non-local HTTP falls back to tab-memory credentials and HTTP Basic for API
+  requests. CLI Basic authentication and API-level remembered-session opt-out
+  remain supported. Password-manager autofill is available in either mode.
 
 Seven-day admin sessions are a convenience/security tradeoff: prefer restricted
 etcd accounts, avoid remembered login on shared devices, protect process memory

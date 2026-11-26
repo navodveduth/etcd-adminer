@@ -12,8 +12,6 @@ import {
   Stack,
   TextField,
   Typography,
-  Checkbox,
-  FormControlLabel,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
@@ -29,7 +27,6 @@ import { useRememberSessions } from '../../data/context';
 
 export default function Connection({ onSessionChange, initialProfile }) {
   const rememberAvailable = useRememberSessions();
-  const [remember, setRemember] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
   const store = useMemo(() => new SessionStore(), []);
   const service = useMemo(() => new DataService(), []);
@@ -99,7 +96,7 @@ export default function Connection({ onSessionChange, initialProfile }) {
         password,
         profile.BackEnd,
         abort.signal,
-        { profile: profile.Name, remember: rememberAvailable && remember },
+        { profile: profile.Name, remember: rememberAvailable },
       );
       if (abort.signal.aborted) return;
       if (!success) {
@@ -268,21 +265,6 @@ export default function Connection({ onSessionChange, initialProfile }) {
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
               Use your browser password manager to save or autofill this login. Choose the entry for
               this backend and username.
-            </Typography>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={rememberAvailable && remember}
-                  disabled={!rememberAvailable || connecting}
-                  onChange={(event) => setRemember(event.target.checked)}
-                />
-              }
-              label="Remember login for 7 days"
-            />
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-              {rememberAvailable
-                ? 'Uses an HttpOnly session cookie, not browser-stored passwords. Avoid remembered login on shared devices. A server restart signs you out.'
-                : 'Remembered login requires HTTPS. This HTTP connection lasts until the page reloads or closes.'}
             </Typography>
           </DialogContent>
           <DialogActions>
