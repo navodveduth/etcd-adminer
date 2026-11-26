@@ -18,7 +18,6 @@ import {
 } from '@mui/material';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import CloseIcon from '@mui/icons-material/Close';
-import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
 import { EmptyState } from './components/shared/page';
 import { MemoryRouter, Navigate, Route, Routes } from 'react-router-dom';
 import DataService from './data/service';
@@ -281,7 +280,12 @@ function Shell({ mode, toggleMode }) {
               }}
               sx={{ minWidth: 0, gap: 1.5, px: 0.5 }}
             >
-              <StorageOutlinedIcon sx={{ display: { xs: 'none', sm: 'block' } }} />
+              <Box
+                component="img"
+                src="/images/logo.svg"
+                alt=""
+                sx={{ width: { xs: 24, sm: 28 }, height: { xs: 24, sm: 28 }, flexShrink: 0 }}
+              />
               <Typography
                 variant="h6"
                 component="span"
