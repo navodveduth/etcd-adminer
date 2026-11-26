@@ -162,26 +162,35 @@ try {
             },
           ],
         });
+      case '/api/v1/folders': {
+        const prefix = url.searchParams.get('prefix') ?? '';
+        let entries;
+        if (backend === 'prod') {
+          if (prefix === '') entries = [{ key: '/system', isDirectory: true }];
+          else if (prefix === '/system/')
+            entries = [{ key: '/system/driver-services', isDirectory: true }];
+          else if (prefix === '/system/driver-services/')
+            entries = Array.from({ length: 62 }, (_, i) => ({
+              key: `/system/driver-services/project-${String(i).padStart(2, '0')}`,
+              isDirectory: true,
+            }));
+          else
+            entries = Array.from({ length: prefix.includes('project-61') ? 94 : 100 }, (_, i) => ({
+              key: `${prefix}key-${i}`,
+              isDirectory: false,
+            }));
+        } else
+          entries =
+            prefix === ''
+              ? [{ key: '/app', isDirectory: true }]
+              : [{ key: '/app/a', isDirectory: false }];
+        return json({
+          items: entries.map((entry) => ({ ...entry, keyEncoding: 'utf8' })),
+          revision: '40',
+          hasMore: false,
+        });
+      }
       case '/api/v1/keys':
-        // Reproduce the deployed regression: a folder tree must include projects
-        // after the first 100 (and first 1,000) keys, without reading values.
-        if (backend === 'prod' && url.searchParams.get('limit') === '1000') {
-          const start = Number((url.searchParams.get('cursor') ?? 'folder-0').slice(7));
-          const end = Math.min(start + 1000, 6194);
-          return json({
-            items: Array.from({ length: end - start }, (_, offset) => {
-              const index = start + offset;
-              return {
-                key: `/system/driver-services/project-${String(Math.floor(index / 100)).padStart(2, '0')}/key-${String(index).padStart(4, '0')}`,
-                keyEncoding: 'utf8',
-                modRevision: '40',
-              };
-            }),
-            revision: '40',
-            hasMore: end < 6194,
-            ...(end < 6194 ? { nextCursor: `folder-${end}` } : {}),
-          });
-        }
         return json({
           items: denseKeys
             ? Array.from({ length: 100 }, (_, index) => ({
@@ -271,6 +280,16 @@ try {
   await page.getByRole('tab', { name: 'List', exact: true }).click();
   await page.getByRole('button', { name: '/app/a', exact: true }).click();
   await page.locator('.monaco-editor .view-lines').waitFor();
+  assert.ok(
+    (await page.getByRole('button', { name: 'Save', exact: true }).boundingBox()).y <
+      (await page.locator('.monaco-editor').boundingBox()).y,
+    'Save/Discard actions should be above the editor, not below a tall scroll',
+  );
+  assert.ok(
+    (await page.getByRole('button', { name: 'Refresh keys', exact: true }).boundingBox()).x >
+      (await page.getByRole('tab', { name: 'List', exact: true }).boundingBox()).x,
+    'Refresh icon should be at the right of the Folder/List tab row',
+  );
   await page.locator('.monaco-editor').click();
   await page.keyboard.press('ControlOrMeta+a');
   await page.keyboard.insertText('unsaved-development-draft');
@@ -296,7 +315,13 @@ try {
   await page.getByText('unsaved-development-draft', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Connections', exact: true }).click();
   await openProfile('Production');
-  await page.getByRole('status').filter({ hasText: '6194 keys in folder tree' }).waitFor();
+  await page.getByRole('status').filter({ hasText: 'Subfolders load on expansion' }).waitFor();
+  assert.equal(
+    requests.filter((request) => request.backend === 'prod' && request.path === '/api/v1/keys')
+      .length,
+    0,
+    'Folder browsing must not fetch every key page',
+  );
   const folders = page.getByRole('tree', { name: 'Key folders', exact: true });
   assert.ok(
     (await folders.getByRole('treeitem', { includeHidden: true }).count()) < 10,
@@ -306,6 +331,12 @@ try {
   await page.getByText('driver-services', { exact: true }).click();
   await page.getByText('project-00', { exact: true }).waitFor();
   await page.getByText('project-61', { exact: true }).waitFor();
+  assert.equal(
+    requests.filter((request) => request.backend === 'prod' && request.path === '/api/v1/folders')
+      .length,
+    3,
+    'Only root, system and driver-services should be fetched, never unopened project keys',
+  );
   assert.ok(
     (await folders.getByRole('treeitem', { includeHidden: true }).count()) < 150,
     'Opening the projects directory should only mount immediate children',
@@ -334,7 +365,7 @@ try {
   await page.getByRole('status').filter({ hasText: '1 keys on this page' }).waitFor();
   for (let attempt = 0; attempt < 3; attempt++) {
     await page.getByRole('tab', { name: 'Folder', exact: true }).click();
-    await page.getByRole('status').filter({ hasText: '6194 keys in folder tree' }).waitFor();
+    await page.getByRole('status').filter({ hasText: 'Subfolders load on expansion' }).waitFor();
     await page.getByRole('tab', { name: 'List', exact: true }).click();
     await page.getByRole('status').filter({ hasText: '1 keys on this page' }).waitFor();
     assert.equal(
@@ -489,8 +520,16 @@ try {
             );
             const codeBounds = await page.locator('.monaco-editor:visible').boundingBox();
             assert.ok(
-              codeBounds.y - editorBounds.y < 200,
-              'Editor metadata should not push the value area far down',
+              codeBounds.y - editorBounds.y < 260,
+              'Editor metadata and top action toolbar should remain compact',
+            );
+            const saveBounds = await page
+              .getByRole('button', { name: 'Save', exact: true })
+              .boundingBox();
+            assert.ok(
+              saveBounds.y < codeBounds.y &&
+                saveBounds.y + saveBounds.height < page.viewportSize().height,
+              'Save/Discard must remain above the value and within the initial viewport',
             );
           }
           await page.getByRole('button', { name: 'New key', exact: true }).click();
@@ -551,7 +590,7 @@ try {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await navigate('Keys');
   denseKeys = true;
-  await page.getByRole('button', { name: 'Restart / refresh', exact: true }).click();
+  await page.getByRole('button', { name: 'Refresh keys', exact: true }).click();
   await page
     .getByRole('button', {
       name: '/system/automation-services/driver-simulator/v1/t0002/util/driver-waiting-0-max-seconds',
@@ -642,7 +681,7 @@ try {
     requests.some((request) => request.path.endsWith('/renew') && request.backend === 'dev'),
   );
   console.log(
-    'Browser smoke passed: 6,194-key multi-page folder tree, workspace isolation/drafts, RBAC, live keys, renewal, typed batch/folder-copy confirmation, all pages at 375/720/768/1280/1440/1920px in both themes, scrolled long keys, stale/retry, shortcuts and close cleanup.',
+    'Browser smoke passed: backend-lazy folders for a 6,194-key fixture, single folder scrollbar, repeated List switches, top editor actions/refresh icon, workspace isolation/drafts, RBAC, live keys, renewal, typed confirmations and responsive layouts.',
   );
 } finally {
   await browser?.close();

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import Paper from '@mui/material/Paper';
 import Box from '@mui/material/Box';
 import Tabs from '@mui/material/Tabs';
@@ -10,14 +10,15 @@ import Alert from '@mui/material/Alert';
 import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Typography from '@mui/material/Typography';
-import FSNavigator from './tree';
+import FolderBrowser from './folderBrowser';
 import KeysList from './keysList';
 import EditorComponent from './editor';
 import CreateKeyDialog from './createKeyDialog';
 import AddIcon from '@mui/icons-material/Add';
 import { useDataService } from '../../data/context';
-import { buildKeyTree } from '../../data/keyTree';
-import { loadFolderKeys } from '../../data/folderKeys';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { useReadOnly } from '../../readOnly';
 import { Link } from 'react-router-dom';
 import { patchKeyPage, reconnectDelay } from '../../data/liveKeys';
@@ -53,7 +54,7 @@ export default function Keys() {
   const [addingKey, setAddingKey] = useState(false);
   const [createdKey, setCreatedKey] = useState('');
   useWorkspaceActivity('draft', dirty ? 'Unsaved draft' : '');
-  useWorkspaceActivity('keys-watch', live && prefix ? `Keys: ${liveStatus}` : '');
+  useWorkspaceActivity('keys-watch', view === 1 && live && prefix ? `Keys: ${liveStatus}` : '');
   const prefixRef = useRef(null);
   const activeKeyRef = useRef(activeKey);
   activeKeyRef.current = activeKey;
@@ -76,14 +77,14 @@ export default function Keys() {
     setSelected([]);
     setMembershipStale(false);
     setServerRevisions({});
+    if (view === 0) {
+      setLoading(false);
+      return () => controller.abort();
+    }
     if (prefixPending) return () => controller.abort();
-    const initial = view === 0 && cursor ? pageRef.current : null;
-    if (!initial) setPage({ items: [], hasMore: false, revision: '0' });
-    const request =
-      view === 0
-        ? loadFolderKeys(service, prefix, initial, controller.signal, setPage)
-        : service.GetKeyPage({ prefix, cursor, limit: 100 }, controller.signal);
-    request
+    setPage({ items: [], hasMore: false, revision: '0' });
+    service
+      .GetKeyPage({ prefix, cursor, limit: 100 }, controller.signal)
       .then((data) => {
         if (!controller.signal.aborted) setPage(data);
       })
@@ -102,7 +103,15 @@ export default function Keys() {
   }, [service, prefix, cursor, refresh, prefixPending, view]);
 
   useEffect(() => {
-    if (!live || !prefix || loading || prefixPending || error || page.revision === '0') {
+    if (
+      view !== 1 ||
+      !live ||
+      !prefix ||
+      loading ||
+      prefixPending ||
+      error ||
+      page.revision === '0'
+    ) {
       setLiveStatus('Off');
       return;
     }
@@ -174,7 +183,7 @@ export default function Keys() {
     };
     listen().catch(() => {});
     return () => controller.abort();
-  }, [live, prefix, loading, prefixPending, error, page.revision, service, cursor, refresh]);
+  }, [view, live, prefix, loading, prefixPending, error, page.revision, service, cursor, refresh]);
 
   const restart = useCallback(() => {
     setCursor(null);
@@ -182,13 +191,6 @@ export default function Keys() {
   }, []);
 
   const textItems = page.items.filter((item) => item.keyEncoding === 'utf8');
-  const tree = useMemo(
-    () =>
-      view === 0
-        ? buildKeyTree([...page.items.filter((item) => item.keyEncoding === 'utf8'), ...drafts])
-        : null,
-    [page.items, drafts, view],
-  );
 
   const selectKey = (key) => {
     if (key === activeKey) return;
@@ -341,22 +343,35 @@ export default function Keys() {
             variant="outlined"
             sx={{ p: 2, display: 'flex', flexDirection: 'column', minWidth: 0 }}
           >
-            <Tabs
-              value={view}
-              onChange={(_event, value) => {
-                // Do not render a 6,000-key folder index as List table rows for
-                // one commit before the query effect switches to a 100-key page.
-                setLoading(true);
-                setPage({ items: [], hasMore: false, revision: '0' });
-                setCursor(null);
-                setView(value);
-              }}
-              aria-label="Key view"
-              sx={{ mb: 1 }}
-            >
-              <Tab label="Folder" />
-              <Tab label="List" />
-            </Tabs>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+              <Tabs
+                value={view}
+                onChange={(_event, value) => {
+                  // Do not render a 6,000-key folder index as List table rows for
+                  // one commit before the query effect switches to a 100-key page.
+                  setLoading(true);
+                  setPage({ items: [], hasMore: false, revision: '0' });
+                  setCursor(null);
+                  setView(value);
+                }}
+                aria-label="Key view"
+                sx={{ flex: 1, minWidth: 0 }}
+              >
+                <Tab label="Folder" />
+                <Tab label="List" />
+              </Tabs>
+              <Tooltip title="Refresh keys">
+                <span>
+                  <IconButton
+                    aria-label="Refresh keys"
+                    onClick={restart}
+                    disabled={prefixPending || (view === 1 && loading)}
+                  >
+                    <RefreshIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            </Box>
             <Box sx={{ mb: 1 }}>
               <TextField
                 inputRef={prefixRef}
@@ -389,34 +404,20 @@ export default function Keys() {
                 }
               />
             </Box>
-            <Typography role="status" variant="caption" color="text.secondary" sx={{ my: 1 }}>
-              {loading || prefixPending ? (
-                view === 0 && !prefixPending ? (
-                  `Loading folders… ${page.items.length} keys loaded`
-                ) : (
+            {view === 1 && (
+              <Typography role="status" variant="caption" color="text.secondary" sx={{ my: 1 }}>
+                {loading || prefixPending ? (
                   'Updating results…'
-                )
-              ) : error ? (
-                'Listing incomplete — restart / refresh to retry.'
-              ) : (
-                <>
-                  {page.items.length} keys {view === 0 ? 'in folder tree' : 'on this page'} ·
-                  Snapshot revision <code>{page.revision}</code>
-                  {page.hasMore
-                    ? view === 0
-                      ? ' · Partial tree — more keys available'
-                      : ' · More pages available'
-                    : view === 0
-                      ? ' · All matching keys loaded'
-                      : ' · Last page'}
-                </>
-              )}
-            </Typography>
-            {view === 0 && page.hasMore && !loading && (
-              <Alert severity="warning" sx={{ mb: 1 }}>
-                This tree is incomplete. Load more keys below to reveal remaining projects, or enter
-                a narrower key prefix. Each load is limited to 10,000 keys.
-              </Alert>
+                ) : error ? (
+                  'Listing incomplete — refresh to retry.'
+                ) : (
+                  <>
+                    {page.items.length} keys on this page · Snapshot revision{' '}
+                    <code>{page.revision}</code>
+                    {page.hasMore ? ' · More pages available' : ' · Last page'}
+                  </>
+                )}
+              </Typography>
             )}
             {readOnly && (
               <Typography variant="caption" color="info.main" sx={{ mb: 1 }}>
@@ -431,7 +432,7 @@ export default function Keys() {
                 control={
                   <Checkbox
                     checked={live}
-                    disabled={!prefix || prefixPending || loading}
+                    disabled={view === 0 || !prefix || prefixPending || loading}
                     onChange={(event) => setLive(event.target.checked)}
                   />
                 }
@@ -442,27 +443,37 @@ export default function Keys() {
                   Enter a nonempty prefix to enable live updates.
                 </Typography>
               )}
+              {view === 0 && (
+                <Typography variant="caption">
+                  Use List view for live prefix updates. Refresh folders to discover changes.
+                </Typography>
+              )}
             </Box>
             {membershipStale && (
               <Alert severity="warning">
-                Live page membership may be incomplete or the watch needs resync. Restart / refresh
-                to load a fresh snapshot. Drafts are preserved.
+                Live page membership may be incomplete or the watch needs resync. Refresh to load a
+                fresh snapshot. Drafts are preserved.
               </Alert>
             )}
-            <ErrorState message={error} onRetry={restart} />
-            {textItems.length !== page.items.length && (
+            {view === 1 && <ErrorState message={error} onRetry={restart} />}
+            {view === 1 && textItems.length !== page.items.length && (
               <Alert severity="info">
                 {page.items.length - textItems.length} binary keys on this page cannot be edited in
                 the text view.
               </Alert>
             )}
-            {!loading && !prefixPending && !error && !page.items.length && !drafts.length && (
-              <EmptyState
-                compact
-                title="No keys on this page"
-                description="Try a different prefix, or create a key from the folder view when you have write access."
-              />
-            )}
+            {view === 1 &&
+              !loading &&
+              !prefixPending &&
+              !error &&
+              !page.items.length &&
+              !drafts.length && (
+                <EmptyState
+                  compact
+                  title="No keys on this page"
+                  description="Try a different prefix, or create a key from the folder view when you have write access."
+                />
+              )}
             <Box
               sx={{
                 ...(view === 0 && { maxHeight: { xs: '45vh', lg: '60vh' }, overflow: 'auto' }),
@@ -470,15 +481,21 @@ export default function Keys() {
               }}
             >
               {view === 0 ? (
-                <FSNavigator
-                  keys={tree}
-                  loading={loading || prefixPending}
-                  onKeyClick={selectKey}
-                  fetchKeys={restart}
-                  createFile={(key) => createDraft(key, false)}
-                  createDirectory={(key) => createDraft(key, true)}
-                  deleteKey={deleteKey}
-                />
+                prefixPending ? (
+                  <Typography role="status">Filtering…</Typography>
+                ) : (
+                  <FolderBrowser
+                    key={prefix}
+                    prefix={prefix}
+                    refresh={refresh}
+                    drafts={drafts}
+                    onKeyClick={selectKey}
+                    fetchKeys={restart}
+                    createFile={(key) => createDraft(key, false)}
+                    createDirectory={(key) => createDraft(key, true)}
+                    deleteKey={deleteKey}
+                  />
+                )
               ) : (
                 <KeysList
                   activeKey={activeKey}
@@ -506,17 +523,16 @@ export default function Keys() {
                 Preview deleting {selected.length} selected keys…
               </Button>
             )}
-            <Stack direction="row" spacing={1} useFlexGap sx={{ mt: 2, flexWrap: 'wrap' }}>
-              <Button onClick={restart} disabled={loading || prefixPending}>
-                Restart / refresh
-              </Button>
-              <Button
-                onClick={() => setCursor(page.nextCursor)}
-                disabled={loading || prefixPending || Boolean(error) || !page.hasMore}
-              >
-                {view === 0 ? 'Load more keys' : 'Next page'}
-              </Button>
-            </Stack>
+            {view === 1 && (
+              <Stack direction="row" spacing={1} useFlexGap sx={{ mt: 2, flexWrap: 'wrap' }}>
+                <Button
+                  onClick={() => setCursor(page.nextCursor)}
+                  disabled={loading || prefixPending || Boolean(error) || !page.hasMore}
+                >
+                  Next page
+                </Button>
+              </Stack>
+            )}
           </Paper>
         </Box>
         <Box sx={{ minWidth: 0 }}>

@@ -55,6 +55,8 @@ export default class DataService {
   };
 
   GetConfig = async (signal) => (await api.get('/api/getconfig', { signal })).data;
+  GetFolderPage = async (params, signal) =>
+    (await api.get('/api/v1/folders', { ...this.requestConfig(), params, signal })).data;
 
   GetClusterInfo = async (signal) =>
     (await api.get('/api/clusterinfo', { ...this.requestConfig(), signal })).data;

@@ -32,9 +32,11 @@ export default function FSNavigator(props) {
   const [newDirectoryDialogOpen, setnewDirectoryDialogOpen] = React.useState(false);
   const [newFileDialogOpen, setnewFileDialogOpen] = React.useState(false);
   const [duplicateSource, setDuplicateSource] = React.useState(null);
-  const [expanded, setExpanded] = React.useState(['1']);
+  const [expansion, setExpansion] = React.useState({ version: props.resetVersion, ids: ['1'] });
+  const expanded = expansion.version === props.resetVersion ? expansion.ids : ['1'];
   const [childLimits, setChildLimits] = React.useState({});
   const expandedIDs = new Set(expanded);
+  const visibleNodes = new Map();
 
   const handleContextMenu = (event, node) => {
     event.preventDefault();
@@ -83,18 +85,62 @@ export default function FSNavigator(props) {
   };
 
   const renderChildren = (nodes) => {
-    if (!nodes.children?.length) return null;
+    const remote = props.loadDirectory && nodes.type === 'directory' && !nodes.isVirtual;
+    const state = nodes.folderState ?? {};
+    if (!nodes.children?.length && (!remote || (state.loaded && !state.hasMore && !state.error)))
+      return null;
     if (!expandedIDs.has(nodes.id.toString())) {
       // Preserve the expansion affordance without mounting hidden descendants.
       return <TreeItem itemId={`unloaded:${nodes.id}`} label="Expand to show children" disabled />;
     }
-    const children = nodes.children.toSorted(
+    const children = (nodes.children ?? []).toSorted(
       (left, right) => Number(right.type === 'directory') - Number(left.type === 'directory'),
     );
-    const limit = childLimits[nodes.id] ?? 100;
+    const limit = remote ? children.length : (childLimits[nodes.id] ?? 100);
     return (
       <>
         {children.slice(0, limit).map((node) => renderTree(node))}
+        {state.loading && (
+          <TreeItem
+            itemId={`loading:${nodes.id}`}
+            disabled
+            label={<CircularProgress size={16} aria-label={`Loading ${nodes.name}`} />}
+          />
+        )}
+        {state.error && (
+          <TreeItem
+            itemId={`error:${nodes.id}`}
+            label={
+              <Alert severity="error">
+                {state.error}
+                <Button
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    props.loadDirectory(nodes, Boolean(state.loaded && state.nextCursor));
+                  }}
+                >
+                  Retry folder
+                </Button>
+              </Alert>
+            }
+          />
+        )}
+        {remote && state.hasMore && !state.error && (
+          <TreeItem
+            itemId={`next:${nodes.id}`}
+            label={
+              <Button
+                disabled={state.loading}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  props.loadDirectory(nodes, true);
+                }}
+              >
+                Load more in {nodes.name}
+              </Button>
+            }
+          />
+        )}
         {children.length > limit && (
           <TreeItem
             itemId={`more:${nodes.id}`}
@@ -115,36 +161,39 @@ export default function FSNavigator(props) {
     );
   };
 
-  const renderTree = (nodes) => (
-    <TreeItem
-      key={nodes.id}
-      itemId={nodes.id.toString()}
-      label={nodes.name}
-      type={nodes.type}
-      data-index={nodes.abspath}
-      data-is-virtual={nodes.isVirtual}
-      onClick={(event) => {
-        event.stopPropagation();
-        if (nodes.type === 'file' && !nodes.isVirtual) props.onKeyClick(nodes.abspath);
-      }}
-      onContextMenu={(event) => handleContextMenu(event, nodes)}
-      onKeyDown={(event) => {
-        if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
-          const position = event.currentTarget.getBoundingClientRect();
-          event.preventDefault();
+  const renderTree = (nodes) => {
+    visibleNodes.set(nodes.id.toString(), nodes);
+    return (
+      <TreeItem
+        key={nodes.id}
+        itemId={nodes.id.toString()}
+        label={nodes.name}
+        type={nodes.type}
+        data-index={nodes.abspath}
+        data-is-virtual={nodes.isVirtual}
+        onClick={(event) => {
           event.stopPropagation();
-          setContextMenu({ mouseX: position.left + 24, mouseY: position.top + 24 });
-          setContextMenuSelectedNode(nodes);
-        } else if (event.key === 'Enter' && nodes.type === 'file' && !nodes.isVirtual) {
-          event.preventDefault();
-          event.stopPropagation();
-          props.onKeyClick(nodes.abspath);
-        }
-      }}
-    >
-      {renderChildren(nodes)}
-    </TreeItem>
-  );
+          if (nodes.type === 'file' && !nodes.isVirtual) props.onKeyClick(nodes.abspath);
+        }}
+        onContextMenu={(event) => handleContextMenu(event, nodes)}
+        onKeyDown={(event) => {
+          if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+            const position = event.currentTarget.getBoundingClientRect();
+            event.preventDefault();
+            event.stopPropagation();
+            setContextMenu({ mouseX: position.left + 24, mouseY: position.top + 24 });
+            setContextMenuSelectedNode(nodes);
+          } else if (event.key === 'Enter' && nodes.type === 'file' && !nodes.isVirtual) {
+            event.preventDefault();
+            event.stopPropagation();
+            props.onKeyClick(nodes.abspath);
+          }
+        }}
+      >
+        {renderChildren(nodes)}
+      </TreeItem>
+    );
+  };
 
   const onConfirmationDialogCancel = () => {
     setdeleteConfirmationDialogOpen(false);
@@ -207,7 +256,16 @@ export default function FSNavigator(props) {
         <SimpleTreeView
           aria-label="Key folders"
           expandedItems={expanded}
-          onExpandedItemsChange={(_event, ids) => setExpanded(ids)}
+          onExpandedItemsChange={(_event, ids) =>
+            setExpansion({ version: props.resetVersion, ids })
+          }
+          onItemExpansionToggle={(_event, id, open) => {
+            const node = visibleNodes.get(id);
+            if (node) {
+              if (open) props.loadDirectory?.(node);
+              else props.cancelDirectory?.(node);
+            }
+          }}
           slots={{ collapseIcon: FolderOpenIcon, expandIcon: FolderIcon, endIcon: ArticleIcon }}
           sx={{ minWidth: 0 }}
         >

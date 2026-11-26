@@ -288,18 +288,23 @@ to the backend/user/credentials/query, expire after 10 minutes, and become
 invalid after an adminer restart. Compacted snapshots return HTTP 409; restart
 the listing. Prefixes are limited to 8 KiB and cursor tokens to 64 KiB.
 
-List view shows **one 100-key server page**. Folder view automatically collects
-up to ten 1,000-key pages of key summaries at the same snapshot, so projects
-beyond the first page are included in the tree. Progress is visible; a partial
-tree is explicitly labelled, with **Load more keys** to append another bounded
-batch or a prefix to narrow the query. Permission, cursor and compaction errors
-are surfaced, never presented as a complete tree. Values are not prefetched.
-The summary index is fetched upfront, but only expanded branches are rendered.
-Directories appear before keys; expanding a branch initially shows up to 100
-immediate children, with **Show more** for the rest. Collapsing it unmounts its
-descendants. The folder panel owns a single scrollbar. Switching to List clears
-the folder result before requesting its own bounded page, rather than briefly
-rendering the entire index as table rows.
+List view shows **one 100-key server page**. Folder view instead uses
+`GET /api/v1/folders?prefix=...&limit=100&cursor=...` to discover only immediate
+children (default 100, maximum 200 entries). The backend makes keys-only,
+limit-one seeks inside the caller's readable ranges, skipping each discovered
+directory's entire subtree. It does not scan or transfer all descendant key
+summaries. Expanding a folder fetches that branch; **Load more in …** continues
+only that folder. Each branch's signed cursor pins its own snapshot and is
+scoped to the caller, backend, credentials, prefix, limit and folder API.
+Permission, cursor and compaction errors are shown with an explicit retry;
+values are only fetched when selecting a key. A displayed folder means at least
+one readable descendant, not permission to read everything beneath it.
+Directories render before keys and collapsed branches are unmounted. Opened
+branches are cached for the current browse session; the top-right refresh icon
+clears that cache without changing editor drafts. Collapsing a loading branch,
+switching tabs or changing the prefix cancels outstanding requests. Folder view
+has one scrollbar. List view retains its separate pagination and live-prefix
+updates; refresh folders to discover new/deleted children.
 Substring filtering in List view applies only to that page; use the prefix field
 for server-side queries. The prefix is applied automatically after a 350 ms typing pause (Enter
 applies immediately); there is no Apply button. Changing it cancels stale reads,
@@ -315,6 +320,8 @@ The key workspace uses a compact header and top-aligned browser/editor panels.
 Browser width is adjustable in the header on desktop; live-update controls and
 editor **Expiration on save** settings expand on demand. Read-only users still see
 the key's current lease metadata, but no inactive expiration controls.
+Save/Discard and the other editor controls sit above a shorter, internally
+scrollable editor so actions do not require scrolling below the value.
 
 For a reproducible disposable-cluster 100k-key API benchmark, run
 `ETCD_TEST_LARGE=1 sh scripts/test-integration.sh -v`. This reports 20 first-page

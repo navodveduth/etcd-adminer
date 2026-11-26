@@ -272,26 +272,13 @@ export default function EditorComponent({
           </Stack>
         </Box>
       )}
-      {status === 'loading' && <LoadingState label="Loading key…" />}
-      {status === 'idle' && (
-        <EmptyState
-          title="Select a key"
-          description="Choose a key from the folder or list view to inspect its value, revision and expiration. Unsaved drafts stay in this workspace."
-        />
-      )}
-      {status === 'ready' && (
-        <Suspense fallback={<LoadingState label="Loading editor…" />}>
-          <MonacoEditor
-            height="60vh"
-            language={language}
-            theme={theme.palette.mode === 'dark' ? 'vs-dark' : 'light'}
-            value={value}
-            onChange={changeValue}
-            options={{ readOnly: readOnly || saving, automaticLayout: true }}
-          />
-        </Suspense>
-      )}
-      <Stack direction="row" spacing={1} useFlexGap sx={{ mt: 2, flexWrap: 'wrap' }}>
+      <Stack
+        aria-label="Editor actions"
+        direction="row"
+        spacing={1}
+        useFlexGap
+        sx={{ mb: 1.5, flexWrap: 'wrap' }}
+      >
         <Select
           size="small"
           value={language}
@@ -343,6 +330,25 @@ export default function EditorComponent({
           Copy draft
         </Button>
       </Stack>
+      {status === 'loading' && <LoadingState label="Loading key…" />}
+      {status === 'idle' && (
+        <EmptyState
+          title="Select a key"
+          description="Choose a key from the folder or list view to inspect its value, revision and expiration. Unsaved drafts stay in this workspace."
+        />
+      )}
+      {status === 'ready' && (
+        <Suspense fallback={<LoadingState label="Loading editor…" />}>
+          <MonacoEditor
+            height="clamp(220px, 42vh, 480px)"
+            language={language}
+            theme={theme.palette.mode === 'dark' ? 'vs-dark' : 'light'}
+            value={value}
+            onChange={changeValue}
+            options={{ readOnly: readOnly || saving, automaticLayout: true }}
+          />
+        </Suspense>
+      )}
       {copyNotice && (
         <Typography role="status" variant="caption" color="text.secondary" sx={{ mt: 1 }}>
           {copyNotice}

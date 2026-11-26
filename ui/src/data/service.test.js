@@ -14,6 +14,19 @@ const service = new DataService({ GetActiveSession: () => session });
 beforeEach(() => vi.resetAllMocks());
 
 describe('DataService', () => {
+  it('passes folder prefix, cursor and cancellation using caller-scoped credentials', async () => {
+    const page = { items: [], revision: '7', hasMore: false };
+    api.get.mockResolvedValue({ data: page });
+    const signal = new AbortController().signal;
+    const params = { prefix: '/system/', cursor: 'signed', limit: 100 };
+    await expect(service.GetFolderPage(params, signal)).resolves.toBe(page);
+    expect(api.get).toHaveBeenCalledWith('/api/v1/folders', {
+      params,
+      signal,
+      auth: { username: 'alice', password: 'secret' },
+      headers: { 'X-Backend': 'test' },
+    });
+  });
   it('passes create-only key revisions and cancellation to the workspace-scoped request', async () => {
     api.put.mockResolvedValue({ data: { revision: '42' } });
     const signal = new AbortController().signal;
