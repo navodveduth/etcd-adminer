@@ -130,6 +130,43 @@ func TestRBACIntegration(t *testing.T) {
 		Metrics, TransferBatch, ExportPage, UpdateKey, ListKeys, Leases, Lease, Watch http.HandlerFunc
 	}{features.Access, features.Cluster.Metrics, features.Transfer.TransferBatch, features.Transfer.ExportPage,
 		features.Keys.UpdateKey, features.Keys.ListKeys, features.Leases.Leases, features.Leases.Lease, features.Watch.Watch}
+	t.Run("exact key routing preserves control characters", func(t *testing.T) {
+		router := mux.NewRouter()
+		routes.Register(router, features, middlewares.NewRequestValidateMiddleware(provider, features.Sessions).ValidateRequest)
+		for _, suffix := range []string{"line\nbreak", "carriage\rreturn", "tab\tquote\"backslash\\日本語", "empty-value"} {
+			key := "/routing-fixture/" + suffix
+			value := "exact value for " + suffix
+			if suffix == "empty-value" {
+				value = ""
+			}
+			written, err := admin.Put(ctx, key, value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := httptest.NewRequest(http.MethodGet, "/api/keys?"+url.Values{"key": {key}}.Encode(), nil)
+			r.SetBasicAuth("root", password)
+			r.Header.Set("X-Backend", "test")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, r)
+			var result struct {
+				Key      string `json:"key"`
+				Value    string `json:"value"`
+				Revision string `json:"modRevision"`
+			}
+			if w.Code != 200 {
+				t.Fatalf("key %q: %d %s", key, w.Code, w.Body.String())
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+				t.Fatalf("key %q received a list instead of a record: %s", key, w.Body.String())
+			}
+			if result.Key != key || result.Value != value || result.Revision != strconv.FormatInt(written.Header.Revision, 10) {
+				t.Fatalf("wrong exact record for %q: %+v", key, result)
+			}
+			if _, err := admin.Delete(ctx, key); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
 	t.Run("RBAC administration and legacy protections", func(t *testing.T) {
 		invoke := func(method, path, user, pass, body string, action http.HandlerFunc, vars map[string]string) *httptest.ResponseRecorder {
 			r := httptest.NewRequest(method, path, strings.NewReader(body))

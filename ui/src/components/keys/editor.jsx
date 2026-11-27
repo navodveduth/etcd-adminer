@@ -41,6 +41,15 @@ export default function EditorComponent({
   const [lease, setLease] = useState('');
   const original = record?.value ?? '';
   const dirty = value !== original || leaseMode !== 'preserve';
+  const canSave = Boolean(
+    !readOnly &&
+    status === 'ready' &&
+    !saving &&
+    etcdKey &&
+    (isNewKey || dirty) &&
+    (isNewKey || record?.key === etcdKey) &&
+    (leaseMode !== 'attach' || /^-?[1-9]\d*$/.test(lease)),
+  );
   const [discardAction, setDiscardAction] = useState('');
   const [copyNotice, setCopyNotice] = useState('');
 
@@ -79,6 +88,15 @@ export default function EditorComponent({
         .FetchKey(etcdKey, controller.signal)
         .then((data) => {
           if (controller.signal.aborted || generation.current !== current) return;
+          if (
+            !data ||
+            data.key !== etcdKey ||
+            typeof data.value !== 'string' ||
+            typeof data.modRevision !== 'string' ||
+            !/^[1-9]\d*$/.test(data.modRevision)
+          ) {
+            throw new Error('Invalid exact-key response');
+          }
           setRecord(data);
           setValue(data.value);
           setStatus('ready');
@@ -123,7 +141,7 @@ export default function EditorComponent({
   };
 
   const save = async () => {
-    if (readOnly || status !== 'ready' || saving || !etcdKey) return;
+    if (!canSave) return;
     const current = generation.current;
     setSaving(true);
     setMessage(null);
@@ -202,11 +220,21 @@ export default function EditorComponent({
         sx={{ flexWrap: 'wrap', mb: 1.5, fontSize: 13, alignItems: 'center' }}
       >
         <StatusBadge
-          label={dirty ? 'Unsaved changes' : isNewKey ? 'New key draft' : 'Saved value'}
+          label={
+            dirty
+              ? 'Unsaved changes'
+              : isNewKey
+                ? 'New key draft'
+                : record
+                  ? 'Saved value'
+                  : status === 'error'
+                    ? 'Load failed'
+                    : 'Not loaded'
+          }
           color={dirty ? 'warning' : 'default'}
         />
         <span>
-          <b>Revision:</b> {record?.modRevision ?? 'New'}
+          <b>Revision:</b> {record?.modRevision ?? (isNewKey ? 'New' : 'Unavailable')}
         </span>
         <span>
           <b>Lease:</b> {record?.lease && String(record.lease) !== '0' ? record.lease : 'None'}
@@ -307,17 +335,7 @@ export default function EditorComponent({
           useFlexGap
           sx={{ ml: 'auto', justifyContent: 'flex-end', flexWrap: 'wrap', maxWidth: '100%' }}
         >
-          <Button
-            variant="contained"
-            onClick={save}
-            disabled={
-              readOnly ||
-              status !== 'ready' ||
-              saving ||
-              !etcdKey ||
-              (leaseMode === 'attach' && !/^-?[1-9]\d*$/.test(lease))
-            }
-          >
+          <Button variant="contained" onClick={save} disabled={!canSave}>
             Save
           </Button>
           <Button

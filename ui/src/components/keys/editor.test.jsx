@@ -1,4 +1,4 @@
-import { render, screen, act, waitFor } from '@testing-library/react';
+import { render, screen, act, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import EditorComponent from './editor';
@@ -62,6 +62,34 @@ it('saves with the exact revision string and preserves the draft on conflict', a
   expect(input).toHaveValue('draft');
 });
 
+it('enables Save only while an existing value differs and blocks unchanged keyboard saves', async () => {
+  const user = userEvent.setup();
+  fetchKey.mockResolvedValue({ key: '/key', value: 'original', modRevision: '42' });
+  render(<EditorComponent etcdKey="/key" />);
+  const input = await screen.findByRole('textbox', { name: 'Value' });
+  const save = screen.getByRole('button', { name: 'Save' });
+  expect(save).toBeDisabled();
+  fireEvent.keyDown(input, { key: 's', ctrlKey: true });
+  expect(putKey).not.toHaveBeenCalled();
+  await user.type(input, ' changed');
+  expect(save).toBeEnabled();
+  await user.clear(input);
+  await user.type(input, 'original');
+  expect(save).toBeDisabled();
+  fireEvent.keyDown(input, { key: 's', metaKey: true });
+  expect(putKey).not.toHaveBeenCalled();
+});
+
+it('allows an explicit new key to be created with an empty value', async () => {
+  const user = userEvent.setup();
+  putKey.mockResolvedValue(true);
+  render(<EditorComponent etcdKey="/new-empty" isNewKey />);
+  const save = screen.getByRole('button', { name: 'Save' });
+  await waitFor(() => expect(save).toBeEnabled());
+  await user.click(save);
+  expect(putKey).toHaveBeenCalledWith('/new-empty', '', '0');
+});
+
 it('resets consecutive new keys and never fetches a draft from etcd', async () => {
   const user = userEvent.setup();
   const { rerender } = render(<EditorComponent etcdKey="/new-one" isNewKey />);
@@ -77,6 +105,36 @@ it('does not allow saving when a key could not be loaded', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not load');
   expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   expect(putKey).not.toHaveBeenCalled();
+});
+
+it.each([
+  [],
+  { keys: [] },
+  { key: '/other', value: 'wrong key', modRevision: '42' },
+  { key: '/key', modRevision: '42' },
+  { key: '/key', value: '', modRevision: '0' },
+  { key: '/key', value: '', modRevision: 42 },
+])(
+  'rejects malformed exact-key responses instead of enabling a blank draft: %j',
+  async (response) => {
+    fetchKey.mockResolvedValue(response);
+    render(<EditorComponent etcdKey="/key" />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load this key');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument();
+    expect(screen.getByText('Load failed')).toBeInTheDocument();
+    expect(putKey).not.toHaveBeenCalled();
+  },
+);
+
+it('loads an empty value as a saved record with its exact revision', async () => {
+  const key = 'al-tam\n/system/config';
+  fetchKey.mockResolvedValue({ key, value: '', modRevision: '31402' });
+  render(<EditorComponent etcdKey={key} />);
+  expect(await screen.findByRole('textbox', { name: 'Value' })).toHaveValue('');
+  expect(screen.getByText('Saved value')).toBeInTheDocument();
+  expect(screen.getByText('31402')).toBeInTheDocument();
+  expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument();
 });
 
 it('disables mutation controls and editing for a read-only instance', async () => {

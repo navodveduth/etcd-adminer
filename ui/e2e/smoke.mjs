@@ -400,9 +400,19 @@ try {
       (await page.getByRole('tab', { name: 'List', exact: true }).boundingBox()).x,
     'Refresh icon should be at the right of the Folder/List tab row',
   );
+  assert.equal(
+    await page.getByRole('button', { name: 'Save', exact: true }).isEnabled(),
+    false,
+    'An unchanged saved key must not enable Save',
+  );
   await page.locator('.monaco-editor').click();
   await page.keyboard.press('ControlOrMeta+a');
   await page.keyboard.insertText('unsaved-development-draft');
+  assert.equal(
+    await page.getByRole('button', { name: 'Save', exact: true }).isEnabled(),
+    true,
+    'Editing a saved value must enable Save',
+  );
   await page.getByRole('button', { name: 'New key', exact: true }).click();
   const createDialog = page.getByRole('dialog', { name: 'New key & value', exact: true });
   await createDialog
