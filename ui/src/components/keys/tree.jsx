@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import FolderIcon from '@mui/icons-material/Folder';
-import { TreeItem } from '@mui/x-tree-view/TreeItem';
+import { TreeItem as MuiTreeItem } from '@mui/x-tree-view/TreeItem';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
@@ -22,6 +22,15 @@ import ArticleIcon from '@mui/icons-material/Article';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DuplicateFolderDialog from './duplicateFolderDialog';
 import { useReadOnly } from '../../readOnly';
+
+// MUI uses DOM IDs inside attribute selectors. Raw etcd paths (including tabs,
+// newlines, quotes and backslashes) must never become those IDs. Keep itemId
+// unchanged for tree state; a separate opaque ID also covers placeholder items.
+function TreeItem(props) {
+  const id = React.useId();
+  const safeID = Array.from(id, (character) => character.codePointAt(0).toString(16)).join('-');
+  return <MuiTreeItem {...props} id={`key-tree-${safeID}`} />;
+}
 
 export default function FSNavigator(props) {
   const readOnly = useReadOnly();

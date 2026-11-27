@@ -49,6 +49,8 @@ try {
   };
   const errors = [];
   const requests = [];
+  const unsafeFolder = 'tab\tline\nreturn\rquote"slash\\日本語';
+  const unsafePrefix = `/selector-fixture/${unsafeFolder}/`;
   let clusterUnavailable = false;
   let denseKeys = false;
   let copyingFolder = false;
@@ -225,7 +227,11 @@ try {
       case '/api/v1/folders': {
         const prefix = url.searchParams.get('prefix') ?? '';
         let entries;
-        if (backend === 'prod') {
+        if (prefix === '/selector-fixture/') {
+          entries = [{ key: unsafePrefix.slice(0, -1), isDirectory: true }];
+        } else if (prefix === unsafePrefix) {
+          entries = [{ key: `${unsafePrefix}value`, isDirectory: false }];
+        } else if (backend === 'prod') {
           if (prefix === '') entries = [{ key: '/system', isDirectory: true }];
           else if (prefix === '/system/')
             entries = [{ key: '/system/driver-services', isDirectory: true }];
@@ -878,6 +884,26 @@ try {
   await reopened.goBack();
   await reopened.waitForURL(savedURL);
   await reopened.getByText('prod-value', { exact: true }).waitFor();
+  await reopened
+    .getByRole('textbox', { name: 'Key prefix', exact: true })
+    .fill('/selector-fixture/');
+  await reopened.waitForURL((url) => url.searchParams.get('prefix') === '/selector-fixture/');
+  await reopened.getByRole('tab', { name: 'Folder', exact: true }).click();
+  await reopened.getByText('selector-fixture', { exact: true }).click();
+  const specialFolder = reopened.getByText(unsafeFolder.replace(/\s+/g, ' '), { exact: true });
+  await specialFolder.click();
+  await reopened.getByText('value', { exact: true }).click();
+  await reopened.waitForURL((url) => url.searchParams.get('key') === `${unsafePrefix}value`);
+  await reopened.getByText('prod-value', { exact: true }).waitFor();
+  await specialFolder.click();
+  await specialFolder.click();
+  await reopened.getByText('value', { exact: true }).waitFor();
+  assert.ok(
+    await reopened
+      .getByRole('treeitem')
+      .evaluateAll((items) => items.every((item) => /^key-tree-[a-zA-Z0-9_-]+$/.test(item.id))),
+    'Tree DOM IDs must not contain raw etcd path characters',
+  );
   await reopened.getByRole('button', { name: 'Connections', exact: true }).click();
   await reopened.getByRole('button', { name: 'Disconnect all', exact: true }).click();
   await reopened

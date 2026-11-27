@@ -20,6 +20,32 @@ it('selects the exact key without inspecting DOM parents', () => {
   expect(onKeyClick).toHaveBeenCalledWith('/config');
 });
 
+it.each([
+  'tab\tname',
+  'line\nbreak',
+  'carriage\rreturn',
+  'quote"name',
+  'slash\\name',
+  '日本語[folder]',
+])('keeps unsafe key bytes out of DOM IDs: %j', async (folder) => {
+  const user = userEvent.setup();
+  const onKeyClick = vi.fn();
+  const path = `/${folder}/value"\\\n`;
+  const tree = buildKeyTree([{ key: path }]);
+  const { container } = render(<FSNavigator keys={tree} onKeyClick={onKeyClick} />);
+  const folderItem = screen.getAllByRole('treeitem')[1];
+  await user.click(folderItem.querySelector('.MuiTreeItem-label'));
+  const file = screen.getAllByRole('treeitem').at(-1);
+  await user.click(file.querySelector('.MuiTreeItem-label'));
+  expect(onKeyClick).toHaveBeenLastCalledWith(path);
+  for (const item of container.querySelectorAll('[role="treeitem"]')) {
+    expect(item.id).toMatch(/^key-tree-[a-zA-Z0-9_-]+$/);
+  }
+  await user.click(folderItem.querySelector('.MuiTreeItem-label'));
+  await user.click(folderItem.querySelector('.MuiTreeItem-label'));
+  expect(screen.getAllByRole('treeitem')).toHaveLength(3);
+});
+
 it('offers folder duplication for persisted directories, not files or read-only connections', async () => {
   const user = userEvent.setup();
   const folders = {
